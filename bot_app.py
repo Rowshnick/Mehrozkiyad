@@ -42,6 +42,21 @@ STEP_READY_TO_CALCULATE = "READY"
 
 # --- توابع کمکی ---
 
+# 🛠️ [اصلاح اساسی] تابع کمکی برای Escape کردن تمام کاراکترهای رزرو شده MarkdownV2.
+# این تابع برای رفع خطای 400 Bad Request اضافه شده است.
+def _escape_markdown_v2(text: str) -> str:
+    """Escapes all reserved MarkdownV2 characters for use in Telegram messages."""
+    # لیست کامل کاراکترهای رزرو شده: _ * [ ] ( ) ~ ` > # + - = | { } . !
+    reserved_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    
+    # اطمینان از تبدیل به رشته
+    text = str(text) 
+    
+    for char in reserved_chars:
+        text = text.replace(char, f'\\{char}') 
+        
+    return text
+
 def get_user_state(user_id: int) -> Dict[str, Any]:
     """دریافت وضعیت جاری کاربر یا مقداردهی اولیه آن."""
     if user_id not in USER_STATE:
@@ -68,15 +83,25 @@ def reset_user_state(user_id: int) -> None:
 
 def build_chart_summary(chart_data: Dict[str, Any]) -> str:
     """ایجاد یک خلاصه زیبا از چارت برای کاربر."""
+    
+    # 🛠️ [اصلاح] متن خطا و کاراکترهای رزرو شده آن Escape شد
     if "error" in chart_data:
-        return f"❌ خطای محاسباتی: {chart_data['error']}\nلطفاً دوباره امتحان کنید."
+        # کاراکترهای : و . نیاز به Escape دارند.
+        error_msg = _escape_markdown_v2(chart_data['error'])
+        return f"❌ خطای محاسباتی\\: {error_msg}\nلطفاً دوباره امتحان کنید\\."
         
     summary = "✨ **خلاصه چارت نجومی شما** ✨\n\n"
     
     # اطلاعات ورودی
     state = USER_STATE.get(chart_data.get('user_id', 0), {})
-    summary += f"_زمان تولد:_ {state.get('date_fa', 'نامشخص')} {state.get('time_str', 'نامشخص')}\n"
-    summary += f"_محل تولد:_ {state.get('city_name', 'نامشخص')}\n\n"
+    
+    # 🛠️ [اصلاح] Escape کردن مقادیر dynamic ورودی کاربر
+    date_fa_safe = _escape_markdown_v2(state.get('date_fa', 'نامشخص'))
+    time_str_safe = _escape_markdown_v2(state.get('time_str', 'نامشخص'))
+    city_name_safe = _escape_markdown_v2(state.get('city_name', 'نامشخص'))
+    
+    summary += f"_زمان تولد:_ {date_fa_safe} {time_str_safe}\n"
+    summary += f"_محل تولد:_ {city_name_safe}\n\n"
 
     # موقعیت خورشید و ماه (نمونه از astrology_core)
     # ⚠️ توجه: این قسمت فرض می‌کند که ساختار chart_data را می‌دانید.
@@ -86,10 +111,16 @@ def build_chart_summary(chart_data: Dict[str, Any]) -> str:
             name = data.get('name_fa', planet_key)
             sign = data['sign_fa']
             pos = data.get('position_str', 'نامشخص')
-            summary += f"*{name}:* {pos} {sign} \n"
+            
+            # 🛠️ [اصلاح اساسی] Escape کردن pos که حاوی کاراکتر اعشاری (نقطه .) است
+            escaped_pos = _escape_markdown_v2(pos)
+            
+            # 🛠️ [اصلاح] Escape کردن کاراکتر : در متن ثابت
+            summary += f"*{name}\\:* {escaped_pos} {sign} \n"
             
     summary += "\n---\n"
-    summary += "⚠️ *توجه:* این یک چارت ساده (فقط خورشید و ماه) است. برای چارت کامل و تحلیل دقیق به بخش فروشگاه مراجعه کنید."
+    # 🛠️ [اصلاح اساسی] Escape کردن نقطه‌های . در متن هشدار ثابت
+    summary += "⚠️ *توجه:* این یک چارت ساده (فقط خورشید و ماه) است\\. برای چارت کامل و تحلیل دقیق به بخش فروشگاه مراجعه کنید\\."
     
     return summary
 
@@ -120,7 +151,8 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str) -> No
 
     menu, submenu, action = parts[0], parts[1], parts[2]
     
-    response_text = "لطفاً یک گزینه را انتخاب کنید:"
+    # 🛠️ [اصلاح] Escape کردن کاراکتر : در متن ثابت
+    response_text = "لطفاً یک گزینه را انتخاب کنید\\:"
     reply_markup = None
     state = get_user_state(chat_id)
 
@@ -130,23 +162,27 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str) -> No
             await handle_start_command(chat_id)
             return
         elif submenu == 'SERVICES':
-            response_text = "بخش خدمات: چه نوع تحلیل یا ابزاری نیاز دارید؟"
+            response_text = "بخش خدمات\\: چه نوع تحلیل یا ابزاری نیاز دارید؟"
             reply_markup = keyboards.services_menu_keyboard()
         elif submenu == 'SHOP':
-            response_text = "بخش فروشگاه: برای سفارش چارت‌های کامل، تحلیل‌های شخصی و محصولات."
+            # 🛠️ [اصلاح] Escape کردن نقطه‌ها و : در متن ثابت
+            response_text = "بخش فروشگاه\\: برای سفارش چارت‌های کامل، تحلیل‌های شخصی و محصولات\\."
             reply_markup = keyboards.shop_menu_keyboard()
         elif submenu == 'SOCIALS':
-            response_text = "شبکه‌های اجتماعی و لینک‌های ارتباطی ما:"
+            # 🛠️ [اصلاح] Escape کردن نقطه‌ها و : در متن ثابت
+            response_text = "شبکه‌های اجتماعی و لینک‌های ارتباطی ما\\:"
             reply_markup = keyboards.socials_menu_keyboard()
         elif submenu == 'ABOUT':
-            response_text = "درباره ما: ما یک تیم تخصصی آسترولوژی و علوم باطنی هستیم. هدف ما ارائه دقیق‌ترین و شخصی‌سازی‌شده‌ترین تحلیل‌هاست."
+            # 🛠️ [اصلاح] Escape کردن نقطه‌ها و : در متن ثابت
+            response_text = "درباره ما\\: ما یک تیم تخصصی آسترولوژی و علوم باطنی هستیم\\. هدف ما ارائه دقیق‌ترین و شخصی‌سازی‌شده‌ترین تحلیل‌هاست\\."
             reply_markup = keyboards.back_to_main_menu_keyboard()
 
     # مسیریابی منوی خدمات
     elif menu == 'SERVICES':
         if submenu == 'ASTRO':
             if action == '0':
-                response_text = "خدمات آسترولوژی: تولید چارت تولد یا ابزارهای دیگر."
+                # 🛠️ [اصلاح] Escape کردن کاراکتر : در متن ثابت
+                response_text = "خدمات آسترولوژی\\: تولید چارت تولد یا ابزارهای دیگر\\."
                 reply_markup = keyboards.astrology_menu_keyboard()
             elif action == 'CHART_INPUT':
                 response_text = "لطفاً تاریخ تولد خود را به فرمت شمسی (مثلاً *1370/01/01*) ارسال کنید\\."
@@ -154,7 +190,8 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str) -> No
                 state['step'] = STEP_INPUT_DATE
             
         elif submenu == 'GEM':
-            response_text = "خدمات سنگ‌شناسی:"
+            # 🛠️ [اصلاح] Escape کردن کاراکتر : در متن ثابت
+            response_text = "خدمات سنگ‌شناسی\\:"
             reply_markup = keyboards.gem_menu_keyboard()
             
         # ... سایر زیرمنوها (SIGIL, HERB) ...
@@ -168,7 +205,8 @@ async def handle_text_message(chat_id: int, text: str) -> None:
     """هندلر پیام‌های متنی از کاربر."""
     state = get_user_state(chat_id)
     current_step = state['step']
-    response_text = "ورودی نامعتبر. لطفاً مطابق درخواست قبلی، اطلاعات را وارد کنید."
+    # 🛠️ [اصلاح] Escape کردن نقطه‌ها و : در متن ثابت
+    response_text = "ورودی نامعتبر\\. لطفاً مطابق درخواست قبلی، اطلاعات را وارد کنید\\."
     reply_markup = keyboards.back_to_main_menu_keyboard()
 
     if current_step == STEP_INPUT_DATE:
@@ -202,7 +240,9 @@ async def handle_text_message(chat_id: int, text: str) -> None:
         lat, lon, tz = await utils.get_coordinates_from_city(city_name)
         
         if lat is None or lon is None:
-            response_text = f"متأسفانه شهر *{city_name}* پیدا نشد\\. لطفاً نام شهر را با دقت بیشتری وارد کنید\\."
+            # 🛠️ [اصلاح] Escape کردن نام شهر و نقطه‌ها در متن ثابت
+            escaped_city_name = _escape_markdown_v2(city_name)
+            response_text = f"متأسفانه شهر *{escaped_city_name}* پیدا نشد\\. لطفاً نام شهر را با دقت بیشتری وارد کنید\\."
             state['step'] = STEP_INPUT_CITY # می‌مانیم تا دوباره تلاش کند
         else:
             state['city_name'] = city_name # ذخیره نام شهر
@@ -277,4 +317,3 @@ async def webhook_handler(request: Request):
 async def health_check():
     """بررسی سلامت سرویس."""
     return {"status": "ok", "message": "Bot is running. Webhook path is /<BOT_TOKEN>"}
-
