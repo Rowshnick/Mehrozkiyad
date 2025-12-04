@@ -10,7 +10,7 @@ import datetime # 👈 اصلاح: ایمپورت اضافه شد
 import pytz     # 👈 اصلاح: ایمپورت اضافه شد
 
 # ایمپورت‌های ماژول‌های داخلی (باید در کنار این فایل وجود داشته باشند)
-import utils
+import utils # 💡 از اینجا تابع escape_markdown_v2 فراخوانی می‌شود
 import keyboards
 import astrology_core
 from persiantools.jdatetime import JalaliDateTime
@@ -42,20 +42,7 @@ STEP_READY_TO_CALCULATE = "READY"
 
 # --- توابع کمکی ---
 
-# 🛠️ [اصلاح اساسی] تابع کمکی برای Escape کردن تمام کاراکترهای رزرو شده MarkdownV2.
-# این تابع برای رفع خطای 400 Bad Request اضافه شده است.
-def _escape_markdown_v2(text: str) -> str:
-    """Escapes all reserved MarkdownV2 characters for use in Telegram messages."""
-    # لیست کامل کاراکترهای رزرو شده: _ * [ ] ( ) ~ ` > # + - = | { } . !
-    reserved_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    
-    # اطمینان از تبدیل به رشته
-    text = str(text) 
-    
-    for char in reserved_chars:
-        text = text.replace(char, f'\\{char}') 
-        
-    return text
+# ❌ حذف تابع _escape_markdown_v2 (این تابع به utils.py منتقل شده است)
 
 def get_user_state(user_id: int) -> Dict[str, Any]:
     """دریافت وضعیت جاری کاربر یا مقداردهی اولیه آن."""
@@ -84,10 +71,10 @@ def reset_user_state(user_id: int) -> None:
 def build_chart_summary(chart_data: Dict[str, Any]) -> str:
     """ایجاد یک خلاصه زیبا از چارت برای کاربر."""
     
-    # 🛠️ [اصلاح] متن خطا و کاراکترهای رزرو شده آن Escape شد
+    # 🛠️ [اصلاح] استفاده از utils.escape_markdown_v2
     if "error" in chart_data:
         # کاراکترهای : و . نیاز به Escape دارند.
-        error_msg = _escape_markdown_v2(chart_data['error'])
+        error_msg = utils.escape_markdown_v2(chart_data['error'])
         return f"❌ خطای محاسباتی\\: {error_msg}\nلطفاً دوباره امتحان کنید\\."
         
     summary = "✨ **خلاصه چارت نجومی شما** ✨\n\n"
@@ -95,25 +82,23 @@ def build_chart_summary(chart_data: Dict[str, Any]) -> str:
     # اطلاعات ورودی
     state = USER_STATE.get(chart_data.get('user_id', 0), {})
     
-    # 🛠️ [اصلاح] Escape کردن مقادیر dynamic ورودی کاربر
-    date_fa_safe = _escape_markdown_v2(state.get('date_fa', 'نامشخص'))
-    time_str_safe = _escape_markdown_v2(state.get('time_str', 'نامشخص'))
-    city_name_safe = _escape_markdown_v2(state.get('city_name', 'نامشخص'))
+    # 🛠️ [اصلاح] استفاده از utils.escape_markdown_v2 برای مقادیر dynamic ورودی کاربر
+    date_fa_safe = utils.escape_markdown_v2(state.get('date_fa', 'نامشخص'))
+    time_str_safe = utils.escape_markdown_v2(state.get('time_str', 'نامشخص'))
+    city_name_safe = utils.escape_markdown_v2(state.get('city_name', 'نامشخص'))
     
     summary += f"_زمان تولد:_ {date_fa_safe} {time_str_safe}\n"
     summary += f"_محل تولد:_ {city_name_safe}\n\n"
 
     # موقعیت خورشید و ماه (نمونه از astrology_core)
-    # ⚠️ توجه: این قسمت فرض می‌کند که ساختار chart_data را می‌دانید.
-    # بهتر است از یک لیست سیارات مجاز استفاده کنید.
     for planet_key, data in chart_data.items():
         if isinstance(data, dict) and 'sign_fa' in data:
             name = data.get('name_fa', planet_key)
             sign = data['sign_fa']
             pos = data.get('position_str', 'نامشخص')
             
-            # 🛠️ [اصلاح اساسی] Escape کردن pos که حاوی کاراکتر اعشاری (نقطه .) است
-            escaped_pos = _escape_markdown_v2(pos)
+            # 🛠️ [اصلاح اساسی] استفاده از utils.escape_markdown_v2 برای position_str (حاوی .)
+            escaped_pos = utils.escape_markdown_v2(pos)
             
             # 🛠️ [اصلاح] Escape کردن کاراکتر : در متن ثابت
             summary += f"*{name}\\:* {escaped_pos} {sign} \n"
@@ -197,8 +182,6 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str) -> No
         # ... سایر زیرمنوها (SIGIL, HERB) ...
 
     # ارسال پاسخ نهایی
-    # ⚠️ نیاز به utils.edit_message برای ویرایش پیام قبلی
-    # فرض می‌کنیم utils.send_message در اینجا کافی است
     await utils.send_message(BOT_TOKEN, chat_id, response_text, reply_markup)
 
 async def handle_text_message(chat_id: int, text: str) -> None:
@@ -222,7 +205,6 @@ async def handle_text_message(chat_id: int, text: str) -> None:
     elif current_step == STEP_INPUT_TIME:
         # بررسی فرمت زمان HH:MM
         try:
-            # ⚠️ اصلاح: استفاده از datetime که در بالای فایل ایمپورت شد
             time_obj = datetime.datetime.strptime(text, "%H:%M").time()
             state['time_str'] = text
             state['time_obj'] = time_obj
@@ -236,12 +218,11 @@ async def handle_text_message(chat_id: int, text: str) -> None:
         
         # 1. دریافت مختصات و منطقه زمانی (عملیات Blocking I/O که در utils آسنکرون شده است)
         await utils.send_message(BOT_TOKEN, chat_id, "⏳ در حال جستجوی شهر و منطقه زمانی شما\\...", None)
-        # ⚠️ نیاز به چک کردن تابع get_coordinates_from_city در utils برای آسنکرون بودن
         lat, lon, tz = await utils.get_coordinates_from_city(city_name)
         
         if lat is None or lon is None:
-            # 🛠️ [اصلاح] Escape کردن نام شهر و نقطه‌ها در متن ثابت
-            escaped_city_name = _escape_markdown_v2(city_name)
+            # 🛠️ [اصلاح] استفاده از utils.escape_markdown_v2 برای نام شهر
+            escaped_city_name = utils.escape_markdown_v2(city_name)
             response_text = f"متأسفانه شهر *{escaped_city_name}* پیدا نشد\\. لطفاً نام شهر را با دقت بیشتری وارد کنید\\."
             state['step'] = STEP_INPUT_CITY # می‌مانیم تا دوباره تلاش کند
         else:
@@ -255,7 +236,6 @@ async def handle_text_message(chat_id: int, text: str) -> None:
             dt_local = jdate.togregorian().replace(hour=time_obj.hour, minute=time_obj.minute, second=0)
             
             # اعمال منطقه زمانی و تبدیل به UTC
-            # ⚠️ اصلاح: استفاده از pytz که در بالای فایل ایمپورت شد
             dt_local_with_tz = tz.localize(dt_local)
             birth_time_utc = dt_local_with_tz.astimezone(pytz.utc)
             
