@@ -1,153 +1,355 @@
 import os
-import logging
-from fastapi import FastAPI, Request
-import telegram
-from telegram import Update
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters, CallbackContext
+import httpx
+import asyncio
+import pytz 
+import json
+from typing import Optional, Tuple, Dict, Any
+from fastapi import FastAPI, Request, HTTPException
+from pydantic import BaseModel, Field
+from geopy.geocoders import Nominatim
+from persiantools.jdatetime import JalaliDateTime
+from dotenv import load_dotenv
 
-# پیکربندی اولیه
-# توکن ربات از متغیر محیطی خوانده می شود
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
-if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN":
-    logging.warning("TELEGRAM_BOT_TOKEN is not set. Bot will not function correctly without it.")
+# Load environment variables (like BOT_TOKEN) from .env if running locally
+load_dotenv() 
 
-# تنظیم لاگ‌گیری
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+# ----------------------------------------------------------------------
+# GLOBAL CONFIGURATION AND STATE MANAGEMENT
+# ----------------------------------------------------------------------
 
-# دیکشنری برای ذخیره وضعیت کاربران
-# کلید: user_id (شناسه کاربر)، مقدار: state (وضعیت فعلی)
-user_states = {}
-# دیکشنری برای ذخیره داده‌های موقت کاربر
-user_data = {}
+# The bot token must be fetched once from the environment
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+if not BOT_TOKEN:
+    print("FATAL ERROR: BOT_TOKEN environment variable not set.")
 
-# تعریف وضعیت‌ها (States)
-# این اعداد مشخص کننده مراحل مختلف مکالمه هستند.
-STATE_START = 0
-STATE_ASKING_NAME = 1
-STATE_ASKING_CONFIRMATION = 2
+# --- State Constants ---
+STATE_CITY = 1
+STATE_DATE = 2
 STATE_DONE = 3
 
+# --- In-Memory State Storage ---
+# NOTE: This uses an in-memory dictionary for state. State will be lost if the server restarts.
+# For production, replace this with Firestore or Redis persistence.
+USER_DATA: Dict[int, Dict[str, Any]] = {}
 
-# --- توابع هندلر ---
+# ----------------------------------------------------------------------
+# TELEGRAM PAYLOAD MODELS (for FastAPI validation)
+# ----------------------------------------------------------------------
 
-def start(update: Update, context: CallbackContext) -> None:
-    """پاسخ به فرمان /start و شروع مکالمه."""
-    user_id = update.effective_user.id
-    user_states[user_id] = STATE_ASKING_NAME
-    # حذف داده‌های قبلی برای شروع مجدد
-    if user_id in user_data:
-        del user_data[user_id]
+class Message(BaseModel):
+    message_id: int
+    text: Optional[str] = None
+    chat: Dict[str, Any]
+    date: int
+
+class CallbackQuery(BaseModel):
+    id: str
+    data: Optional[str] = None
+    message: Optional[Message] = None
+    from_user: Dict[str, Any] = Field(alias='from')
+
+class UpdatePayload(BaseModel):
+    update_id: int
+    message: Optional[Message] = None
+    callback_query: Optional[CallbackQuery] = None
+
+# ----------------------------------------------------------------------
+# HELPER FUNCTIONS 
+# ----------------------------------------------------------------------
+
+# --- Functions for Sending Messages ---
+
+async def send_message(chat_id: int, text: str, reply_markup: Optional[Dict[str, Any]] = None):
+    """ارسال یک پیام متنی به کاربر."""
+    if not BOT_TOKEN:
+        print("Error: BOT_TOKEN is not set, cannot send message.")
+        return
         
-    update.message.reply_text(
-        'سلام! من ربات Mehrozkiyad هستم. برای شروع، لطفاً نام کامل خود را وارد کنید.'
-    )
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        'chat_id': chat_id,
+        'text': text,
+        # Use MarkdownV2 for rich formatting
+        'parse_mode': 'MarkdownV2', 
+        'disable_web_page_preview': True
+    }
+    if reply_markup:
+        payload['reply_markup'] = reply_markup
+        
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.post(url, json=payload)
+            response.raise_for_status() 
+            # print(f"Message sent successfully to chat ID {chat_id}. Status: {response.status_code}")
+        except httpx.HTTPStatusError as e:
+            # Often caused by unescaped MarkdownV2 characters
+            print(f"HTTP error sending message (check MarkdownV2 escaping): {e}. Response text: {e.response.text}")
+        except httpx.RequestError as e:
+            print(f"Request error sending message: {e}")
 
+async def answer_callback_query(callback_query_id: str, text: Optional[str] = None):
+    """پاسخ به یک callback_query برای حذف حالت بارگذاری."""
+    if not BOT_TOKEN:
+        return
+        
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
+    payload = {
+        'callback_query_id': callback_query_id,
+        'text': text or '',
+        'show_alert': False
+    }
+    async with httpx.AsyncClient() as client:
+        try:
+            await client.post(url, json=payload)
+        except Exception as e:
+            print(f"Error in answer_callback_query: {e}")
 
-def handle_message(update: Update, context: CallbackContext) -> None:
-    """پردازش پیام‌های متنی بر اساس وضعیت کاربر."""
-    user_id = update.effective_user.id
-    text = update.message.text.strip()
-    # اگر کاربر در user_states نباشد، وضعیت پیش‌فرض (STATE_START) را در نظر می‌گیریم.
-    current_state = user_states.get(user_id, STATE_START)
+# --- Utility Functions ---
 
-    logger.info(f"User {user_id} is in state {current_state} with message: {text}")
+def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
+    """تبدیل رشته تاریخ شمسی (مثلاً 1370/01/01) به شیء JalaliDateTime."""
+    try:
+        parts = date_str.split('/')
+        if len(parts) == 3:
+            year = int(parts[0])
+            month = int(parts[1])
+            day = int(parts[2])
+            # Basic validation
+            if 1300 < year < 1500 and 1 <= month <= 12 and 1 <= day <= 31:
+                return JalaliDateTime(year, month, day)
+        return None
+    except Exception:
+        return None
 
-    if current_state == STATE_ASKING_NAME:
-        # وضعیت ۱: نام کاربر را دریافت و درخواست تأیید می‌کنیم
-        if len(text) > 0:
-            user_data[user_id] = {'name': text}
-            # **تغییر وضعیت به مرحله تأیید**
-            user_states[user_id] = STATE_ASKING_CONFIRMATION 
-            update.message.reply_text(
-                f'بسیار خب، نام شما «{text}» ثبت شد.\n'
-                f'لطفاً برای تأیید نهایی، کلمه "بله" یا "تایید" را بفرستید.'
+async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Optional[float], Optional[pytz.BaseTzInfo]]:
+    """جستجو برای مختصات جغرافیایی و منطقه زمانی شهر."""
+    try:
+        geolocator = Nominatim(user_agent="astro_telegram_bot")
+        
+        loop = asyncio.get_event_loop()
+        # Use run_in_executor to make the blocking geopy call asynchronous
+        location = await loop.run_in_executor(
+            None, 
+            lambda: geolocator.geocode(city_name, addressdetails=True, timeout=10)
+        )
+        
+        if location:
+            # Simplified timezone logic
+            # For better results, use a library like timezonefinder-python
+            if 'iran' in location.raw.get('display_name', '').lower():
+                 tz = pytz.timezone('Asia/Tehran')
+            else:
+                 tz = pytz.utc
+                 
+            return location.latitude, location.longitude, tz
+        
+        return None, None, None
+    except Exception as e:
+        print(f"Error in get_coordinates_from_city: {e}")
+        return None, None, None
+
+# --- Escape Functions ---
+
+def escape_markdown_v2(text: str) -> str:
+    """
+    کاراکترهای رزرو شده MarkdownV2 را برای استفاده در متن عادی Escape می‌کند.
+    """
+    text = str(text) 
+    # Reserved characters in MarkdownV2 that must be escaped
+    reserved_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    
+    for char in reserved_chars:
+        text = text.replace(char, f'\\{char}') 
+        
+    return text
+
+def escape_code_block(text: str) -> str:
+    """
+    فقط کاراکترهای بک‌تیک و بک‌اسلش را برای استفاده در داخل کد بلاک Escape می‌کند.
+    """
+    text = str(text) 
+    text = text.replace('\\', '\\\\') 
+    text = text.replace('`', '\\`')
+    return text
+
+# ----------------------------------------------------------------------
+# CORE LOGIC: State Machine and Update Processing
+# ----------------------------------------------------------------------
+
+async def handle_start_command(chat_id: int):
+    """شروع مجدد یا آغاز مکالمه."""
+    # Reset or initialize user state
+    USER_DATA[chat_id] = {'state': STATE_CITY}
+    
+    # Define a simple inline keyboard for the main menu if needed, or just ask for city
+    # reply_markup = {
+    #     "inline_keyboard": [[{"text": "شروع مجدد", "callback_data": "/start"}]]
+    # }
+
+    response_text = escape_markdown_v2("به ربات اخترشناسی خوش آمدید\\! برای شروع، لطفا *نام کامل شهر محل تولد* خود را به فارسی وارد کنید\\.")
+    await send_message(chat_id, response_text)
+
+async def process_message_by_state(chat_id: int, text: str, current_state: int):
+    """پردازش پیام متنی بر اساس مرحله فعلی کاربر."""
+    
+    if current_state == STATE_CITY:
+        city_name = text.strip()
+        
+        # 1. Look up coordinates and timezone
+        lat, lon, tz = await get_coordinates_from_city(city_name)
+        
+        if lat and lon and tz:
+            # Success: Store data and move to the next state
+            USER_DATA[chat_id]['city'] = city_name
+            USER_DATA[chat_id]['lat'] = lat
+            USER_DATA[chat_id]['lon'] = lon
+            USER_DATA[chat_id]['timezone'] = tz.zone
+            USER_DATA[chat_id]['state'] = STATE_DATE
+            
+            response_text = escape_markdown_v2(
+                f"شهر شما \\(*{city_name}*\\) با موفقیت ثبت شد\\.\n"
+                f"مرحله بعد: لطفا *تاریخ تولد شمسی* خود را با فرمت صحیح \\(مثلا: 1370/01/01\\) ارسال کنید\\."
             )
         else:
-            update.message.reply_text('لطفاً نامی معتبر وارد کنید.')
+            # Failure: Ask again
+            response_text = escape_markdown_v2(
+                f"متاسفانه نتوانستم مختصات دقیقی برای شهر \\(*{city_name}*\\) پیدا کنم\\.\n"
+                f"لطفا نام شهر را با حروف فارسی و کامل بنویسید و دوباره تلاش کنید\\."
+            )
+            # Stay in STATE_CITY
+            
+        await send_message(chat_id, response_text)
+        
+    elif current_state == STATE_DATE:
+        date_str = text.strip()
+        jdate = parse_persian_date(date_str)
+        
+        if jdate:
+            # Success: Store data and finish the conversation flow (STATE_DONE)
+            USER_DATA[chat_id]['date_of_birth'] = date_str
+            USER_DATA[chat_id]['jdate'] = jdate.isoformat()
+            USER_DATA[chat_id]['state'] = STATE_DONE
+            
+            # --- FINAL CALCULATION / SUMMARY ---
+            city = USER_DATA[chat_id]['city']
+            tz = USER_DATA[chat_id]['timezone']
+            
+            final_summary = (
+                f"\\*اطلاعات ثبت شده\\*\n"
+                f"شهر: {escape_markdown_v2(city)}\n"
+                f"تاریخ تولد: {escape_markdown_v2(date_str)}\n"
+                f"منطقه زمانی: {escape_markdown_v2(tz)}"
+            )
+            
+            response_text = escape_markdown_v2(
+                f"تبریک می‌گویم\\! اطلاعات شما کامل شد\\.\n\n"
+                f"{final_summary}\n\n"
+                f"اکنون می‌توانید محاسبه اصلی اخترشناسی را انجام دهید یا با دستور /start دوباره شروع کنید\\."
+            )
+            
+            await send_message(chat_id, response_text)
+            
+            # Optionally: Clear data completely after done (if not needed for main menu)
+            # USER_DATA.pop(chat_id, None)
 
-    elif current_state == STATE_ASKING_CONFIRMATION:
-        # وضعیت ۲: منتظر تأیید نهایی از کاربر هستیم
-        
-        # ** بخش حیاتی برای رفع مشکل تکرار **
-        clean_text = text.lower().replace(' ', '')
-        
-        # بررسی شرط تأیید (با کلمات رایج فارسی)
-        if 'بله' in clean_text or 'تایید' in clean_text or 'تأیید' in clean_text:
-            
-            # --- تغییر وضعیت موفقیت‌آمیز و قطعی ---
-            # 1. وضعیت را به پایان (STATE_DONE) تغییر می‌دهیم.
-            user_states[user_id] = STATE_DONE 
-            
-            name = user_data.get(user_id, {}).get('name', 'دوست عزیز')
-            
-            update.message.reply_text(
-                f'تأیید شد! متشکرم، {name}.\n'
-                f'اکنون مکالمه‌ی ما وارد مرحله جدید و کاربردی شده است. برای دیدن دستورات اصلی /help را بزنید.'
+        else:
+            # Failure: Ask again
+            response_text = escape_markdown_v2(
+                f"فرمت تاریخ \\(*{date_str}*\\) معتبر نیست\\.\n"
+                f"لطفا تاریخ تولد شمسی را دقیقا به صورت \\(مثلا: 1370/01/01\\) ارسال کنید\\."
             )
-            
-            # اگر داده‌های موقت زیادی دارید، می‌توانید با: del user_data[user_id] آنها را پاک کنید.
-            
-        elif current_state != STATE_DONE and 'بله' not in clean_text and 'تایید' not in clean_text:
-            # اگر کاربر چیزی غیر از تأیید بفرستد، حرفش را به عنوان نام جدید در نظر می‌گیریم
-            # و به حالت پرسش نام برمی‌گردیم تا بتواند تصحیح کند.
-            # در این مثال، صرفاً یک پیام راهنما می‌دهیم.
-            name = user_data.get(user_id, {}).get('name', '...')
-            update.message.reply_text(
-                f'متوجه نشدم. اگر نام «{name}» صحیح است، لطفاً فقط کلمه "بله" را ارسال کنید.\n'
-                f'اگر نام اشتباه است، نام صحیح را دوباره وارد کنید.'
-            )
-            # اگر دوباره نام فرستاد، در مرحله بعدی این بلاک اجرا می‌شود:
-            # user_states[user_id] = STATE_ASKING_NAME # اگر بخواهید امکان تغییر نام را بدهید
+            # Stay in STATE_DATE
+            await send_message(chat_id, response_text)
 
     elif current_state == STATE_DONE:
-        # وضعیت ۳: مکالمه تمام شده و ربات آماده وظایف اصلی است.
-        name = user_data.get(user_id, {}).get('name', 'دوست')
-        update.message.reply_text(
-            f'سلام {name}. من آماده انجام وظیفه اصلی خود هستم. چه کاری می‌توانم برایتان انجام دهم؟'
-        )
-
-    else:
-        # اگر وضعیت نامشخص بود، به شروع برمی‌گردد.
-        update.message.reply_text('لطفاً با فرمان /start دوباره شروع کنید.')
-        user_states[user_id] = STATE_START
+        # User is already done, send the main menu prompt or echo
+        response_text = escape_markdown_v2("شما قبلا اطلاعات خود را تکمیل کرده‌اید\\.\nبرای شروع یک مکالمه جدید یا ویرایش اطلاعات، دستور \\/start را ارسال کنید\\.")
+        await send_message(chat_id, response_text)
 
 
-# --- تنظیمات FastAPI و Dispatcher ---
+async def process_update(update: UpdatePayload):
+    """منطق اصلی پردازش به‌روزرسانی‌های دریافتی از تلگرام."""
+    
+    # 1. Handle regular messages
+    if update.message:
+        msg = update.message
+        chat_id = msg.chat.get('id')
+        text = msg.text
+        
+        if not chat_id:
+            print("Warning: Received message without chat_id.")
+            return
 
-app = FastAPI(title="Mehrozkiyad Telegram Bot Webhook")
-bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
-dispatcher = Dispatcher(bot, None, use_context=True)
+        # Get current state, or default to STATE_DONE if no data exists
+        user_state = USER_DATA.get(chat_id, {}).get('state', STATE_DONE)
 
-# اضافه کردن هندلرها به Dispatcher
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+        # Handle Commands (always check first)
+        if text and text.startswith('/start'):
+            print(f"Processing /start from chat {chat_id}")
+            await handle_start_command(chat_id)
+            return
+        
+        # Handle regular text messages based on state
+        if text:
+            await process_message_by_state(chat_id, text, user_state)
+            return
 
+    # 2. Handle callback queries (if using inline buttons)
+    if update.callback_query:
+        cbq = update.callback_query
+        chat_id = cbq.message.chat.get('id') if cbq.message else None
+        data = cbq.data
+        
+        print(f"Processing callback query from chat {chat_id}: {data}")
+
+        if cbq.id:
+            await answer_callback_query(cbq.id, text="درخواست شما دریافت شد.")
+
+        if chat_id and data == '/start':
+            # Handle /start from inline button if needed
+            await handle_start_command(chat_id)
+            return
+
+        if chat_id:
+            # Default response for other callbacks
+            response_text = escape_markdown_v2(f"شما دکمه‌ای با داده: `{data}` را فشار دادید\\.")
+            await send_message(chat_id, response_text)
+            return
+
+
+# ----------------------------------------------------------------------
+# FASTAPI SETUP AND ROUTES
+# ----------------------------------------------------------------------
+
+app = FastAPI()
+
+# 1. Health Check Route
+@app.get("/")
+async def root():
+    """A simple endpoint to check if the service is running."""
+    return {"status": "ok", "message": "Astro Telegram Bot is running. Send Webhooks to the /<BOT_TOKEN> path."}
+
+# 2. The CRUCIAL Webhook Route
+# The path MUST be exactly the BOT_TOKEN string (or a secret hash)
+@app.post(f"/{BOT_TOKEN}")
+async def telegram_webhook(update: UpdatePayload):
+    """Handles incoming Telegram updates."""
+    try:
+        await process_update(update)
+    except Exception as e:
+        # Log the error but still return 200 OK to Telegram to prevent retry floods
+        print(f"ERROR during update processing: {e}")
+        pass 
+        
+    # Always return 200 OK fast
+    return {"status": "success"}
+
+# 3. Startup Event
 @app.on_event("startup")
 async def startup_event():
-    """تنظیم وب‌هوک در زمان راه‌اندازی."""
-    webhook_url = os.getenv("WEBHOOK_URL")
-    if webhook_url:
-        # نکته: ما از توکن به عنوان بخشی از مسیر وب‌هوک برای امنیت استفاده می‌کنیم
-        full_webhook_url = f"{webhook_url}/{TELEGRAM_BOT_TOKEN}" 
-        await bot.set_webhook(url=full_webhook_url)
-        logger.info(f"Webhook set to: {full_webhook_url}")
-    else:
-        logger.warning("WEBHOOK_URL environment variable is not set.")
-
-# مسیر وب‌هوک که تلگرام به آن پیام می‌فرستد
-@app.post(f"/{TELEGRAM_BOT_TOKEN}")
-async def webhook(request: Request):
-    """دریافت به‌روزرسانی‌ها از تلگرام و ارسال به Dispatcher."""
-    try:
-        data = await request.json()
-        update = Update.de_json(data, bot)
-        dispatcher.process_update(update)
-    except Exception as e:
-        logger.error(f"Error processing update: {e}")
-    return {"ok": True}
-
-@app.get("/")
-def read_root():
-    return {"status": "Mehrozkiyad Bot is running and waiting for webhook calls."}
+    """Ensure the BOT_TOKEN is set before starting."""
+    if not BOT_TOKEN:
+        print("FATAL: Cannot start. BOT_TOKEN is missing.")
+        raise RuntimeError("BOT_TOKEN is not configured.")
+    print("FastAPI Bot Application Started.")
 
