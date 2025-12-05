@@ -95,3 +95,23 @@ def back_to_main_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
         [create_button("بازگشت به منوی اصلی 🔙", callback_data='MAIN|WELCOME|0')],
     ]
     return create_keyboard(keyboard)
+
+# --- ۸. منوی چارت تولد (پس از محاسبه) ---
+def birth_chart_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
+    """منوی کیبورد اینلاین برای نمایش نتایج چارت تولد."""
+    keyboard = [
+        [
+            create_button("موقعیت سیارات 🪐", callback_data='CHART|PLANETS|0'),
+            create_button("وضعیت خانه‌ها 🏡", callback_data='CHART|HOUSES|0'),
+        ],
+        [
+            create_button("زوایای سیارات (Aspects) 📐", callback_data='CHART|ASPECTS|0'),
+        ],
+        [
+            create_button("محاسبه دوباره 🔄", callback_data='SERVICES|ASTRO|CHART_INPUT'),
+            create_button("بازگشت به خدمات ↩️", callback_data='MAIN|SERVICES|0'),
+        ]
+    ]
+    return create_keyboard(keyboard)
+
+# 💡 نکته: این کیبورد دکمه‌های "PLANETS", "HOUSES" و "ASPECTS" را که در هندلر `handle_chart_menu_actions` استفاده می‌شوند، ایجاد می‌کند.
