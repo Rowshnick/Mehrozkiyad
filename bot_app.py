@@ -1,161 +1,269 @@
+# ======================================================================
+# ماژول اصلی ربات تلگرام با استفاده از FastAPI (نسخه نهایی و اصلاح شده)
+# ======================================================================
+
+from fastapi import FastAPI, Request, HTTPException, Body
+from typing import Dict, Any, Optional
 import os
-from contextlib import asynccontextmanager
-from typing import Dict, Any
+import datetime 
+import pytz     
+import asyncio
+from contextlib import asynccontextmanager # 👈 برای Lifespan
 
-from fastapi import FastAPI, Request, HTTPException
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+# ایمپورت‌های ماژول‌های داخلی
+import utils
+import keyboards
+import astrology_core
+import main_sajil
+from persiantools.jdatetime import JalaliDateTime
 
-# استخراج توکن ربات از متغیر محیطی
-# Extract bot token from environment variable
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-if not TOKEN:
-    # در محیط واقعی، این خطا باعث توقف برنامه می‌شود تا از اجرای بدون توکن جلوگیری شود.
-    raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set.")
+# --- تنظیمات ضروری ---
 
-# تعریف مسیر وب‌هوک (این مسیر شامل توکن است تا با URL ارسالی توسط تلگرام تطابق یابد)
-# Define the webhook path (this path includes the token to match the URL sent by Telegram)
-WEBHOOK_PATH = f"/{TOKEN}"
-# توجه: آدرس دامنه اپلیکیشن شما باید جایگزین شود تا وب‌هوک به درستی تنظیم شود
-# Note: Your application's domain address must be replaced for the webhook to be set correctly
-WEBHOOK_URL = f"https://YOUR_APP_DOMAIN{WEBHOOK_PATH}" 
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-# تابع کمکی برای فرار (Escape) دادن کاراکترهای خاص در MarkdownV2
-# Helper function to escape special characters in MarkdownV2
-def escape_markdown_v2(text: str) -> str:
-    """
-    Escapes special characters for Telegram MarkdownV2 parsing mode.
-    این تابع کاراکترهای خاص را با پیشوند بک‌اسلش '\\' فرار می‌دهد.
-    """
-    # کاراکترهای خاص در MarkdownV2
-    # Special characters in MarkdownV2
-    special_chars = [
-        '_', '*', '[', ']', '(', ')', '~', '`', '>', '#',
-        '+', '-', '=', '|', '{', '}', '.', '!'
-    ]
-    for char in special_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
+if not BOT_TOKEN:
+    print("FATAL ERROR: BOT_TOKEN environment variable is not set.")
+    # می‌توانیم اینجا یک Exception پرتاب کنیم یا از یک مقدار پیش‌فرض استفاده کنیم.
 
-# توابع هندلر
-# Handler functions
-async def start(update: Update, context: Any) -> None:
-    """Handles the /start command."""
-    # پیام خوش‌آمدگویی
-    welcome_message = (
-        "به ربات آزمایشی خوش آمدید\\!\n"
-        "این ربات با استفاده از FastAPI و Python Telegram Bot اجرا شده است\\.\n"
-        "شما می‌توانید با فرستادن هر متنی، یک پاسخ ساده دریافت کنید\\.\n\n"
-        "دستورات موجود:\n"
-        "\\- /start: شروع مجدد و نمایش این پیام\\.\n"
-        "\\- /hello: یک پیام سلام ساده\\."
+# --- وضعیت کاربر (User State) ---
+
+USER_STATE: Dict[int, Dict[str, Any]] = {}
+
+def get_user_state(chat_id: int) -> Dict[str, Any]:
+    """دریافت یا ایجاد وضعیت کاربر."""
+    if chat_id not in USER_STATE:
+        USER_STATE[chat_id] = {
+            'step': 'START',  # وضعیت فعلی کاربر: START, AWAITING_DATE, AWAITING_CITY, SAJIL_INPUT
+            'data': {}        # داده‌های موقت (مانند تاریخ تولد یا شهر)
+        }
+    return USER_STATE[chat_id]
+
+
+# --- توابع هندلینگ پیام ---
+
+# 🛠️ تابع جدید برای ارسال پیام خوش آمدگویی
+async def handle_start_command(chat_id: int):
+    state = get_user_state(chat_id)
+    state['step'] = 'WELCOME'
+    state['data'] = {}
+    
+    welcome_message = utils.escape_markdown_v2(
+        "✨ به ربات طالع‌بینی و سجیل خوش آمدید\\!\\n"\
+        "برای شروع، می‌توانید از منوی خدمات در زیر استفاده کنید\\."
     )
     
-    # اطمینان از فرار (Escape) دادن صحیح کاراکترهای خاص
-    await update.message.reply_text(
-        text=welcome_message,
-        parse_mode='MarkdownV2'
+    # 💡 استفاده از send_message که به صورت پیش‌فرض MarkdownV2 را اعمال می‌کند
+    await utils.send_message(BOT_TOKEN, chat_id, welcome_message, keyboards.main_menu_keyboard())
+
+
+async def handle_text_message(chat_id: int, text: str):
+    state = get_user_state(chat_id)
+    step = state['step']
+    
+    # 1. هندلینگ ورود داده برای چارت تولد (تاریخ)
+    if step == 'AWAITING_DATE':
+        jdate = utils.parse_persian_date(text)
+        if jdate:
+            state['data']['birth_date'] = jdate
+            state['step'] = 'AWAITING_CITY'
+            # 💡 Escape کردن متن خروجی
+            msg = utils.escape_markdown_v2(
+                f"✅ تاریخ تولد شما \\({jdate.strftime('%Y/%m/%d')}\\) ثبت شد\\.\\n"\
+                "حالا نام *شهر تولد* خود را به فارسی وارد کنید\\."
+            )
+            await utils.send_message(BOT_TOKEN, chat_id, msg)
+        else:
+            msg = utils.escape_markdown_v2("❌ فرمت تاریخ نامعتبر است\\.\\n لطفاً تاریخ را به صورت YYYY/MM/DD (مثلاً 1370/01/01) وارد کنید\\.")
+            await utils.send_message(BOT_TOKEN, chat_id, msg)
+
+    # 2. هندلینگ ورود داده برای چارت تولد (شهر)
+    elif step == 'AWAITING_CITY':
+        city_name = text
+        # ⚠️ عملیات شبکه (geopy) باید در یک Executor اجرا شود
+        lat, lon, tz = await utils.get_coordinates_from_city(city_name)
+        
+        if lat is not None and lon is not None:
+            state['data']['city_name'] = city_name
+            state['data']['latitude'] = lat
+            state['data']['longitude'] = lon
+            state['data']['timezone'] = tz
+            
+            state['step'] = 'CHART_READY'
+            
+            # 💡 Escape کردن متن خروجی (به خصوص مختصات اعشاری)
+            msg = utils.escape_markdown_v2(
+                f"✅ شهر *{city_name}* ثبت شد\\.\\n"\
+                f"مختصات\\: {lat}, {lon}\\n"\
+                f"منطقه زمانی\\: {tz}\\n\\n"\
+                "آماده برای محاسبه چارت تولد\\."
+            )
+            
+            await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.birth_chart_menu_keyboard())
+            
+        else:
+            msg = utils.escape_markdown_v2("❌ شهر مورد نظر پیدا نشد\\.\\n لطفاً نام شهر را دقیق‌تر وارد کنید\\.")
+            await utils.send_message(BOT_TOKEN, chat_id, msg)
+
+    # 3. هندلینگ ورود داده برای سجیل
+    elif step == 'SAJIL_INPUT':
+        await main_sajil.run_sajil_workflow(chat_id, text)
+        state['step'] = 'WELCOME' # بازگشت به منوی اصلی
+
+    # 4. هندلینگ در حالات دیگر (مانند WELCOME یا CHART_READY)
+    else:
+        msg = utils.escape_markdown_v2("لطفاً از دکمه‌های منوی زیر استفاده کنید یا /start را بزنید\\.")
+        await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
+
+
+async def handle_callback_query(chat_id: int, callback_id: str, data: str):
+    state = get_user_state(chat_id)
+    parts = data.split('|')
+    menu = parts[0]
+    submenu = parts[1]
+    param = parts[2] if len(parts) > 2 else '0'
+
+    # 1. هندلینگ منوی اصلی
+    if menu == 'MAIN':
+        if submenu == 'SERVICES':
+            state['step'] = 'SERVICES_MENU'
+            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً سرویس مورد نظر را انتخاب کنید\\."), keyboards.services_menu_keyboard())
+        elif submenu == 'SHOP':
+            state['step'] = 'SHOP_MENU'
+            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("به فروشگاه خدمات خوش آمدید\\!"), keyboards.shop_menu_keyboard())
+        elif submenu == 'SOCIALS':
+            state['step'] = 'SOCIALS_MENU'
+            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لینک‌های ارتباطی ما\\:"), keyboards.socials_menu_keyboard())
+        elif submenu == 'WELCOME':
+            await handle_start_command(chat_id) # بازگشت به منوی اصلی
+
+    # 2. هندلینگ زیرمنوی خدمات
+    elif menu == 'SERVICES':
+        if submenu == 'ASTRO':
+            if param == 'CHART_INPUT':
+                state['step'] = 'AWAITING_DATE'
+                await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی \\(مثلاً 1370/01/01\\) وارد کنید\\."))
+            elif param == 'CHART_CALC':
+                await handle_chart_calculation(chat_id, state)
+                
+        elif submenu == 'SAJIL':
+            state['step'] = 'SAJIL_INPUT'
+            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً کلمه یا اعداد مورد نظر برای تولید سجیل را وارد کنید\\."))
+            
+        elif submenu == 'GEM':
+            # بازگشت به منوی خدمات
+             state['step'] = 'SERVICES_MENU'
+             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً سرویس مورد نظر را انتخاب کنید\\."), keyboards.services_menu_keyboard())
+
+
+    # 3. هندلینگ زیرمنوی چارت تولد
+    elif menu == 'CHART':
+        await handle_chart_menu_actions(chat_id, state, param)
+
+
+    # 4. بستن اخطار Callback
+    await utils.answer_callback_query(BOT_TOKEN, callback_id)
+
+
+async def handle_chart_calculation(chat_id: int, state: Dict[str, Any]):
+    """انجام محاسبات اصلی چارت تولد."""
+    
+    date = state['data'].get('birth_date')
+    lat = state['data'].get('latitude')
+    lon = state['data'].get('longitude')
+    tz = state['data'].get('timezone')
+    
+    if not all([date, lat, lon, tz]):
+        msg = utils.escape_markdown_v2("❌ اطلاعات کافی \\(تاریخ، شهر\\) برای محاسبه چارت تولد وجود ندارد\\.")
+        await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
+        return
+
+    # ⚠️ در اینجا باید زمان پیش‌فرض را فرض کنیم (مثلاً ظهر 12:00)
+    # ⚠️ Skyfield با تاریخ میلادی کار می‌کند
+    dt_gregorian = date.to_gregorian().replace(hour=12, minute=0, second=0) 
+    
+    # 💡 محاسبات اصلی نجومی
+    chart_data = astrology_core.calculate_birth_chart(
+        dt_gregorian, 
+        lat, 
+        lon, 
+        tz
     )
-
-async def hello(update: Update, context: Any) -> None:
-    """Handles the /hello command."""
-    await update.message.reply_text("سلام به شما\\! امیدوارم روز خوبی داشته باشید\\.", parse_mode='MarkdownV2')
-
-async def echo(update: Update, context: Any) -> None:
-    """Echos the user message."""
-    user_text = update.message.text
-    # پیام کاربر را Escape می‌کنیم تا در MarkdownV2 خطایی رخ ندهد و آن را در داخل '`' قرار می‌دهیم.
-    response_text = f"شما گفتید: `{escape_markdown_v2(user_text)}`"
-    await update.message.reply_text(response_text, parse_mode='MarkdownV2')
+    
+    # ذخیره داده‌های چارت برای نمایش‌های بعدی
+    state['data']['chart_data'] = chart_data 
+    
+    # تولید پیام خلاصه
+    summary_text = astrology_core.format_chart_summary(chart_data, date, state['data']['city_name'])
+    
+    await utils.send_message(BOT_TOKEN, chat_id, summary_text, keyboards.birth_chart_menu_keyboard())
 
 
-# تنظیمات اپلیکیشن تلگرام
-# Telegram application setup
-application = ApplicationBuilder().token(TOKEN).build()
+async def handle_chart_menu_actions(chat_id: int, state: Dict[str, Any], action: str):
+    """هندل کردن اکشن‌های مربوط به نمایش چارت (مانند نمایش سیارات، خانه‌ها)."""
+    
+    chart_data = state['data'].get('chart_data')
+    if not chart_data:
+        msg = utils.escape_markdown_v2("❌ لطفاً ابتدا چارت تولد خود را محاسبه کنید\\.")
+        await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.services_menu_keyboard())
+        return
+        
+    response_text = ""
+    
+    if action == 'PLANETS':
+        response_text = astrology_core.format_planet_positions(chart_data)
+    elif action == 'HOUSES':
+        # ⚠️ نیاز به منطق House System
+        response_text = utils.escape_markdown_v2("🏡 محاسبه خانه‌ها نیاز به پیاده‌سازی سیستم‌های House \\(مانند Koch/Placidus\\) دارد\\.")
+    elif action == 'ASPECTS':
+        # ⚠️ نیاز به منطق Aspects
+        response_text = utils.escape_markdown_v2("📐 محاسبه زوایای سیارات \\(Aspects\\) نیاز به منطق تخصصی دارد\\.")
+        
+    await utils.send_message(BOT_TOKEN, chat_id, response_text, keyboards.birth_chart_menu_keyboard())
+    
+    
+# --- پیکربندی FastAPI ---
 
-# افزودن هندلرها
-# Add handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("hello", hello))
-# یک MessageHandler برای پاسخ دادن به پیام‌های متنی غیردستوری
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-
-
-# تابع مدیریت چرخه حیات FastAPI
-# FastAPI lifecycle management function
+# 🛠️ [اصلاح حیاتی]: حذف تابع تنظیم وب‌هوک در startup
+# تابع lifespan برای تنظیم Webhook که باعث خطا می‌شد، حذف شد.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Sets up the webhook on startup and cleans up on shutdown.
-    """
+    # این بخش در صورت نیاز به اجرای کدهای آسنکرون در هنگام شروع یا پایان برنامه استفاده می‌شود
     print("INFO: FastAPI Bot Application Starting...")
-    try:
-        # تنظیم وب‌هوک برای شروع
-        # Set the webhook on startup
-        # توجه: YOUR_APP_DOMAIN باید با دامنه واقعی شما جایگزین شود.
-        await application.bot.set_webhook(url=WEBHOOK_URL)
-        print(f"INFO: Webhook set to: {WEBHOOK_URL}")
-        print("INFO: FastAPI Bot Application Started and ready for webhooks.")
-    except Exception as e:
-        print(f"ERROR: Could not set webhook: {e}")
-        pass # ادامه اجرای برنامه حتی اگر وب‌هوک تنظیم نشود
-    
-    # اجرای کدهای اپلیکیشن در پس‌زمینه
-    # Run application code in the background
-    await application.initialize()
-    await application.post_init(application.bot, application._bot_data)
-    await application.updater.start()
-    
+    # ⚠️ بخش مربوط به set_webhook که باعث خطای "failed to resolve host" می‌شد، حذف شد.
     yield
-    
-    # حذف وب‌هوک هنگام خاموش شدن
-    # Delete the webhook on shutdown
-    try:
-        await application.bot.delete_webhook()
-        print("INFO: Webhook deleted successfully.")
-    except Exception as e:
-        print(f"ERROR: Could not delete webhook: {e}")
-    
-    # خاموش کردن اپلیکیشن تلگرام
-    # Shutdown the telegram application
-    await application.updater.stop()
-    print("INFO: FastAPI Bot Application Stopped.")
+    print("INFO: FastAPI Bot Application Shutting Down...")
 
-
-# تعریف اپلیکیشن FastAPI با تابع مدیریت چرخه حیات
-# Define the FastAPI application with the lifespan function
 app = FastAPI(lifespan=lifespan)
 
-# مسیر اصلی وب‌هوک که توسط تلگرام فراخوانی می‌شود
-# The main webhook route called by Telegram
-@app.post(WEBHOOK_PATH)
-async def webhook(request: Request):
-    """
-    Handles incoming Telegram updates.
-    """
-    try:
-        # دریافت داده‌های JSON از درخواست
-        # Get JSON data from the request
-        data = await request.json()
+# ⚠️ مسیر وب‌هوک به توکن ربات شما گره خورده است.
+@app.post(f"/{BOT_TOKEN}")
+async def webhook_handler(request: Request):
+    """هندلر اصلی وب‌هوک تلگرام."""
+    
+    body = await request.json()
+    
+    if 'message' in body:
+        message = body['message']
+        chat_id = message['chat']['id']
+        text = message.get('text', '')
         
-        # ساخت یک آبجکت Update از داده‌های دریافتی
-        # Create an Update object from the received data
-        update = Update.de_json(data, application.bot)
-        
-        # پردازش آپدیت توسط هندلرهای اپلیکیشن
-        # Process the update using application handlers
-        await application.process_update(update)
-        
-        return {"ok": True}
-    except Exception as e:
-        # چاپ خطا برای اشکال‌زدایی و بازگرداندن پاسخ موفق به تلگرام تا تلاش مجدد نکند
-        # Print error for debugging and return success to Telegram to prevent retry
-        print(f"An error occurred while processing the update: {e}")
-        # بهتر است همیشه 200 OK را برگردانیم تا تلگرام از ارسال مجدد خودداری کند
-        return {"ok": True}
+        # هندل دستور /start
+        if text.startswith('/start'):
+            await handle_start_command(chat_id)
+        # هندل پیام متنی عادی
+        elif text and get_user_state(chat_id)['step'] != 'START':
+            await handle_text_message(chat_id, text)
+        # اگر کاربر در حالت START چیزی نوشت (به جز /start)
+        else:
+             await handle_start_command(chat_id)
 
-# مسیر / برای بررسی سلامت (Health Check)
-# The / path for health check
-@app.get("/")
-async def root():
-    return {"message": "FastAPI Telegram Bot is running. Send updates to the webhook path."}
+    elif 'callback_query' in body:
+        query = body['callback_query']
+        chat_id = query['message']['chat']['id']
+        callback_id = query['id']
+        data = query['data']
+        
+        await handle_callback_query(chat_id, callback_id, data)
+        
+    # تلگرام انتظار پاسخ 200 را دارد تا بداند پیام دریافت شده است.
+    return {"ok": True}
