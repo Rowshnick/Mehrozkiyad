@@ -1,5 +1,4 @@
 python-telegram-bot[webhooks]==21.7
-python-telegram-bot
 fastapi
 uvicorn
 httpx
@@ -11,3 +10,5 @@ skyfield
 numpy
 jplephem
 python-dotenv
+timezonefinder[database] 
+aiosqlite
