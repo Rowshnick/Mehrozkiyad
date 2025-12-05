@@ -114,18 +114,19 @@ async def handle_text_message(chat_id: int, text: str):
         msg = utils.escape_markdown_v2("لطفاً از دکمه‌های منوی زیر استفاده کنید یا /start را بزنید\\.")
         await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
 
-
 async def handle_callback_query(chat_id: int, callback_id: str, data: str):
     state = get_user_state(chat_id)
+    # از '0' به عنوان پارامتر پیش‌فرض برای دکمه‌هایی که پارامتر ندارند، استفاده می‌کنیم.
     parts = data.split('|')
     menu = parts[0]
     submenu = parts[1]
     param = parts[2] if len(parts) > 2 else '0'
 
-    # 1. هندلینگ منوی اصلی
+    # 1. هندلینگ منوی اصلی (MAIN)
     if menu == 'MAIN':
         if submenu == 'SERVICES':
             state['step'] = 'SERVICES_MENU'
+            # 💡 نمایش منوی خدمات
             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً سرویس مورد نظر را انتخاب کنید\\."), keyboards.services_menu_keyboard())
         elif submenu == 'SHOP':
             state['step'] = 'SHOP_MENU'
@@ -134,33 +135,57 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
             state['step'] = 'SOCIALS_MENU'
             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لینک‌های ارتباطی ما\\:"), keyboards.socials_menu_keyboard())
         elif submenu == 'WELCOME':
-            await handle_start_command(chat_id) # بازگشت به منوی اصلی
+            # 💡 بازگشت به شروع
+            await handle_start_command(chat_id) 
 
-    # 2. هندلینگ زیرمنوی خدمات
+    # 2. هندلینگ منوی خدمات (SERVICES) - دکمه‌های سطح دوم
     elif menu == 'SERVICES':
-        if submenu == 'ASTRO':
-            if param == 'CHART_INPUT':
-                state['step'] = 'AWAITING_DATE'
-                await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی \\(مثلاً 1370/01/01\\) وارد کنید\\."))
-            elif param == 'CHART_CALC':
-                await handle_chart_calculation(chat_id, state)
-                
-        elif submenu == 'SAJIL':
+        # 💡 [اصلاح]: برای دکمه "آسترولوژی 🔭" کیبورد زیرمنو نمایش داده شود.
+        if submenu == 'ASTRO' and param == '0': 
+            state['step'] = 'ASTRO_MENU'
+            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("خدمات آسترولوژی را انتخاب کنید\\:"), keyboards.astrology_menu_keyboard())
+        
+        # 💡 [اصلاح]: برای دکمه "سنگ شناسی 💎" کیبورد زیرمنو نمایش داده شود.
+        elif submenu == 'GEM' and param == '0':
+            state['step'] = 'GEM_MENU'
+            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("خدمات سنگ‌شناسی را انتخاب کنید\\:"), keyboards.gem_menu_keyboard())
+
+        # 💡 [اصلاح]: هندلینگ سجیل (SIGIL) با کلید صحیح
+        elif submenu == 'SIGIL' and param == '0': 
             state['step'] = 'SAJIL_INPUT'
             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً کلمه یا اعداد مورد نظر برای تولید سجیل را وارد کنید\\."))
             
-        elif submenu == 'GEM':
-            # بازگشت به منوی خدمات
-             state['step'] = 'SERVICES_MENU'
-             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً سرویس مورد نظر را انتخاب کنید\\."), keyboards.services_menu_keyboard())
+        # 💡 [جدید]: هندلینگ گیاه‌شناسی
+        elif submenu == 'HERB' and param == '0': 
+            state['step'] = 'HERB_MENU'
+            msg = utils.escape_markdown_v2("🌿 خدمات گیاه‌شناسی در دست ساخت است\\.")
+            await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
+            
+        # 💡 [جدید]: هندلینگ تولید چارت (از داخل منوی آسترولوژی)
+        elif submenu == 'ASTRO' and param == 'CHART_INPUT':
+            state['step'] = 'AWAITING_DATE'
+            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی \\(مثلاً 1370/01/01\\) وارد کنید\\."))
+            
+        # 💡 [جدید]: هندلینگ محاسبه چارت (از داخل منوی پس از ورود شهر)
+        elif submenu == 'ASTRO' and param == 'CHART_CALC':
+            await handle_chart_calculation(chat_id, state)
 
-
-    # 3. هندلینگ زیرمنوی چارت تولد
+    # 3. هندلینگ زیرمنوی چارت تولد (CHART) - پس از محاسبه
     elif menu == 'CHART':
         await handle_chart_menu_actions(chat_id, state, param)
 
-
-    # 4. بستن اخطار Callback
+    # 4. هندلینگ زیرمنوی سنگ شناسی (GEM) - دکمه‌های سطح سوم
+    # 💡 [جدید]: پیاده‌سازی منطق دکمه‌های داخل منوی سنگ‌شناسی
+    elif menu == 'GEM':
+        if submenu == 'PERSONAL_INPUT':
+            state['step'] = 'AWAITING_BIRTH_INFO_FOR_GEM' # وضعیت جدید
+            msg = utils.escape_markdown_v2("برای تعیین سنگ شخصی، لطفاً تاریخ تولد شمسی و شهر تولد خود را (مانند چارت تولد) وارد کنید\\.")
+            await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
+        elif submenu == 'INFO':
+             msg = utils.escape_markdown_v2("🔍 لطفاً نام سنگ مورد نظر را وارد کنید تا خواص آن را ببینید\\.")
+             await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
+             
+    # 5. بستن اخطار Callback
     await utils.answer_callback_query(BOT_TOKEN, callback_id)
 
 
