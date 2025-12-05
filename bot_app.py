@@ -69,14 +69,14 @@ async def handle_text_message(chat_id: int, text: str):
         if jdate:
             state['data']['birth_date'] = jdate
             state['step'] = 'AWAITING_CITY'
-            await save_user_state(chat_id, state) # 💡 [اصلاح حیاتی]: وضعیت را بلافاصله ذخیره کنید.
+            await save_user_state(chat_id, state) # 💡 [اصلاح]: وضعیت را بلافاصله ذخیره کنید.
 
             msg = utils.escape_markdown_v2(
                 f"✅ تاریخ تولد شما \\({jdate.strftime('%Y/%m/%d')}\\) ثبت شد\\.\\n"\
                 "حالا نام *شهر تولد* خود را به فارسی وارد کنید\\."
             )
             await utils.send_message(utils.BOT_TOKEN, chat_id, msg)
-            return # 💡 خروج برای جلوگیری از ذخیره مجدد یا اجرای شرط‌های دیگر
+            return # 💡 خروج برای جلوگیری از اجرای منطق ذخیره در انتهای تابع
 
         else:
             msg = utils.escape_markdown_v2("❌ فرمت تاریخ نامعتبر است\\.\\n لطفاً تاریخ را به صورت YYYY/MM/DD (مثلاً 1370/01/01) وارد کنید\\.")
@@ -95,7 +95,7 @@ async def handle_text_message(chat_id: int, text: str):
             state['data']['timezone'] = tz.zone # ذخیره نام منطقه زمانی به صورت رشته
             
             state['step'] = 'CHART_INPUT_COMPLETE'
-            await save_user_state(chat_id, state) # 💡 [اصلاح حیاتی]: وضعیت را بلافاصله ذخیره کنید.
+            await save_user_state(chat_id, state) # 💡 [اصلاح]: وضعیت را بلافاصله ذخیره کنید.
             
             msg = utils.escape_markdown_v2(
                 f"✅ شهر *{city_name}* ثبت شد\\.\\n"\
@@ -124,7 +124,7 @@ async def handle_text_message(chat_id: int, text: str):
     # 4. هندلینگ ورود داده برای سنگ شخصی (بخش در حال توسعه)
     elif step == 'AWAITING_BIRTH_INFO_FOR_GEM':
         # ⚠️ منطق پردازش ورودی برای سنگ شخصی باید اینجا تکمیل شود
-        msg = utils.escape_markdown_v2("❌ بخش سنگ شخصی در حال حاضر ورودی را پردازش نمی‌کند\\.")
+        msg = utils.escape_markdown_v2("❌ این بخش در حال حاضر ورودی را پردازش نمی‌کند\\.")
         await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.gem_menu_keyboard())
 
     # 5. هندلینگ در حالات دیگر
@@ -160,7 +160,7 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لینک‌های ارتباطی ما\\:"), keyboards.socials_menu_keyboard())
         elif submenu == 'WELCOME':
             await handle_start_command(chat_id) 
-            await utils.answer_callback_query(BOT_TOKEN, callback_id) # پاسخ به callback قبل از return
+            await utils.answer_callback_query(BOT_TOKEN, callback_id) 
             return
 
     # 2. هندلینگ منوی خدمات (SERVICES)
@@ -256,3 +256,4 @@ async def webhook_handler(request: Request):
         await handle_callback_query(chat_id, callback_id, data)
         
     return {"ok": True}
+    
