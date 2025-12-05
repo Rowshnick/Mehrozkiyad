@@ -7,7 +7,7 @@ import asyncio
 import pytz 
 
 # ======================================================================
-# توابع اصلی ارتباط با تلگرام
+# توابع اصلی ارتباط با تلگرام (بدون تغییر)
 # ======================================================================
 
 async def send_message(bot_token: str, chat_id: int, text: str, reply_markup: Optional[Dict[str, Any]] = None):
@@ -20,7 +20,7 @@ async def send_message(bot_token: str, chat_id: int, text: str, reply_markup: Op
     payload = {
         'chat_id': chat_id,
         'text': text,
-        'parse_mode': 'MarkdownV2', # 👈 اعمال MarkdownV2 به عنوان پیش‌فرض
+        'parse_mode': 'MarkdownV2', 
         'disable_web_page_preview': True
     }
     if reply_markup:
@@ -29,19 +29,15 @@ async def send_message(bot_token: str, chat_id: int, text: str, reply_markup: Op
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             response = await client.post(url, json=payload)
-            response.raise_for_status() # خطاهای HTTP را هندل می‌کند
+            response.raise_for_status() 
         except httpx.HTTPStatusError as e:
-            # اینجاست که خطای 400 Bad Request ثبت می‌شود
             print(f"HTTP error sending message: {e}")
         except httpx.RequestError as e:
             print(f"Request error sending message: {e}")
 
 
 async def send_telegram_message(chat_id: int, text: str, parse_mode: str, reply_markup: Optional[Dict[str, Any]] = None):
-    """
-    تابع اصلی ارسال پیام (Wrapper قدیمی یا جایگزین) که در main_sajil.py استفاده می‌شود.
-    """
-    # ⚠️ این تابع به BOT_TOKEN سراسری متکی است.
+    """تابع اصلی ارسال پیام (Wrapper قدیمی یا جایگزین) که در main_sajil.py استفاده می‌شود."""
     bot_token = os.environ.get("BOT_TOKEN")
     if not bot_token:
         print("Error: BOT_TOKEN is not set in send_telegram_message.")
@@ -65,7 +61,7 @@ async def send_telegram_message(chat_id: int, text: str, parse_mode: str, reply_
 
 
 async def answer_callback_query(bot_token: str, callback_query_id: str, text: Optional[str] = None):
-    """پاسخ به یک callback_query (اخطار محو شونده در بالای صفحه)."""
+    """پاسخ به یک callback_query."""
     if not bot_token:
         return
         
@@ -79,7 +75,7 @@ async def answer_callback_query(bot_token: str, callback_query_id: str, text: Op
         await client.post(url, json=payload)
 
 # ======================================================================
-# توابع کمکی تاریخ و مکان
+# توابع کمکی تاریخ و مکان (بدون تغییر)
 # ======================================================================
 
 def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
@@ -109,11 +105,10 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
         )
         
         if location:
-            # تخمین ساده منطقه زمانی: برای ایران Asia/Tehran
             if 'iran' in location.raw.get('display_name', '').lower():
                  tz = pytz.timezone('Asia/Tehran')
             else:
-                 tz = pytz.utc # Fallback to UTC
+                 tz = pytz.utc
                  
             return location.latitude, location.longitude, tz
         
@@ -124,22 +119,30 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
 
 
 # ======================================================================
-# 🛠️ تابع Escape (رفع خطای 400 Bad Request)
+# 🛠️ توابع Escape (رفع خطای 400 Bad Request)
 # ======================================================================
 
 def escape_markdown_v2(text: str) -> str:
     """
-    کاراکترهای رزرو شده MarkdownV2 را برای استفاده در پیام‌های تلگرام Escape می‌کند.
+    کاراکترهای رزرو شده MarkdownV2 را برای استفاده در متن عادی Escape می‌کند.
     لیست کامل: _ * [ ] ( ) ~ ` > # + - = | { } . !
     """
-    # ⚠️ تضمین می‌کنیم که ورودی حتماً رشته باشد
     text = str(text) 
-
     # لیست کامل کاراکترهای رزرو شده
     reserved_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
     
     for char in reserved_chars:
-        # جایگزینی هر کاراکتر رزرو شده با نسخه Escape شده (پیشوند \)
         text = text.replace(char, f'\\{char}') 
         
     return text
+
+def escape_code_block(text: str) -> str:
+    """
+    فقط کاراکترهای بک‌تیک و بک‌اسلش را برای استفاده در داخل کد بلاک Escape می‌کند.
+    """
+    text = str(text) 
+    # ترتیب جایگزینی مهم است: ابتدا بک‌اسلش، سپس بک‌تیک.
+    text = text.replace('\\', '\\\\') 
+    text = text.replace('`', '\\`')
+    return text
+
