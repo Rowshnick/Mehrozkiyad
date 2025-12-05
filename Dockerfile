@@ -30,5 +30,4 @@ RUN pip install --upgrade pip && \
 COPY . .
 
 # 6. دستور اجرای نهایی و صریح (python -m uvicorn)
-# این دستور تضمین می کند که Uvicorn به درستی از مسیر ماژول های پایتون اجرا شود.
-CMD ["python", "-m", "uvicorn", "bot_app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "bot_app:app", "--host", "0.0.0.0", "--port", "8080"]
