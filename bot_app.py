@@ -1,128 +1,161 @@
 import os
-import httpx 
-from fastapi import FastAPI
-from pydantic import BaseModel
+from contextlib import asynccontextmanager
+from typing import Dict, Any
 
-# --- تنظیمات ---
-# توکن ربات تلگرام را از متغیر محیطی (environment variable) یا جای دیگر دریافت کنید.
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
+from fastapi import FastAPI, Request, HTTPException
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
-API_BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/"
+# استخراج توکن ربات از متغیر محیطی
+# Extract bot token from environment variable
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+if not TOKEN:
+    # در محیط واقعی، این خطا باعث توقف برنامه می‌شود تا از اجرای بدون توکن جلوگیری شود.
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set.")
 
-# --- مدل داده برای درخواست‌های ورودی ---
-class WebhookUpdate(BaseModel):
-    update_id: int
-    message: dict | None = None
+# تعریف مسیر وب‌هوک (این مسیر شامل توکن است تا با URL ارسالی توسط تلگرام تطابق یابد)
+# Define the webhook path (this path includes the token to match the URL sent by Telegram)
+WEBHOOK_PATH = f"/{TOKEN}"
+# توجه: آدرس دامنه اپلیکیشن شما باید جایگزین شود تا وب‌هوک به درستی تنظیم شود
+# Note: Your application's domain address must be replaced for the webhook to be set correctly
+WEBHOOK_URL = f"https://YOUR_APP_DOMAIN{WEBHOOK_PATH}" 
 
-app = FastAPI(title="FastAPI Telegram Bot with MarkdownV2 Fix")
-
-# --- تابع کمکی برای فرار (Escaping) کاراکترهای رزرو شده MarkdownV2 ---
+# تابع کمکی برای فرار (Escape) دادن کاراکترهای خاص در MarkdownV2
+# Helper function to escape special characters in MarkdownV2
 def escape_markdown_v2(text: str) -> str:
     """
-    کاراکترهای رزرو شده در فرمت MarkdownV2 تلگرام را با یک بک‌اسلش (\) فرار می‌دهد.
-    کاراکترها: _, *, [, ], (, ), ~, `, >, #, +, -, =, |, {, }, ., !
-    
-    این تابع با استفاده از str.replace صریح، تضمین می‌کند که کاراکتر فرار (\) 
-    در رشته Python وجود داشته باشد تا توسط JSON به \\ تبدیل شود.
+    Escapes special characters for Telegram MarkdownV2 parsing mode.
+    این تابع کاراکترهای خاص را با پیشوند بک‌اسلش '\\' فرار می‌دهد.
     """
-    # لیست کامل کاراکترهایی که باید اسکیپ شوند.
-    reserved_chars = r'_*[]()~`>#+-=|{}.!'
+    # کاراکترهای خاص در MarkdownV2
+    # Special characters in MarkdownV2
+    special_chars = [
+        '_', '*', '[', ']', '(', ')', '~', '`', '>', '#',
+        '+', '-', '=', '|', '{', '}', '.', '!'
+    ]
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
+# توابع هندلر
+# Handler functions
+async def start(update: Update, context: Any) -> None:
+    """Handles the /start command."""
+    # پیام خوش‌آمدگویی
+    welcome_message = (
+        "به ربات آزمایشی خوش آمدید\\!\n"
+        "این ربات با استفاده از FastAPI و Python Telegram Bot اجرا شده است\\.\n"
+        "شما می‌توانید با فرستادن هر متنی، یک پاسخ ساده دریافت کنید\\.\n\n"
+        "دستورات موجود:\n"
+        "\\- /start: شروع مجدد و نمایش این پیام\\.\n"
+        "\\- /hello: یک پیام سلام ساده\\."
+    )
     
-    new_text = text
-    # استفاده از str.replace در یک حلقه برای جایگزینی مطمئن:
-    for char in reserved_chars:
-        # جایگزینی کاراکتر با یک بک‌اسلش + کاراکتر (به عنوان مثال، '!' با '\!')
-        # این رشته پایتون توسط httpx/JSON به صورت درست '\\!' ارسال می‌شود.
-        new_text = new_text.replace(char, '\\' + char)
+    # اطمینان از فرار (Escape) دادن صحیح کاراکترهای خاص
+    await update.message.reply_text(
+        text=welcome_message,
+        parse_mode='MarkdownV2'
+    )
+
+async def hello(update: Update, context: Any) -> None:
+    """Handles the /hello command."""
+    await update.message.reply_text("سلام به شما\\! امیدوارم روز خوبی داشته باشید\\.", parse_mode='MarkdownV2')
+
+async def echo(update: Update, context: Any) -> None:
+    """Echos the user message."""
+    user_text = update.message.text
+    # پیام کاربر را Escape می‌کنیم تا در MarkdownV2 خطایی رخ ندهد و آن را در داخل '`' قرار می‌دهیم.
+    response_text = f"شما گفتید: `{escape_markdown_v2(user_text)}`"
+    await update.message.reply_text(response_text, parse_mode='MarkdownV2')
+
+
+# تنظیمات اپلیکیشن تلگرام
+# Telegram application setup
+application = ApplicationBuilder().token(TOKEN).build()
+
+# افزودن هندلرها
+# Add handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("hello", hello))
+# یک MessageHandler برای پاسخ دادن به پیام‌های متنی غیردستوری
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
+
+# تابع مدیریت چرخه حیات FastAPI
+# FastAPI lifecycle management function
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Sets up the webhook on startup and cleans up on shutdown.
+    """
+    print("INFO: FastAPI Bot Application Starting...")
+    try:
+        # تنظیم وب‌هوک برای شروع
+        # Set the webhook on startup
+        # توجه: YOUR_APP_DOMAIN باید با دامنه واقعی شما جایگزین شود.
+        await application.bot.set_webhook(url=WEBHOOK_URL)
+        print(f"INFO: Webhook set to: {WEBHOOK_URL}")
+        print("INFO: FastAPI Bot Application Started and ready for webhooks.")
+    except Exception as e:
+        print(f"ERROR: Could not set webhook: {e}")
+        pass # ادامه اجرای برنامه حتی اگر وب‌هوک تنظیم نشود
+    
+    # اجرای کدهای اپلیکیشن در پس‌زمینه
+    # Run application code in the background
+    await application.initialize()
+    await application.post_init(application.bot, application._bot_data)
+    await application.updater.start()
+    
+    yield
+    
+    # حذف وب‌هوک هنگام خاموش شدن
+    # Delete the webhook on shutdown
+    try:
+        await application.bot.delete_webhook()
+        print("INFO: Webhook deleted successfully.")
+    except Exception as e:
+        print(f"ERROR: Could not delete webhook: {e}")
+    
+    # خاموش کردن اپلیکیشن تلگرام
+    # Shutdown the telegram application
+    await application.updater.stop()
+    print("INFO: FastAPI Bot Application Stopped.")
+
+
+# تعریف اپلیکیشن FastAPI با تابع مدیریت چرخه حیات
+# Define the FastAPI application with the lifespan function
+app = FastAPI(lifespan=lifespan)
+
+# مسیر اصلی وب‌هوک که توسط تلگرام فراخوانی می‌شود
+# The main webhook route called by Telegram
+@app.post(WEBHOOK_PATH)
+async def webhook(request: Request):
+    """
+    Handles incoming Telegram updates.
+    """
+    try:
+        # دریافت داده‌های JSON از درخواست
+        # Get JSON data from the request
+        data = await request.json()
         
-    return new_text
+        # ساخت یک آبجکت Update از داده‌های دریافتی
+        # Create an Update object from the received data
+        update = Update.de_json(data, application.bot)
+        
+        # پردازش آپدیت توسط هندلرهای اپلیکیشن
+        # Process the update using application handlers
+        await application.process_update(update)
+        
+        return {"ok": True}
+    except Exception as e:
+        # چاپ خطا برای اشکال‌زدایی و بازگرداندن پاسخ موفق به تلگرام تا تلاش مجدد نکند
+        # Print error for debugging and return success to Telegram to prevent retry
+        print(f"An error occurred while processing the update: {e}")
+        # بهتر است همیشه 200 OK را برگردانیم تا تلگرام از ارسال مجدد خودداری کند
+        return {"ok": True}
 
-# --- مسیر اصلی (روت) ---
-
+# مسیر / برای بررسی سلامت (Health Check)
+# The / path for health check
 @app.get("/")
 async def root():
-    """روت اصلی برای بررسی سلامت اپلیکیشن"""
-    return {"status": "running", "message": "Bot is operational. Visit /set-webhook to configure Telegram."}
-
-# --- مسیر تنظیم وب‌هوک ---
-@app.get("/set-webhook")
-async def set_telegram_webhook():
-    """
-    برای تنظیم URL وب‌هوک در سمت تلگرام، این مسیر را در مرورگر باز کنید.
-    """
-    webhook_url = os.environ.get("WEBHOOK_HOST", "https://<YOUR_PUBLIC_APP_URL_HERE>/webhook")
-    
-    if BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN_HERE":
-        return {"error": "BOT_TOKEN not set correctly. Cannot set webhook."}
-
-    set_url = API_BASE_URL + "setWebhook"
-    payload = {'url': webhook_url}
-
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            response = await client.post(set_url, json=payload)
-            response.raise_for_status()
-            result = response.json()
-            if result.get("ok"):
-                return {"status": "Webhook set successfully", "url": webhook_url, "telegram_response": result}
-            else:
-                return {"status": "Webhook setting failed", "url": webhook_url, "telegram_response": result}
-        except Exception as e:
-            print(f"ERROR: Failed to set webhook: {e}")
-            return {"status": "Failed to set webhook (Connection Error)", "error": str(e)}
-
-
-# --- مسیر وب‌هوک برای دریافت پیام‌ها ---
-@app.post("/webhook")
-async def telegram_webhook(update: WebhookUpdate):
-    """
-    رسیدگی به به‌روزرسانی‌های دریافتی از تلگرام (پیام‌ها).
-    """
-    if update.message:
-        message = update.message
-        chat_id = message['chat']['id']
-        text = message.get('text', '')
-        
-        print(f"INFO: Processing message: '{text}' from chat {chat_id}")
-        
-        if text.startswith('/start'):
-            
-            # متن اصلی را برای پیدا کردن کاراکترهای رزرو شده تست می‌کنیم.
-            raw_response = "سلام! به ربات خوش آمدید. این یک پیام آزمایشی است، آیا می‌توانید علامت تعجب، نقطه و اندرلاین را ببینید؟ (!._)"
-            
-            safe_text = escape_markdown_v2(raw_response)
-            
-            # لاگ برای بررسی: خروجی safe_text باید حاوی یک بک‌اسلش قبل از کاراکترهای رزرو شده باشد.
-            print(f"DEBUG: Original Text: {raw_response}")
-            print(f"DEBUG: Escaped Text (Python String): {repr(safe_text)}")
-            
-            payload = {
-                'chat_id': chat_id,
-                'text': safe_text,
-                'parse_mode': 'MarkdownV2'
-            }
-            
-            async with httpx.AsyncClient(base_url=API_BASE_URL, timeout=10.0) as client:
-                try:
-                    response = await client.post("sendMessage", json=payload)
-                    response.raise_for_status() 
-                    print(f"INFO: Message sent successfully. Status: {response.status_code}")
-                except httpx.HTTPStatusError as e:
-                    # این بخش حیاتی است و متن کامل خطا را از تلگرام استخراج می‌کند.
-                    response_text = e.response.text
-                    error_message = f"Client error '{e.response.status_code} {e.response.reason}'"
-                    print(f"ERROR: Failed to send message ({error_message}). Response TEXT: {response_text}")
-                except Exception as e:
-                    print(f"ERROR: An unexpected error occurred while sending message: {e}")
-            
-        else:
-            pass
-            
-    return {"message": "Update processed"}
-
-@app.on_event("startup")
-async def startup_event():
-    """
-    رویداد راه‌اندازی برنامه
-    """
-    print("INFO: FastAPI Bot Application Started and ready for webhooks.")
+    return {"message": "FastAPI Telegram Bot is running. Send updates to the webhook path."}
