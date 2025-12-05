@@ -1,13 +1,8 @@
-# ======================================================================
+# ----------------------------------------------------------------------
 # ماژول Keyboards - شامل توابعی برای تولید کیبوردهای اینلاین تلگرام.
-# این توابع، ساختار دیکشنری مورد نیاز برای پارامتر 'reply_markup' در API تلگرام را تولید می‌کنند.
-# ======================================================================
+# ----------------------------------------------------------------------
 
 from typing import Dict, List, Any, Optional
-
-# **قالب ثابت برای Callback Data:**
-# <منو_اصلی>|<زیرمنو>|<پارامتر_عملیاتی>
-# مثال: 'SERVICES|ASTRO|CHART_INPUT'
 
 # --- توابع کمکی برای تولید دکمه ---
 def create_button(text: str, callback_data: Optional[str] = None, url: Optional[str] = None) -> Dict[str, str]:
@@ -25,7 +20,6 @@ def create_keyboard(rows: List[List[Dict[str, Any]]]) -> Dict[str, List[List[Dic
 
 # --- ۱. منوی اصلی (سطح ۱) ---
 def main_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
-    """کیبورد اصلی با گزینه‌های اصلی ربات."""
     keyboard = [
         [create_button("خدمات 🔮", callback_data='MAIN|SERVICES|0')],
         [create_button("فروشگاه 🛍️", callback_data='MAIN|SHOP|0')],
@@ -50,7 +44,7 @@ def services_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
 def astrology_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
     """منوی آسترولوژی: تولید چارت و پیش‌گویی."""
     keyboard = [
-        [create_button("تولید چارت تولد (زایچه) 📝", callback_data='SERVICES|ASTRO|CHART_INPUT')], # نیاز به دریافت ورودی از کاربر
+        [create_button("تولید چارت تولد (زایچه) 📝", callback_data='SERVICES|ASTRO|CHART_INPUT')], 
         [create_button("بازگشت به خدمات ↩️", callback_data='MAIN|SERVICES|0')],
     ]
     return create_keyboard(keyboard)
@@ -59,8 +53,8 @@ def astrology_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
 def gem_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
     """منوی سنگ‌شناسی با گزینه‌های متنوع."""
     keyboard = [
-        [create_button("سنگ مناسب شخصی 👤", callback_data='SERVICES|GEM|PERSONAL_INPUT')], # نیاز به اطلاعات تولد
-        [create_button("خواص هر سنگ 🔍", callback_data='SERVICES|GEM|INFO')],
+        [create_button("سنگ مناسب شخصی 👤", callback_data='GEM|PERSONAL_INPUT|0')], 
+        [create_button("خواص هر سنگ 🔍", callback_data='GEM|INFO|0')],
         [create_button("بازگشت به خدمات ↩️", callback_data='MAIN|SERVICES|0')],
     ]
     return create_keyboard(keyboard)
@@ -96,7 +90,7 @@ def back_to_main_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
     ]
     return create_keyboard(keyboard)
 
-# --- ۸. منوی چارت تولد (پس از محاسبه) ---
+# --- ۸. منوی چارت تولد (پس از محاسبه) - [جدید] ---
 def birth_chart_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
     """منوی کیبورد اینلاین برای نمایش نتایج چارت تولد."""
     keyboard = [
@@ -113,5 +107,3 @@ def birth_chart_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
         ]
     ]
     return create_keyboard(keyboard)
-
-# 💡 نکته: این کیبورد دکمه‌های "PLANETS", "HOUSES" و "ASPECTS" را که در هندلر `handle_chart_menu_actions` استفاده می‌شوند، ایجاد می‌کند.
