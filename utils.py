@@ -41,7 +41,6 @@ async def send_message(bot_token: Optional[str], chat_id: int, text: str, reply_
         except httpx.RequestError as e:
             print(f"Request error sending message: {e}")
 
-# 💡 [اصلاح]: تابع send_telegram_message حذف شد و در هندلر سجیل نیز از send_message استفاده می‌شود.
 async def answer_callback_query(bot_token: Optional[str], callback_query_id: str, text: Optional[str] = None):
     """پاسخ به یک callback_query."""
     bot_token = bot_token or os.environ.get("BOT_TOKEN")
@@ -60,30 +59,32 @@ async def answer_callback_query(bot_token: Optional[str], callback_query_id: str
 # ======================================================================
 # توابع کمکی تاریخ و مکان
 # ======================================================================
-# ... (کد قبلی) ...
+
 def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
-    """تبدیل رشته تاریخ شمسی (مثلاً 1370/01/01) به شیء JalaliDateTime."""
+    """
+    تبدیل رشته تاریخ شمسی (مثلاً 1370/01/01) به شیء JalaliDateTime.
+    💡 [اصلاح]: اعتبارسنجی سخت‌گیرانه‌تر.
+    """
     try:
+        date_str = date_str.strip()
         parts = date_str.split('/')
+        
         if len(parts) == 3:
             year = int(parts[0])
             month = int(parts[1])
             day = int(parts[2])
             
-            # 💡 [اصلاح]: تاریخ باید در محدوده منطقی باشد و از نظر شمسی معتبر باشد.
-            # برای اطمینان بیشتر، از یک شیء JalaliDateTime موقت استفاده می‌کنیم
-            if 1300 < year < 1500 and 1 <= month <= 12 and 1 <= day <= 31:
-                # اگرچه ممکن است روز سی و یکم در آن ماه وجود نداشته باشد، اما برای اعتبارسنجی اولیه کافی است.
-                # فرض می‌کنیم زمان پیش‌فرض 12:00:00 است.
+            # اعتبارسنجی اولیه محدوده
+            if 1300 <= year <= 1500 and 1 <= month <= 12 and 1 <= day <= 31:
+                # ایجاد شیء JalaliDateTime (12:00 ظهر به عنوان پیش‌فرض)
                 jdate = JalaliDateTime(year, month, day, 12, 0, 0)
-                # 💡 [بررسی نهایی]: بررسی می‌کنیم که تبدیل به میلادی مشکلی ایجاد نکند.
+                
+                # اعتبارسنجی نهایی: اگر بتواند بدون خطا به میلادی تبدیل شود، معتبر است.
                 if jdate.to_gregorian():
                     return jdate
         return None
     except Exception:
-        # اگر هر خطایی در تبدیل یا ساخت رخ داد (مانند 1370/13/01)
         return None
-# ... (کد بعدی) ...
 
 
 async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Optional[float], Any]:
@@ -100,13 +101,13 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
         if location:
             lat, lon = location.latitude, location.longitude
             
-            # 💡 [اصلاح حیاتی]: استفاده از timezonefinder برای Timezone دقیق
+            # استفاده از timezonefinder برای Timezone دقیق
             tz_name = tf.timezone_at(lat=lat, lng=lon)
             
             if tz_name:
                 tz = pytz.timezone(tz_name)
             else:
-                tz = pytz.utc # آخرین راه‌حل
+                tz = pytz.utc 
                 print(f"Warning: Could not find specific timezone for {city_name}. Using UTC.")
                 
             return lat, lon, tz
@@ -118,7 +119,7 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
 
 
 # ======================================================================
-# توابع Escape (بدون تغییر)
+# توابع Escape 
 # ======================================================================
 
 def escape_markdown_v2(text: str) -> str:
