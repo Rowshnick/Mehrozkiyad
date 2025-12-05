@@ -204,5 +204,55 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
         elif submenu == 'INFO':
              state['step'] = 'AWAITING_GEM_NAME_INFO'
              msg = utils.escape_markdown_v2("🔍 لطفاً نام سنگ مورد نظر را وارد کنید تا خواص آن را ببینید\\.")
-             await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_
+             await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
 
+    # 5. بستن اخطار Callback و ذخیره وضعیت
+    await utils.answer_callback_query(BOT_TOKEN, callback_id)
+    await save_user_state(chat_id, state)
+
+
+# --- پیکربندی FastAPI ---
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 💡 فراخوانی ایجاد دیتابیس در هنگام شروع برنامه
+    await state_manager.init_db() 
+    print("INFO: FastAPI Bot Application Starting... Database initialized.")
+    yield
+    print("INFO: FastAPI Bot Application Shutting Down...")
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post(f"/{BOT_TOKEN}")
+async def webhook_handler(request: Request):
+    """هندلر اصلی وب‌هوک تلگرام."""
+    
+    body = await request.json()
+    
+    if 'message' in body:
+        message = body['message']
+        chat_id = message['chat']['id']
+        text = message.get('text', '')
+        
+        if text.startswith('/start'):
+            await handle_start_command(chat_id)
+        
+        else:
+             state = await get_user_state(chat_id)
+             # اطمینان از اینکه پیام متنی در یک وضعیت معتبر دریافت شده است
+             if text and state['step'] != 'START' and state['step'] != 'WELCOME':
+                await handle_text_message(chat_id, text)
+             else:
+                # اگر کاربر در حالتی بود که نباید پیام متنی بفرستد، یا پیام /start بود
+                await handle_start_command(chat_id)
+
+
+    elif 'callback_query' in body:
+        query = body['callback_query']
+        chat_id = query['message']['chat']['id']
+        callback_id = query['id']
+        data = query['data']
+        
+        await handle_callback_query(chat_id, callback_id, data)
+        
+    return {"ok": True}
