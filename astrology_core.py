@@ -30,7 +30,6 @@ PLANET_SYMBOLS_FA = {
 
 # داده‌های نجومی را بارگذاری کنید 
 try:
-    # Skyfield داده de421.bsp را به صورت پیش‌فرض از اینترنت دانلود می‌کند
     EPHEMERIS = load('de421.bsp')
 except Exception as e:
     print(f"Error loading ephemeris: {e}. Skyfield calculations will fail.")
@@ -57,9 +56,8 @@ def get_zodiac_position(lon: float) -> Tuple[str, str]:
     
     return sign_name, degree_str
 
-
 def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, lon: float, tz: pytz.BaseTzInfo) -> Dict[str, Any]:
-      """محاسبه موقعیت اجرام آسمانی برای زمان و مکان تولد."""
+    """محاسبه موقعیت اجرام آسمانی برای زمان و مکان تولد."""
     
     if EPHEMERIS is None:
         return {"error": "منابع نجومی (Ephemeris) بارگذاری نشده‌اند. لطفاً اتصال شبکه را بررسی کنید."}
@@ -67,28 +65,48 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
     try:
         ts = load.timescale()
         
+        # ۱. آماده‌سازی ناظر و زمان
         localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
         t: Time = ts.from_datetime(localized_dt) 
         
         observer: Topos = EPHEMERIS['earth'] + Topos(latitude_degrees=lat, longitude_degrees=lon)
         
-        chart_data: Dict[str, Any] = {}  
-    
-    for planet_name in PLANETS:
-        try:
-            # ...
-            position = observer.at(t).observe(planet_ephem)
-            
-            # 💡 [کد صحیح برای Skyfield جدید (>=1.43)]
-            lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
-            
-            lon_deg = lon_rad.degrees
-            # ... (بقیه منطق) ...
+        chart_data: Dict[str, Any] = {}
         
-        except Exception as e:
-            chart_data[planet_name] = {"error": str(e)}
-
-    return chart_data
+        # ۲. حلقه محاسبات برای هر سیاره
+        for planet_name in PLANETS:
+            try:
+                # فچ کردن سیاره
+                planet_ephem = EPHEMERIS[planet_name]
+                position = observer.at(t).observe(planet_ephem)
+                
+                # خط اصلاح شده برای Skyfield جدید (پس از آپدیت requirements.txt)
+                lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
+                
+                lon_deg = lon_rad.degrees
+                
+                sign_name, degree_str = get_zodiac_position(lon_deg)
+                
+                # ذخیره داده‌ها
+                chart_data[planet_name] = {
+                    "name_fa": PLANET_SYMBOLS_FA.get(planet_name, planet_name),
+                    "sign_fa": sign_name,
+                    "position_str": degree_str,
+                    "longitude_deg": round(lon_deg, 4),
+                }
+            
+            except Exception as e:
+                # اگر محاسبه یک سیاره خاص شکست بخورد، متن خطا را در دیکشنری ذخیره کنید.
+                chart_data[planet_name] = {"error": str(e)}
+                
+        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER)
+        
+        return chart_data
+    
+    except Exception as general_e:
+        # در صورت بروز هر خطای پیش‌بینی نشده در فرآیند محاسبات
+        print(f"General Calculation Error: {general_e}")
+        return {"error": f"خطای کلی در هسته محاسبات: {general_e}"}
 
 # ======================================================================
 # توابع فرمت‌دهی (برای نمایش به کاربر) 
@@ -105,7 +123,6 @@ def format_chart_summary(chart_data: Dict[str, Any], jdate: JalaliDateTime, city
     
     # خورشید
     if sun_info.get('error'):
-        # اگر خطای سیاره‌ای وجود دارد، آن را نمایش دهید.
         sun_error_text = sun_info['error'].replace('\n', ' ')
         sun_line = f"**خورشید (Sun)**: ❌ *خطا در محاسبه*: `{utils.escape_code_block(sun_error_text)}`"
     else:
@@ -114,7 +131,6 @@ def format_chart_summary(chart_data: Dict[str, Any], jdate: JalaliDateTime, city
         
     # ماه
     if moon_info.get('error'):
-        # اگر خطای سیاره‌ای وجود دارد، آن را نمایش دهید.
         moon_error_text = moon_info['error'].replace('\n', ' ')
         moon_line = f"**ماه (Moon)**: ❌ *خطا در محاسبه*: `{utils.escape_code_block(moon_error_text)}`"
     else:
