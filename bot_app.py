@@ -22,7 +22,6 @@ import utils
 import keyboards
 import astrology_core
 
-
 # --- تنظیمات ضروری ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
