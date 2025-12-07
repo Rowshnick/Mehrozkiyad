@@ -66,6 +66,7 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
     try:
         ts = load.timescale()
         
+        # ۱. آماده‌سازی ناظر و زمان
         localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
         t: Time = ts.from_datetime(localized_dt) 
         
@@ -73,19 +74,21 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
         
         chart_data: Dict[str, Any] = {}
         
+        # ۲. حلقه محاسبات برای هر سیاره
         for planet_name in PLANETS:
             try:
+                # فچ کردن سیاره
                 planet_ephem = EPHEMERIS[planet_name]
                 position = observer.at(t).observe(planet_ephem)
                 
-                # 💡 [آخرین تلاش برای سازگاری با Skyfield بسیار قدیمی]: 
-                # فراخوانی ecliptic_lonlat مستقیماً روی آبجکت position
-                lon_rad, _, _ = position.ecliptic_lonlat(epoch=t)
+                # 💡 [خط اصلاح شده برای Skyfield جدید (>=1.43)]: این خط حلال خطای 'Astrometric' object has no attribute 'geometry_of' است.
+                lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
                 
                 lon_deg = lon_rad.degrees
                 
                 sign_name, degree_str = get_zodiac_position(lon_deg)
                 
+                # ذخیره داده‌ها
                 chart_data[planet_name] = {
                     "name_fa": PLANET_SYMBOLS_FA.get(planet_name, planet_name),
                     "sign_fa": sign_name,
@@ -94,12 +97,16 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 }
             
             except Exception as e:
+                # اگر محاسبه یک سیاره خاص شکست بخورد، متن خطا را در دیکشنری ذخیره کنید.
                 chart_data[planet_name] = {"error": str(e)}
                 
+        
+        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER - نیاز به پیاده‌سازی)
         
         return chart_data
     
     except Exception as general_e:
+        # در صورت بروز هر خطای پیش‌بینی نشده در فرآیند محاسبات
         print(f"General Calculation Error: {general_e}")
         return {"error": f"خطای کلی در هسته محاسبات: {general_e}"}
 
