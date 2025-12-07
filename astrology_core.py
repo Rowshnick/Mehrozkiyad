@@ -30,6 +30,7 @@ PLANET_SYMBOLS_FA = {
 
 # داده‌های نجومی را بارگذاری کنید 
 try:
+    # Skyfield داده de421.bsp را به صورت پیش‌فرض از اینترنت دانلود می‌کند
     EPHEMERIS = load('de421.bsp')
 except Exception as e:
     print(f"Error loading ephemeris: {e}. Skyfield calculations will fail.")
@@ -65,6 +66,7 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
     try:
         ts = load.timescale()
         
+        # اطمینان از Localization صحیح: 
         localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
         t: Time = ts.from_datetime(localized_dt) 
         
@@ -77,7 +79,7 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 planet_ephem = EPHEMERIS[planet_name]
                 position = observer.at(t).observe(planet_ephem)
                 
-                # 💡 [اصلاح نهایی و حیاتی]: باید از .geometry() برای دسترسی به مختصات دایرةالبروجی استفاده کنیم.
+                # 💡 [اصلاح نهایی و حیاتی]: استفاده از .geometry_of(t) برای حل خطای 'Astrometric' object
                 lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
                 
                 lon_deg = lon_rad.degrees
@@ -96,7 +98,7 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 chart_data[planet_name] = {"error": str(e)}
                 
         
-        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER)
+        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER - نیاز به پیاده‌سازی)
         
         return chart_data
     
@@ -117,8 +119,6 @@ def format_chart_summary(chart_data: Dict[str, Any], jdate: JalaliDateTime, city
         
     sun_info = chart_data.get('sun', {})
     moon_info = chart_data.get('moon', {})
-    
-    # 💡 [اصلاح]: منطق نمایش خورشید و ماه بر اساس وجود خطا
     
     # خورشید
     if sun_info.get('error'):
