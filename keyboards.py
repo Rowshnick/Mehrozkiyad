@@ -106,4 +106,23 @@ def birth_chart_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
             create_button("بازگشت به خدمات ↩️", callback_data='MAIN|SERVICES|0'),
         ]
     ]
-    return create_keyboard(keyboard)
+    return create_keyboard(keyboard) 
+
+# ... (سایر توابع) ...
+
+def chart_menu_keyboard():
+    """کیبورد اینلاین برای نمایش نتایج چارت (جزئیات، خانه‌ها، برگشت)"""
+    
+    # دکمه‌های اینلاین برای منوی چارت
+    buttons = [
+        [
+            create_button("مشاهده جزئیات سیارات 🪐", callback_data='CHART|DETAILS|0'),
+        ],
+        [
+            create_button("موقعیت خانه‌ها (در دست ساخت) 🏠", callback_data='CHART|HOUSES|0'),
+        ],
+        [
+            create_button("بازگشت به منوی آسترولوژی 🔙", callback_data='CHART|BACK|0'),
+        ]
+    ]
+    return {'inline_keyboard': buttons}
