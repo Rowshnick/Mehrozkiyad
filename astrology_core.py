@@ -59,7 +59,7 @@ def get_zodiac_position(lon: float) -> Tuple[str, str]:
 
 
 def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, lon: float, tz: pytz.BaseTzInfo) -> Dict[str, Any]:
-    """محاسبه موقعیت اجرام آسمانی برای زمان و مکان تولد."""
+      """محاسبه موقعیت اجرام آسمانی برای زمان و مکان تولد."""
     
     if EPHEMERIS is None:
         return {"error": "منابع نجومی (Ephemeris) بارگذاری نشده‌اند. لطفاً اتصال شبکه را بررسی کنید."}
@@ -72,44 +72,23 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
         
         observer: Topos = EPHEMERIS['earth'] + Topos(latitude_degrees=lat, longitude_degrees=lon)
         
-        chart_data: Dict[str, Any] = {}
-        
-        for planet_name in PLANETS:
-            try:
-                planet_ephem = EPHEMERIS[planet_name]
-                position = observer.at(t).observe(planet_ephem)
-                
-                # 💡 [اصلاح نهایی و حیاتی برای Skyfield فوق‌العاده قدیمی]: 
-                # استفاده از .apparent() و سپس فراخوانی مستقیم ecliptic_lonlat
-                apparent_position = position.apparent() 
-                
-                # این خط باید کار کند، چرا که ساده‌ترین مسیر باقی‌مانده است.
-                lon_rad, _, _ = apparent_position.ecliptic_lonlat(epoch=t)
-                
-                lon_deg = lon_rad.degrees
-                
-                sign_name, degree_str = get_zodiac_position(lon_deg)
-                
-                chart_data[planet_name] = {
-                    "name_fa": PLANET_SYMBOLS_FA.get(planet_name, planet_name),
-                    "sign_fa": sign_name,
-                    "position_str": degree_str,
-                    "longitude_deg": round(lon_deg, 4),
-                }
-            
-            except Exception as e:
-                # اگر محاسبه یک سیاره خاص شکست بخورد، متن خطا را در دیکشنری ذخیره کنید.
-                chart_data[planet_name] = {"error": str(e)}
-                
-        
-        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER - نیاز به پیاده‌سازی)
-        
-        return chart_data
+        chart_data: Dict[str, Any] = {}  
     
-    except Exception as general_e:
-        # در صورت بروز هر خطای پیش‌بینی نشده در فرآیند محاسبات
-        print(f"General Calculation Error: {general_e}")
-        return {"error": f"خطای کلی در هسته محاسبات: {general_e}"}
+    for planet_name in PLANETS:
+        try:
+            # ...
+            position = observer.at(t).observe(planet_ephem)
+            
+            # 💡 [کد صحیح برای Skyfield جدید (>=1.43)]
+            lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
+            
+            lon_deg = lon_rad.degrees
+            # ... (بقیه منطق) ...
+        
+        except Exception as e:
+            chart_data[planet_name] = {"error": str(e)}
+
+    return chart_data
 
 # ======================================================================
 # توابع فرمت‌دهی (برای نمایش به کاربر) 
