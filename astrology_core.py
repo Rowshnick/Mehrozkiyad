@@ -65,7 +65,6 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
     try:
         ts = load.timescale()
         
-        # اطمینان از Localization صحیح: 
         localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
         t: Time = ts.from_datetime(localized_dt) 
         
@@ -78,8 +77,8 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 planet_ephem = EPHEMERIS[planet_name]
                 position = observer.at(t).observe(planet_ephem)
                 
-                # محاسبه مختصات دایرةالبروج
-                lon_rad, _, _ = position.ecliptic_lonlat(epoch=t) 
+                # 💡 [اصلاح نهایی و حیاتی]: باید از .geometry() برای دسترسی به مختصات دایرةالبروجی استفاده کنیم.
+                lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
                 
                 lon_deg = lon_rad.degrees
                 
@@ -93,7 +92,7 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 }
             
             except Exception as e:
-                # 💡 اگر محاسبه یک سیاره خاص شکست بخورد، متن خطا را در دیکشنری ذخیره کنید.
+                # اگر محاسبه یک سیاره خاص شکست بخورد، متن خطا را در دیکشنری ذخیره کنید.
                 chart_data[planet_name] = {"error": str(e)}
                 
         
