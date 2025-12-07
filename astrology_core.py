@@ -30,10 +30,8 @@ PLANET_SYMBOLS_FA = {
 
 # داده‌های نجومی را بارگذاری کنید 
 try:
-    # Skyfield به‌طور خودکار فایل را دانلود یا از کش استفاده می‌کند.
     EPHEMERIS = load('de421.bsp')
 except Exception as e:
-    # 💡 [تقویت خطاگیری]: اگر بارگذاری Ephemeris شکست بخورد، این خطا چاپ می‌شود.
     print(f"Error loading ephemeris: {e}. Skyfield calculations will fail.")
     EPHEMERIS = None
 
@@ -62,12 +60,13 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
     """محاسبه موقعیت اجرام آسمانی برای زمان و مکان تولد."""
     
     if EPHEMERIS is None:
-        return {"error": "منابع نجومی (Ephemeris) بارگذاری نشده‌اند. لطفاً اتصال شبکه را بررسی کنید یا مطمئن شوید فایل de421.bsp در دسترس است."}
+        return {"error": "منابع نجومی (Ephemeris) بارگذاری نشده‌اند. لطفاً اتصال شبکه را بررسی کنید."}
         
     try:
         ts = load.timescale()
         
-        # اعمال منطقه زمانی دریافتی (tz) به datetime
+        # 💡 [اصلاح] اطمینان از Localization صحیح: 
+        # Skyfield نیاز به datetime محلی‌سازی شده دارد.
         localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
         t: Time = ts.from_datetime(localized_dt) 
         
@@ -79,7 +78,8 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
             try:
                 planet_ephem = EPHEMERIS[planet_name]
                 position = observer.at(t).observe(planet_ephem)
-                # استفاده از epoch=t برای مختصات دایرةالبروج حقیقی (True Ecliptic)
+                
+                # محاسبه مختصات دایرةالبروج
                 lon_rad, _, _ = position.ecliptic_lonlat(epoch=t) 
                 
                 lon_deg = lon_rad.degrees
@@ -98,13 +98,14 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 chart_data[planet_name] = {"error": f"Error calculating {planet_name}: {e}"}
                 
         
-        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER)
+        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER - نیاز به پیاده‌سازی)
         
         return chart_data
     
     except Exception as general_e:
-        # 💡 [جدید]: در صورت بروز هر خطای پیش‌بینی نشده در فرآیند محاسبات
+        # 💡 در صورت بروز هر خطای پیش‌بینی نشده در فرآیند محاسبات
         print(f"General Calculation Error: {general_e}")
+        # این خطا به عنوان پیام به کاربر برگردانده می‌شود
         return {"error": f"خطای کلی در هسته محاسبات: {general_e}"}
 
 # ======================================================================
@@ -114,22 +115,23 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
 def format_chart_summary(chart_data: Dict[str, Any], jdate: JalaliDateTime, city_name: str) -> str:
     """تولید خلاصه متنی چارت تولد."""
     
-    # 💡 [اطمینان]: اگر خطایی در داده‌ها وجود داشت، آن را در خلاصه نمایش دهید.
     if chart_data.get('error'):
-        return utils.escape_markdown_v2(f"❌ خطای محاسباتی\\: {chart_data['error']}\\n\\n لطفاً دوباره امتحان کنید یا با پشتیبانی تماس بگیرید\\.")
+        # 💡 در صورت خطا در هسته، پیام خطا را به کاربر نشان دهید.
+        return utils.escape_markdown_v2(f"❌ خطای محاسباتی: {chart_data['error']}\n\n لطفاً دوباره امتحان کنید.")
         
     sun_info = chart_data.get('sun', {})
     moon_info = chart_data.get('moon', {})
     
+    # 💡 [اصلاح Escape]: حذف بک‌اسلش‌های دستی از قالب بندی
     summary = (
         f"🌟 *خلاصه چارت تولد شما* 🌟\n\n"
-        f"**تاریخ تولد \\(شمسی\\)**\\: `{jdate.strftime('%Y/%m/%d')}`\n"
-        f"**شهر تولد**\\: {utils.escape_markdown_v2(city_name)}\n"
+        f"**تاریخ تولد (شمسی)**: `{jdate.strftime('%Y/%m/%d')}`\n"
+        f"**شهر تولد**: {utils.escape_markdown_v2(city_name)}\n"
         f"--- \n"
-        f"**خورشید \\(Sun\\)**\\: {sun_info.get('sign_fa', 'نامعلوم')} در درجه {sun_info.get('position_str', 'نامعلوم')}\n"
-        f"**ماه \\(Moon\\)**\\: {moon_info.get('sign_fa', 'نامعلوم')} در درجه {moon_info.get('position_str', 'نامعلوم')}\n"
+        f"**خورشید (Sun)**: {sun_info.get('sign_fa', 'نامعلوم')} در درجه {sun_info.get('position_str', 'نامعلوم')}\n"
+        f"**ماه (Moon)**: {moon_info.get('sign_fa', 'نامعلوم')} در درجه {moon_info.get('position_str', 'نامعلوم')}\n"
         f"--- \n"
-        f"جهت مشاهده جزئیات بیشتر از دکمه‌های زیر استفاده کنید\\."
+        f"جهت مشاهده جزئیات بیشتر از دکمه‌های زیر استفاده کنید."
     )
     return utils.escape_markdown_v2(summary)
 
@@ -137,26 +139,22 @@ def format_chart_summary(chart_data: Dict[str, Any], jdate: JalaliDateTime, city
 def format_planet_positions(chart_data: Dict[str, Any]) -> str:
     """تولید لیست موقعیت سیارات."""
     
-    if not chart_data:
-        return utils.escape_markdown_v2("❌ اطلاعات چارت موجود نیست\\.")
-    
-    # 💡 [اطمینان]: اگر خطای کلی در داده‌ها وجود داشت، آن را نمایش دهید.
-    if chart_data.get('error'):
-        return utils.escape_markdown_v2(f"❌ خطای محاسباتی\\: {chart_data['error']}")
+    if not chart_data or chart_data.get('error'):
+        return utils.escape_markdown_v2(f"❌ اطلاعات چارت موجود نیست: {chart_data.get('error', 'داده خالی')}")
         
+    # 💡 [اصلاح Escape]: حذف بک‌اسلش‌های دستی از قالب بندی
     header = "🪐 *موقعیت سیارات در زمان تولد* 🪐\n\n"
     positions = []
     
     for planet_name in PLANETS:
         data = chart_data.get(planet_name, {})
         
-        # نمایش خطای سیاره خاص
         if data.get('error'):
-            positions.append(f"• {PLANET_SYMBOLS_FA.get(planet_name, planet_name)}\\: \\(خطا در محاسبه\\: {data['error']}\\)")
+            positions.append(f"• {PLANET_SYMBOLS_FA.get(planet_name, planet_name)}: (خطا در محاسبه: {data['error']})")
             continue
             
         pos_line = (
-            f"• **{data['name_fa']}**\\: "
+            f"• **{data['name_fa']}**: "
             f"`{data['sign_fa']}` در درجه `{data['position_str']}`"
         )
         positions.append(pos_line)
