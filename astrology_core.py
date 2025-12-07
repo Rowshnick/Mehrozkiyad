@@ -81,8 +81,9 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 planet_ephem = EPHEMERIS[planet_name]
                 position = observer.at(t).observe(planet_ephem)
                 
-                # 💡 [خط اصلاح شده برای Skyfield جدید (>=1.43)]: این خط حلال خطای 'Astrometric' object has no attribute 'geometry_of' است.
-                lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
+                # 💡 [آخرین تلاش برای سازگاری با Skyfield بسیار قدیمی]: 
+                # فراخوانی مستقیم ecliptic_lonlat روی آبجکت position
+                lon_rad, _, _ = position.ecliptic_lonlat(epoch=t)
                 
                 lon_deg = lon_rad.degrees
                 
