@@ -57,6 +57,7 @@ def get_zodiac_position(lon: float) -> Tuple[str, str]:
     
     return sign_name, degree_str
 
+
 def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, lon: float, tz: pytz.BaseTzInfo) -> Dict[str, Any]:
     """محاسبه موقعیت اجرام آسمانی برای زمان و مکان تولد."""
     
@@ -66,7 +67,6 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
     try:
         ts = load.timescale()
         
-        # اطمینان از Localization صحیح: 
         localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
         t: Time = ts.from_datetime(localized_dt) 
         
@@ -79,9 +79,11 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 planet_ephem = EPHEMERIS[planet_name]
                 position = observer.at(t).observe(planet_ephem)
                 
-                # 💡 [خط اصلاح شده]: این خط حلال مشکل Astrometric است.
-                # شما باید مطمئن شوید که این خط دقیقا در فایل شما وجود دارد:
-                lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
+                # 💡 [اصلاح نهایی و حیاتی برای Skyfield قدیمی]: 
+                # استفاده از .apparent().frame_of(t) به عنوان راه حل جایگزین
+                apparent_position = position.apparent() 
+                
+                lon_rad, _, _ = apparent_position.frame_of(t).ecliptic_lonlat(epoch=t)
                 
                 lon_deg = lon_rad.degrees
                 
