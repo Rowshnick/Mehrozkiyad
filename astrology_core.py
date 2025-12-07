@@ -65,8 +65,7 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
     try:
         ts = load.timescale()
         
-        # 💡 [اصلاح] اطمینان از Localization صحیح: 
-        # Skyfield نیاز به datetime محلی‌سازی شده دارد.
+        # اطمینان از Localization صحیح: 
         localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
         t: Time = ts.from_datetime(localized_dt) 
         
@@ -94,18 +93,17 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 }
             
             except Exception as e:
-                # 💡 اگر محاسبه یک سیاره خاص شکست بخورد
-                chart_data[planet_name] = {"error": f"Error calculating {planet_name}: {e}"}
+                # 💡 اگر محاسبه یک سیاره خاص شکست بخورد، متن خطا را در دیکشنری ذخیره کنید.
+                chart_data[planet_name] = {"error": str(e)}
                 
         
-        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER - نیاز به پیاده‌سازی)
+        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER)
         
         return chart_data
     
     except Exception as general_e:
-        # 💡 در صورت بروز هر خطای پیش‌بینی نشده در فرآیند محاسبات
+        # در صورت بروز هر خطای پیش‌بینی نشده در فرآیند محاسبات
         print(f"General Calculation Error: {general_e}")
-        # این خطا به عنوان پیام به کاربر برگردانده می‌شود
         return {"error": f"خطای کلی در هسته محاسبات: {general_e}"}
 
 # ======================================================================
@@ -116,20 +114,39 @@ def format_chart_summary(chart_data: Dict[str, Any], jdate: JalaliDateTime, city
     """تولید خلاصه متنی چارت تولد."""
     
     if chart_data.get('error'):
-        # 💡 در صورت خطا در هسته، پیام خطا را به کاربر نشان دهید.
         return utils.escape_markdown_v2(f"❌ خطای محاسباتی: {chart_data['error']}\n\n لطفاً دوباره امتحان کنید.")
         
     sun_info = chart_data.get('sun', {})
     moon_info = chart_data.get('moon', {})
     
-    # 💡 [اصلاح Escape]: حذف بک‌اسلش‌های دستی از قالب بندی
+    # 💡 [اصلاح]: منطق نمایش خورشید و ماه بر اساس وجود خطا
+    
+    # خورشید
+    if sun_info.get('error'):
+        # اگر خطای سیاره‌ای وجود دارد، آن را نمایش دهید.
+        sun_error_text = sun_info['error'].replace('\n', ' ')
+        sun_line = f"**خورشید (Sun)**: ❌ *خطا در محاسبه*: `{utils.escape_code_block(sun_error_text)}`"
+    else:
+        sun_pos_str = sun_info.get('position_str', 'نامعلوم')
+        sun_line = f"**خورشید (Sun)**: {sun_info.get('sign_fa', 'نامعلوم')} در درجه {sun_pos_str}"
+        
+    # ماه
+    if moon_info.get('error'):
+        # اگر خطای سیاره‌ای وجود دارد، آن را نمایش دهید.
+        moon_error_text = moon_info['error'].replace('\n', ' ')
+        moon_line = f"**ماه (Moon)**: ❌ *خطا در محاسبه*: `{utils.escape_code_block(moon_error_text)}`"
+    else:
+        moon_pos_str = moon_info.get('position_str', 'نامعلوم')
+        moon_line = f"**ماه (Moon)**: {moon_info.get('sign_fa', 'نامعلوم')} در درجه {moon_pos_str}"
+        
+    
     summary = (
         f"🌟 *خلاصه چارت تولد شما* 🌟\n\n"
         f"**تاریخ تولد (شمسی)**: `{jdate.strftime('%Y/%m/%d')}`\n"
-        f"**شهر تولد**: {utils.escape_markdown_v2(city_name)}\n"
+        f"**شهر تولد**: {city_name}\n"
         f"--- \n"
-        f"**خورشید (Sun)**: {sun_info.get('sign_fa', 'نامعلوم')} در درجه {sun_info.get('position_str', 'نامعلوم')}\n"
-        f"**ماه (Moon)**: {moon_info.get('sign_fa', 'نامعلوم')} در درجه {moon_info.get('position_str', 'نامعلوم')}\n"
+        f"{sun_line}\n"
+        f"{moon_line}\n"
         f"--- \n"
         f"جهت مشاهده جزئیات بیشتر از دکمه‌های زیر استفاده کنید."
     )
@@ -142,7 +159,6 @@ def format_planet_positions(chart_data: Dict[str, Any]) -> str:
     if not chart_data or chart_data.get('error'):
         return utils.escape_markdown_v2(f"❌ اطلاعات چارت موجود نیست: {chart_data.get('error', 'داده خالی')}")
         
-    # 💡 [اصلاح Escape]: حذف بک‌اسلش‌های دستی از قالب بندی
     header = "🪐 *موقعیت سیارات در زمان تولد* 🪐\n\n"
     positions = []
     
@@ -150,7 +166,9 @@ def format_planet_positions(chart_data: Dict[str, Any]) -> str:
         data = chart_data.get(planet_name, {})
         
         if data.get('error'):
-            positions.append(f"• {PLANET_SYMBOLS_FA.get(planet_name, planet_name)}: (خطا در محاسبه: {data['error']})")
+            # نمایش خطای سیاره خاص
+            error_text = data['error'].replace('\n', ' ')
+            positions.append(f"• **{PLANET_SYMBOLS_FA.get(planet_name, planet_name)}**: ❌ (خطا: `{utils.escape_code_block(error_text)}`)")
             continue
             
         pos_line = (
