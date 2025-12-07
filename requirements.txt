@@ -1,5 +1,5 @@
 python-telegram-bot[webhooks]==21.7
-skyfield>=1.43 
+skyfield==1.46 
 persiantools>=3.0
 fastapi
 uvicorn
