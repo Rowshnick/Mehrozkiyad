@@ -79,11 +79,12 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 planet_ephem = EPHEMERIS[planet_name]
                 position = observer.at(t).observe(planet_ephem)
                 
-                # 💡 [اصلاح نهایی و حیاتی برای Skyfield قدیمی]: 
-                # استفاده از .apparent().frame_of(t) به عنوان راه حل جایگزین
+                # 💡 [اصلاح نهایی و حیاتی برای Skyfield فوق‌العاده قدیمی]: 
+                # استفاده از .apparent() و سپس فراخوانی مستقیم ecliptic_lonlat
                 apparent_position = position.apparent() 
                 
-                lon_rad, _, _ = apparent_position.frame_of(t).ecliptic_lonlat(epoch=t)
+                # این خط باید کار کند، چرا که ساده‌ترین مسیر باقی‌مانده است.
+                lon_rad, _, _ = apparent_position.ecliptic_lonlat(epoch=t)
                 
                 lon_deg = lon_rad.degrees
                 
