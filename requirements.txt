@@ -1,4 +1,5 @@
 python-telegram-bot[webhooks]==21.7
+skyfield>=1.43
 fastapi
 uvicorn
 httpx
@@ -6,7 +7,6 @@ pydantic
 geopy
 persiantools
 pytz
-skyfield
 numpy
 jplephem
 python-dotenv
