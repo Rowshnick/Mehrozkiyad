@@ -8,7 +8,7 @@ from skyfield.timelib import Time
 from typing import Dict, Any, Tuple
 from persiantools.jdatetime import JalaliDateTime
 import utils 
-import pytz # برای کار با منطقه زمانی (tz)
+import pytz 
 
 # ثابت‌ها
 PLANETS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'] 
@@ -30,8 +30,10 @@ PLANET_SYMBOLS_FA = {
 
 # داده‌های نجومی را بارگذاری کنید 
 try:
+    # Skyfield به‌طور خودکار فایل را دانلود یا از کش استفاده می‌کند.
     EPHEMERIS = load('de421.bsp')
 except Exception as e:
+    # 💡 [تقویت خطاگیری]: اگر بارگذاری Ephemeris شکست بخورد، این خطا چاپ می‌شود.
     print(f"Error loading ephemeris: {e}. Skyfield calculations will fail.")
     EPHEMERIS = None
 
@@ -60,51 +62,62 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
     """محاسبه موقعیت اجرام آسمانی برای زمان و مکان تولد."""
     
     if EPHEMERIS is None:
-        return {"error": "منابع نجومی (Ephemeris) بارگذاری نشده‌اند. لطفاً اتصال شبکه را بررسی کنید."}
+        return {"error": "منابع نجومی (Ephemeris) بارگذاری نشده‌اند. لطفاً اتصال شبکه را بررسی کنید یا مطمئن شوید فایل de421.bsp در دسترس است."}
         
-    ts = load.timescale()
-    
-    # 💡 [اصلاح]: اعمال منطقه زمانی دریافتی (tz) به datetime
-    localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
-    t: Time = ts.from_datetime(localized_dt) 
-    
-    observer: Topos = EPHEMERIS['earth'] + Topos(latitude_degrees=lat, longitude_degrees=lon)
-    
-    chart_data: Dict[str, Any] = {}
-    
-    for planet_name in PLANETS:
-        try:
-            planet_ephem = EPHEMERIS[planet_name]
-            position = observer.at(t).observe(planet_ephem)
-            # استفاده از epoch=t برای مختصات دایرةالبروج حقیقی (True Ecliptic)
-            lon_rad, _, _ = position.ecliptic_lonlat(epoch=t) 
-            
-            lon_deg = lon_rad.degrees
-            
-            sign_name, degree_str = get_zodiac_position(lon_deg)
-            
-            chart_data[planet_name] = {
-                "name_fa": PLANET_SYMBOLS_FA.get(planet_name, planet_name),
-                "sign_fa": sign_name,
-                "position_str": degree_str,
-                "longitude_deg": round(lon_deg, 4),
-            }
+    try:
+        ts = load.timescale()
         
-        except Exception as e:
-            chart_data[planet_name] = {"error": f"Error calculating {planet_name}: {e}"}
+        # اعمال منطقه زمانی دریافتی (tz) به datetime
+        localized_dt = tz.localize(birth_time_gregorian.replace(tzinfo=None))
+        t: Time = ts.from_datetime(localized_dt) 
+        
+        observer: Topos = EPHEMERIS['earth'] + Topos(latitude_degrees=lat, longitude_degrees=lon)
+        
+        chart_data: Dict[str, Any] = {}
+        
+        for planet_name in PLANETS:
+            try:
+                planet_ephem = EPHEMERIS[planet_name]
+                position = observer.at(t).observe(planet_ephem)
+                # استفاده از epoch=t برای مختصات دایرةالبروج حقیقی (True Ecliptic)
+                lon_rad, _, _ = position.ecliptic_lonlat(epoch=t) 
+                
+                lon_deg = lon_rad.degrees
+                
+                sign_name, degree_str = get_zodiac_position(lon_deg)
+                
+                chart_data[planet_name] = {
+                    "name_fa": PLANET_SYMBOLS_FA.get(planet_name, planet_name),
+                    "sign_fa": sign_name,
+                    "position_str": degree_str,
+                    "longitude_deg": round(lon_deg, 4),
+                }
             
-    # ۴. محاسبه Ascendant و Houses (PLACEHOLDER)
-    # این بخش باید در آینده تکمیل شود.
+            except Exception as e:
+                # 💡 اگر محاسبه یک سیاره خاص شکست بخورد
+                chart_data[planet_name] = {"error": f"Error calculating {planet_name}: {e}"}
+                
+        
+        # ۴. محاسبه Ascendant و Houses (PLACEHOLDER)
+        
+        return chart_data
     
-    return chart_data
+    except Exception as general_e:
+        # 💡 [جدید]: در صورت بروز هر خطای پیش‌بینی نشده در فرآیند محاسبات
+        print(f"General Calculation Error: {general_e}")
+        return {"error": f"خطای کلی در هسته محاسبات: {general_e}"}
 
 # ======================================================================
-# توابع فرمت‌دهی (برای نمایش به کاربر) - [تکمیل شده]
+# توابع فرمت‌دهی (برای نمایش به کاربر) 
 # ======================================================================
 
 def format_chart_summary(chart_data: Dict[str, Any], jdate: JalaliDateTime, city_name: str) -> str:
     """تولید خلاصه متنی چارت تولد."""
     
+    # 💡 [اطمینان]: اگر خطایی در داده‌ها وجود داشت، آن را در خلاصه نمایش دهید.
+    if chart_data.get('error'):
+        return utils.escape_markdown_v2(f"❌ خطای محاسباتی\\: {chart_data['error']}\\n\\n لطفاً دوباره امتحان کنید یا با پشتیبانی تماس بگیرید\\.")
+        
     sun_info = chart_data.get('sun', {})
     moon_info = chart_data.get('moon', {})
     
@@ -126,14 +139,20 @@ def format_planet_positions(chart_data: Dict[str, Any]) -> str:
     
     if not chart_data:
         return utils.escape_markdown_v2("❌ اطلاعات چارت موجود نیست\\.")
+    
+    # 💡 [اطمینان]: اگر خطای کلی در داده‌ها وجود داشت، آن را نمایش دهید.
+    if chart_data.get('error'):
+        return utils.escape_markdown_v2(f"❌ خطای محاسباتی\\: {chart_data['error']}")
         
     header = "🪐 *موقعیت سیارات در زمان تولد* 🪐\n\n"
     positions = []
     
     for planet_name in PLANETS:
         data = chart_data.get(planet_name, {})
+        
+        # نمایش خطای سیاره خاص
         if data.get('error'):
-            positions.append(f"• {data['name_fa']}\\: \\(خطا در محاسبه\\)")
+            positions.append(f"• {PLANET_SYMBOLS_FA.get(planet_name, planet_name)}\\: \\(خطا در محاسبه\\: {data['error']}\\)")
             continue
             
         pos_line = (
