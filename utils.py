@@ -84,7 +84,6 @@ def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
     except Exception:
         return None
 
-
 async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Optional[float], Any]:
     """جستجو برای مختصات جغرافیایی و منطقه زمانی شهر."""
     try:
