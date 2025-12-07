@@ -79,7 +79,8 @@ def calculate_natal_chart(birth_time_gregorian: datetime.datetime, lat: float, l
                 planet_ephem = EPHEMERIS[planet_name]
                 position = observer.at(t).observe(planet_ephem)
                 
-                # 💡 [اصلاح نهایی و حیاتی]: استفاده از .geometry_of(t) برای حل خطای 'Astrometric' object
+                # 💡 [خط اصلاح شده]: این خط حلال مشکل Astrometric است.
+                # شما باید مطمئن شوید که این خط دقیقا در فایل شما وجود دارد:
                 lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t) 
                 
                 lon_deg = lon_rad.degrees
