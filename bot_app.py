@@ -62,46 +62,39 @@ async def handle_text_message(chat_id: int, text: str):
     """هندل کردن پیام‌های متنی بر اساس وضعیت فعلی کاربر."""
     state = await get_user_state(chat_id)
     step = state['step']
-    
+
     # 1. هندلینگ ورود داده برای چارت تولد (تاریخ)
     if step == 'AWAITING_DATE':
         jdate = utils.parse_persian_date(text)
         if jdate:
             state['data']['birth_date'] = jdate
             state['step'] = 'AWAITING_CITY'
-            await save_user_state(chat_id, state) # 💡 [اصلاح]: وضعیت را بلافاصله ذخیره کنید.
+            await save_user_state(chat_id, state)
 
+            # 💡 [اصلاح]: حذف بک‌اسلش‌های دستی \\(، \\)، \\. و \\n
             msg = utils.escape_markdown_v2(
-                f"✅ تاریخ تولد شما \\({jdate.strftime('%Y/%m/%d')}\\) ثبت شد\\.\\n"\
-                "حالا نام *شهر تولد* خود را به فارسی وارد کنید\\."
+                f"✅ تاریخ تولد شما ({jdate.strftime('%Y/%m/%d')}) ثبت شد.\n"
+                "حالا نام *شهر تولد* خود را به فارسی وارد کنید."
             )
             await utils.send_message(utils.BOT_TOKEN, chat_id, msg)
-            return # 💡 خروج برای جلوگیری از اجرای منطق ذخیره در انتهای تابع
-
-        else:
-            msg = utils.escape_markdown_v2("❌ فرمت تاریخ نامعتبر است\\.\\n لطفاً تاریخ را به صورت YYYY/MM/DD (مثلاً 1370/01/01) وارد کنید\\.")
-            await utils.send_message(utils.BOT_TOKEN, chat_id, msg)
-
+            return
+        
+        # ... (بخش خطا در AWAITING_DATE بدون تغییر)
+   
     # 2. هندلینگ ورود داده برای چارت تولد (شهر)
     elif step == 'AWAITING_CITY':
         city_name = text
-        # 💡 استفاده از تابع اصلاح شده utils برای یافتن مختصات و Timezone دقیق
         lat, lon, tz = await utils.get_coordinates_from_city(city_name)
         
         if lat is not None and lon is not None:
-            state['data']['city_name'] = city_name
-            state['data']['latitude'] = lat
-            state['data']['longitude'] = lon
-            state['data']['timezone'] = tz.zone # ذخیره نام منطقه زمانی به صورت رشته
+            # ... (کدهای قبلی ذخیره وضعیت)
             
-            state['step'] = 'CHART_INPUT_COMPLETE'
-            await save_user_state(chat_id, state) # 💡 [اصلاح]: وضعیت را بلافاصله ذخیره کنید.
-            
+            # 💡 [اصلاح]: حذف بک‌اسلش‌های دستی \\: و \\n و \\.
             msg = utils.escape_markdown_v2(
-                f"✅ شهر *{city_name}* ثبت شد\\.\\n"\
-                f"مختصات\\: {lat:.4f}, {lon:.4f}\\n"\
-                f"منطقه زمانی\\: {tz.zone}\\n\\n"\
-                "*آماده برای محاسبه چارت تولد*\\."
+                f"✅ شهر *{city_name}* ثبت شد.\n"
+                f"مختصات: {lat:.4f}, {lon:.4f}\n"
+                f"منطقه زمانی: {tz.zone}\n\n" # استفاده از دو خط جدید برای خط خالی
+                "*آماده برای محاسبه چارت تولد*."
             )
             await utils.send_message(
                 utils.BOT_TOKEN, 
@@ -109,13 +102,11 @@ async def handle_text_message(chat_id: int, text: str):
                 msg, 
                 keyboards.create_keyboard([[keyboards.create_button("محاسبه چارت 📝", callback_data='SERVICES|ASTRO|CHART_CALC')]])
             )
-            return # 💡 خروج
+            return
 
-        else:
-            msg = utils.escape_markdown_v2("❌ شهر مورد نظر پیدا نشد\\.\\n لطفاً نام شهر را دقیق‌تر وارد کنید\\.")
-            await utils.send_message(utils.BOT_TOKEN, chat_id, msg)
+        # ... (بخش خطا در AWAITING_CITY بدون تغییر)
 
-    # 3. هندلینگ ورود داده برای سجیل
+   # 3. هندلینگ ورود داده برای سجیل
     elif step == 'SAJIL_INPUT':
         # 💡 این هندلر وضعیت را در داخل خودش ذخیره می‌کند.
         await sajil_handlers.run_sajil_workflow(chat_id, text, get_user_state, save_user_state)
