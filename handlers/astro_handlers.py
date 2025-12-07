@@ -6,6 +6,7 @@ import datetime
 from typing import Dict, Any, Optional
 from persiantools.jdatetime import JalaliDateTime
 import pytz 
+import traceback # 💡 جدید: برای نمایش کامل Traceback در صورت نیاز به عیب‌یابی عمیق‌تر
 
 # ایمپورت‌های ماژول‌های داخلی
 import utils
@@ -24,8 +25,6 @@ async def handle_chart_calculation(chat_id: int, state: Dict[str, Any], save_use
 
     # 2. استخراج داده‌ها
     data = state['data']
-    
-    # اطمینان از وجود داده‌های کلیدی
     required_keys = ['birth_date', 'latitude', 'longitude', 'timezone']
     if not all(key in data for key in required_keys):
         msg = utils.escape_markdown_v2("❌ خطای داده: اطلاعات تولد (تاریخ یا شهر) کامل نیست.")
@@ -47,13 +46,14 @@ async def handle_chart_calculation(chat_id: int, state: Dict[str, Any], save_use
             raise TypeError("فرمت تاریخ در دیتابیس نامعتبر است.")
 
         # تبدیل تاریخ شمسی به میلادی
+        # (زمان 12:00:00 ظهر در utils.parse_persian_date تنظیم شده است)
         birth_datetime_gregorian: datetime.datetime = jdate.to_gregorian()
-        
-        # تنظیم Timezone
         tz = pytz.timezone(data['timezone'])
         
     except Exception as e:
-        msg = utils.escape_markdown_v2(f"❌ خطای تبدیل تاریخ و زمان: {e}")
+        # اگر خطا در مرحله تبدیل تاریخ باشد، پیام واضح می‌دهد.
+        error_message_text = str(e).replace('\n', ' ')
+        msg = utils.escape_markdown_v2(f"❌ خطای تبدیل تاریخ و زمان: `{utils.escape_code_block(error_message_text)}`")
         await utils.send_message(utils.BOT_TOKEN, chat_id, msg)
         return
         
@@ -66,16 +66,12 @@ async def handle_chart_calculation(chat_id: int, state: Dict[str, Any], save_use
     try:
         chart_data = astrology_core.calculate_natal_chart(birth_datetime_gregorian, lat, lon, tz)
         
-        # 5. بررسی خطای محاسباتی
+        # 5. بررسی خطای محاسباتی هسته
         if chart_data.get('error'):
-            # اگر هسته محاسبات خطا برگرداند (مثلاً Ephemeris در دسترس نیست)
+            # 💡 اگر هسته خطا برگرداند (مثلاً Ephemeris لود نشده)
             msg = astrology_core.format_chart_summary(chart_data, jdate, city_name) 
         else:
-            # ذخیره چارت محاسبه شده در وضعیت کاربر
-            # توجه: شیء Python Dictionary به آسانی در JSON ذخیره می‌شود، نیازی به Serialization خاص نیست
             state['data']['calculated_chart'] = chart_data
-            
-            # تولید پیام خلاصه
             msg = astrology_core.format_chart_summary(chart_data, jdate, city_name)
             
         await save_user_state_func(chat_id, state)
@@ -88,10 +84,18 @@ async def handle_chart_calculation(chat_id: int, state: Dict[str, Any], save_use
             keyboards.chart_menu_keyboard() 
         )
 
-    except Exception as e:
-        # خطای غیرمنتظره
-        print(f"FATAL ERROR in chart calculation handler: {e}")
-        error_msg = utils.escape_markdown_v2("❌ خطای غیرمنتظره در محاسبه چارت. لطفاً دوباره تلاش کنید.")
+    except Exception as general_e:
+        # 💡 [اصلاح نهایی برای عیب یابی]: نمایش متن دقیق خطا
+        error_message_text = str(general_e).replace('\n', ' ')
+        # چاپ خطا در کنسول برای لاگ برداری
+        print(f"FATAL ERROR in chart calculation handler: {general_e}")
+        
+        # ارسال پیام خطای دقیق به کاربر
+        error_msg = utils.escape_markdown_v2(
+            f"❌ *خطای سیستمی در محاسبه چارت*:\n"
+            f"`{utils.escape_code_block(error_message_text)}`\n\n"
+            f"لطفاً با ادمین تماس بگیرید یا دوباره تلاش کنید."
+        )
         await utils.send_message(utils.BOT_TOKEN, chat_id, error_msg)
 
 
@@ -101,3 +105,29 @@ async def handle_chart_menu_actions(chat_id: int, state: Dict[str, Any]):
     if state['step'] != 'CHART_INPUT_COMPLETE' or 'calculated_chart' not in state['data']:
         msg = utils.escape_markdown_v2("❌ ابتدا باید چارت خود را محاسبه کنید.")
         await utils.send_message(utils.BOT_TOKEN, chat_id, msg, keyboards.astrology_menu_keyboard())
+        return
+
+    chart_data = state['data']['calculated_chart']
+    action = state['data'].get('last_chart_action')
+
+    if action == 'DETAILS':
+        msg = astrology_core.format_planet_positions(chart_data)
+        await utils.send_message(utils.BOT_TOKEN, chat_id, msg, keyboards.chart_menu_keyboard())
+    
+    elif action == 'HOUSES':
+        # (بخش در دست توسعه)
+        msg = utils.escape_markdown_v2("🛠️ محاسبه خانه‌ها در حال پیاده‌سازی است.")
+        await utils.send_message(utils.BOT_TOKEN, chat_id, msg, keyboards.chart_menu_keyboard())
+
+    elif action == 'BACK':
+        state['step'] = 'ASTRO_MENU'
+        await utils.send_message(utils.BOT_TOKEN, chat_id, utils.escape_markdown_v2("خدمات آسترولوژی را انتخاب کنید:"), keyboards.astrology_menu_keyboard())
+
+    else:
+        # ارسال مجدد خلاصه
+        jdate_str = state['data']['birth_date']
+        # نیاز به تبدیل مجدد برای فرمت دهی
+        jdate = utils.parse_persian_date(jdate_str) if isinstance(jdate_str, str) else jdate_str
+        
+        msg = astrology_core.format_chart_summary(chart_data, jdate, state['data'].get('city_name', 'نامشخص'))
+        await utils.send_message(utils.BOT_TOKEN, chat_id, msg, keyboards.chart_menu_keyboard())
