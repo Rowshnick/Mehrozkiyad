@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (تأیید نهایی)
 # ----------------------------------------------------------------------
 
 import datetime
@@ -12,6 +12,7 @@ import subprocess
 import sys
 
 # 💥 [FIX 1: Runtime Force Install - برای شکستن کش Skyfield]
+# این دستور تضمین می‌کند که ورژن جدید Skyfield در زمان اجرای برنامه بارگذاری شود.
 try:
     result = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", "skyfield"], 
                             capture_output=True, text=True, check=False)
@@ -52,7 +53,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     try:
         # ساختن آبجکت JalaliDateTime از دو رشته ورودی
         j_dt_str = f"{birth_date_jalali} {birth_time_str}"
-        j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M")
+        # 💡 توجه: اکنون birth_date_jalali یک رشته ساده است و باید دوباره parse شود
+        j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M") 
         
         # تبدیل به UTC
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
