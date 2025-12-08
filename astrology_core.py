@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه تصحیح شده)
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و پایدار)
 # ----------------------------------------------------------------------
 
 import datetime
@@ -37,8 +37,6 @@ try:
     
     # 💥 اصلاحیه: حلقه برای استفاده از نگاشت جدید
     for p_key, p_target in PLANET_MAPPING.items():
-        # p_key: نام سیاره برای استفاده در کد (مثل 'jupiter')
-        # p_target: نام هدف در فایل Ephemeris (مثل 'jupiter barycenter')
         EPHEMERIS[p_key] = eph[p_target]
         
     EPHEMERIS['earth'] = eph['earth'] 
@@ -51,7 +49,7 @@ except Exception as e:
     EPHEMERIS = {} 
 
 # ----------------------------------------------------------------------
-# تابع اصلی: محاسبه چارت تولد (بدون تغییر)
+# تابع اصلی: محاسبه چارت تولد
 # ----------------------------------------------------------------------
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: float, longitude: float, timezone_str: str) -> Dict[str, Any]:
@@ -60,12 +58,32 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     if not EPHEMERIS:
         return {"error": "داده‌های نجومی بارگذاری نشده‌اند. (خطای Ephemeris)"}
         
-    # ... بقیه کد (بدون تغییر)
-    # ... (کد شما در این بخش بدون تغییر است، زیرا از کلیدهای تصحیح شده استفاده می‌کند)
+    # 2. تنظیم تاریخ و مکان
+    try:
+        j_dt_str = f"{birth_date_jalali} {birth_time_str}"
+        j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M") 
+        
+        # تبدیل به زمان محلی و سپس UTC
+        dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
+        dt_utc = dt_local.astimezone(pytz.utc)
+        
+        t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
+        
+        # تنظیم محل مشاهده گر (Topos)
+        location = Topos(latitude_degrees=latitude, longitude_degrees=longitude)
+        observer = EPHEMERIS['earth'] + location
+        
+    # 💥 FIX CRITICAL: در صورت خطای تبدیل تاریخ/زمان، دیکشنری خطا را برمی‌گرداند ( NameError حل می‌شود)
+    except Exception as e:
+        return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
+
     
+    chart_data = {}
+
+    # 3. محاسبه موقعیت سیارات
     for planet_name in PLANETS:
         try:
-            planet_ephem = EPHEMERIS[planet_name] # این خط اکنون به هدف درست هدایت می‌شود!
+            planet_ephem = EPHEMERIS[planet_name] 
             position = observer.at(t).observe(planet_ephem)
             
             # 💥 FIX Defensive Coding: رفع خطای geometry_of با سازگاری به عقب (Skyfield Version Conflict)
@@ -86,6 +104,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             }
             
         except Exception as e:
+            # اگر خطای محاسباتی جزئی رخ داد، آن را در همان آیتم ذخیره می‌کنیم
             chart_data[planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
             
     return chart_data
