@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# utils.py - ماژول نهایی توابع کمکی
+# utils.py - ماژول نهایی توابع کمکی (با اصلاحیه نهایی مکان‌یابی)
 # ----------------------------------------------------------------------
 
 import httpx
@@ -14,8 +14,9 @@ import datetime
 
 # --- تنظیمات ضروری ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-tf = TimezoneFinder() 
-geolocator = Nominatim(user_agent="astro_bot_v1") # آبجکت سراسری Nominatim
+tf = TimezoneFinder() # آبجکت سراسری TimezoneFinder
+# 💡 آبجکت سراسری Nominatim (برای استفاده از geopy)
+geolocator = Nominatim(user_agent="astro_bot_v1") 
 
 # ======================================================================
 # توابع اصلی ارتباط با تلگرام
@@ -60,7 +61,7 @@ async def answer_callback_query(bot_token: Optional[str], callback_id: str, text
     }
     if text:
         payload['text'] = text
-        payload['show_alert'] = False # True برای نمایش پیام پاپ‌آپ
+        payload['show_alert'] = False
     
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -76,11 +77,12 @@ async def answer_callback_query(bot_token: Optional[str], callback_id: str, text
 def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
     """تلاش برای تبدیل رشته تاریخ شمسی (YYYY/MM/DD) به JalaliDateTime."""
     try:
-        # فرض کنید ورودی به صورت YYYY/MM/DD است (مثلاً 1370/01/01)
         parts = date_str.split('/')
         if len(parts) == 3:
             year, month, day = map(int, parts)
-            return JalaliDateTime(year, month, day)
+            # اعتبارسنجی ابتدایی برای جلوگیری از کرش
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                return JalaliDateTime(year, month, day)
         return None
     except Exception:
         return None
@@ -88,25 +90,31 @@ def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
 def parse_persian_time(time_str: str) -> Optional[str]:
     """تلاش برای تبدیل رشته زمان (ساعت:دقیقه) به فرمت HH:MM."""
     try:
-        # فرض استاندارد: 14:30 یا 2:30
+        # پاک کردن فضای خالی اطراف
         dt_time = datetime.datetime.strptime(time_str.strip(), '%H:%M').time()
-        # بازگرداندن به فرمت HH:MM (مثلاً '14:30')
+        # بازگرداندن به فرمت استاندارد 'HH:MM'
         return dt_time.strftime('%H:%M')
     except ValueError:
         return None
 
 
 # ======================================================================
-# توابع مکان‌یابی
+# توابع مکان‌یابی (با جستجوی پشتیبان)
 # ======================================================================
 
 async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Optional[float], Optional[pytz.BaseTzInfo]]:
-    """دریافت مختصات و منطقه زمانی از نام شهر."""
+    """دریافت مختصات و منطقه زمانی از نام شهر با مکانیزم جستجوی پشتیبان."""
     try:
-        # اجرای geocode در یک ترد جداگانه
         loop = asyncio.get_event_loop()
+        location = None
+        
+        # 1. تلاش اول: جستجو با زبان فارسی
         location = await loop.run_in_executor(None, geolocator.geocode, city_name, language='fa')
         
+        # 2. تلاش دوم (Fallback): اگر با زبان فارسی پیدا نشد، بدون پارامتر زبان جستجو کن.
+        if not location:
+            location = await loop.run_in_executor(None, geolocator.geocode, city_name)
+
         if location:
             lat = location.latitude
             lon = location.longitude
@@ -122,6 +130,7 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
                 
             return lat, lon, tz
         
+        # اگر هیچ‌کدام از دو تلاش موفقیت‌آمیز نبود
         return None, None, None
     except Exception as e:
         print(f"Error in get_coordinates_from_city: {e}")
@@ -136,9 +145,8 @@ def escape_markdown_v2(text: str) -> str:
     """کاراکترهای رزرو شده MarkdownV2 را Escape می‌کند."""
     text = str(text)
     
-    # لیست کامل کاراکترهای رزرو شده در MarkdownV2
     reserved_chars = [
-        '\\', # باید اول Escape شود
+        '\\', 
         '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', 
         '-', '=', '|', '{', '}', '.', '!'
     ]
