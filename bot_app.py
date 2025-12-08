@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# ماژول اصلی ربات تلگرام با استفاده از FastAPI (نسخه نهایی و اصلاح شده)
+# bot_app.py - ماژول اصلی ربات تلگرام (اصلاح شده)
 # ----------------------------------------------------------------------
 
 from fastapi import FastAPI, Request
@@ -68,7 +68,9 @@ async def handle_text_message(chat_id: int, text: str):
     if step == 'AWAITING_DATE':
         jdate = utils.parse_persian_date(text)
         if jdate:
-            state['data']['birth_date'] = jdate
+            # 💡 اصلاح: ذخیره رشته تاریخ به جای آبجکت JalaliDateTime
+            state['data']['birth_date'] = jdate.strftime('%Y/%m/%d')
+            
             state['step'] = 'AWAITING_CITY'
             await save_user_state(chat_id, state) # 💡 وضعیت بلافاصله ذخیره می‌شود.
 
