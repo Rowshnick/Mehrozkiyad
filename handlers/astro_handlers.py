@@ -42,8 +42,9 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
 
     # --- 2. فراخوانی تابع محاسبه چارت ---
     try:
+        # 💥 FIX: astrology_core اکنون دیکشنری خطا را برمی‌گرداند، نه Exception
         chart_result = astrology_core.calculate_natal_chart(
-            birth_date_jalali=birth_date_str, # اکنون birth_date_str مطمئناً تعریف شده است
+            birth_date_jalali=birth_date_str, 
             birth_time_str=birth_time, 
             city_name=city_name,
             latitude=latitude,
@@ -52,7 +53,9 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         )
 
         # --- 3. پردازش و ارسال نتیجه ---
-        # (بقیه کد شما برای ساختار پیام و ارسال آن)
+        msg = ""
+        
+        # 💡 مدیریت خطای برگشتی از calculate_natal_chart
         if chart_result and 'error' in chart_result:
             msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
         elif chart_result:
@@ -77,7 +80,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         )
 
     except Exception as e:
-        # در اینجا birth_date_str استفاده نمی‌شود و به خطا نمی‌خورد
+        # این بلوک فقط خطاهای بسیار غیرمنتظره را مدیریت می‌کند
         error_msg = utils.escape_markdown_v2(f"❌ *خطای غیرمنتظره در هندلر چارت*:\n`{e}`")
         await utils.send_message(utils.BOT_TOKEN, chat_id, error_msg, keyboards.main_menu_keyboard())
 
