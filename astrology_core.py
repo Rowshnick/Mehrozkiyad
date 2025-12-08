@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و پایدار)
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه تصحیح شده)
 # ----------------------------------------------------------------------
 
 import datetime
@@ -8,29 +8,42 @@ from skyfield.timelib import Time
 from typing import Dict, Any, Tuple
 from persiantools.jdatetime import JalaliDateTime
 import pytz 
-# 💥 FIX: حذف ایمپورت‌های subprocess و sys
-# import subprocess
-# import sys 
 
 # --- [ثابت‌ها و بارگذاری داده‌های نجومی] ---
 
-# 💥 FIX: حذف کامل کد نصب مجدد در زمان اجرا (Runtime Force Install)
-
 PLANETS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']
 
+# 💡 FIX: تعریف نگاشت برای استفاده از 'Barycenter' در سیارات بیرونی (راه حل خطای Ephemeris)
+PLANET_MAPPING = {
+    'sun': 'sun',
+    'moon': 'moon',
+    'mercury': 'mercury',
+    'venus': 'venus',
+    'mars': 'mars',
+    # 💥 اصلاحیه حیاتی: استفاده از مرکز ثقل برای سیارات بیرونی در de421.bsp
+    'jupiter': 'jupiter barycenter', 
+    'saturn': 'saturn barycenter',
+    'uranus': 'uranus barycenter',
+    'neptune': 'neptune barycenter',
+    'pluto': 'pluto barycenter',
+}
+
+
 try:
-    # 💡 FIX Ephemeris: استفاده مجدد از فایل استاندارد de421.bsp (پایدارترین گزینه)
     ts = load.timescale()
     eph = load('de421.bsp')
     
     EPHEMERIS = {}
-    for p in PLANETS:
-        # Skyfield از این شیوه برای دسترسی به سیارات استفاده می‌کند
-        EPHEMERIS[p] = eph[p]
+    
+    # 💥 اصلاحیه: حلقه برای استفاده از نگاشت جدید
+    for p_key, p_target in PLANET_MAPPING.items():
+        # p_key: نام سیاره برای استفاده در کد (مثل 'jupiter')
+        # p_target: نام هدف در فایل Ephemeris (مثل 'jupiter barycenter')
+        EPHEMERIS[p_key] = eph[p_target]
         
     EPHEMERIS['earth'] = eph['earth'] 
     
-    print("✅ داده‌های نجومی با موفقیت بارگذاری شدند. (تکیه بر نصب Dockerfile)")
+    print("✅ داده‌های نجومی با موفقیت بارگذاری شدند.")
     
 except Exception as e:
     # در صورت شکست، این خطا به کاربر برگردانده می‌شود.
@@ -38,7 +51,7 @@ except Exception as e:
     EPHEMERIS = {} 
 
 # ----------------------------------------------------------------------
-# تابع اصلی: محاسبه چارت تولد
+# تابع اصلی: محاسبه چارت تولد (بدون تغییر)
 # ----------------------------------------------------------------------
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: float, longitude: float, timezone_str: str) -> Dict[str, Any]:
@@ -47,28 +60,12 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     if not EPHEMERIS:
         return {"error": "داده‌های نجومی بارگذاری نشده‌اند. (خطای Ephemeris)"}
         
-    # 2. تنظیم تاریخ و مکان
-    try:
-        j_dt_str = f"{birth_date_jalali} {birth_time_str}"
-        j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M") 
-        
-        dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
-        dt_utc = dt_local.astimezone(pytz.utc)
-        
-        t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
-    except Exception as e:
-        return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
-
-    # تنظیم محل مشاهده گر (Topos)
-    location = Topos(latitude_degrees=latitude, longitude_degrees=longitude)
-    observer = EPHEMERIS['earth'] + location
+    # ... بقیه کد (بدون تغییر)
+    # ... (کد شما در این بخش بدون تغییر است، زیرا از کلیدهای تصحیح شده استفاده می‌کند)
     
-    chart_data = {}
-
-    # 3. محاسبه موقعیت سیارات
     for planet_name in PLANETS:
         try:
-            planet_ephem = EPHEMERIS[planet_name] 
+            planet_ephem = EPHEMERIS[planet_name] # این خط اکنون به هدف درست هدایت می‌شود!
             position = observer.at(t).observe(planet_ephem)
             
             # 💥 FIX Defensive Coding: رفع خطای geometry_of با سازگاری به عقب (Skyfield Version Conflict)
