@@ -14,9 +14,9 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     """
     state_data: Dict[str, Any] = state.get('data', {})
     
-    # 1. تعریف متغیرها و بازیابی از وضعیت (اطمینان از وجود متغیر birth_time)
+    # 1. تعریف متغیرها و بازیابی از وضعیت (اطمینان از وجود birth_time)
     birth_date_str = state_data.get('birth_date') 
-    birth_time = state_data.get('birth_time') 
+    birth_time = state_data.get('birth_time') # این متغیر از bot_app.py می‌آید
     city_name = state_data.get('city_name')
     latitude = state_data.get('latitude')
     longitude = state_data.get('longitude')
@@ -25,7 +25,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     # بررسی صحت تمام داده‌های ضروری (birth_time نیز اکنون ضروری است)
     if not (birth_date_str and birth_time and city_name and latitude is not None and longitude is not None and timezone):
         # ❌ اگر هر کدام از مقادیر None یا رشته خالی باشند
-        msg = utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً دوباره از منوی اصلی شروع کنید.")
+        msg = utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً تاریخ، ساعت و شهر را دوباره وارد کنید.")
         await utils.send_message(
             utils.BOT_TOKEN, 
             chat_id, 
