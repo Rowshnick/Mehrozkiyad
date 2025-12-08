@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# bot_app.py - ماژول اصلی ربات تلگرام (اصلاح شده نهایی برای ساعت تولد)
+# bot_app.py - ماژول اصلی ربات تلگرام (تصحیح نهایی ایمپورت)
 # ----------------------------------------------------------------------
 
 from fastapi import FastAPI, Request
@@ -14,10 +14,10 @@ from persiantools.jdatetime import JalaliDateTime
 # 💡 ایمپورت ماژول مدیریت وضعیت
 import state_manager 
 
-# 💡 ایمپورت هندلرهای جدید
-# فرض می‌کنیم هندلرهای شما در یک پکیج 'handlers' قرار دارند
-# اگر اینگونه نیست، خط زیر را به `import astro_handlers, sajil_handlers` تغییر دهید.
-import astro_handlers, sajil_handlers 
+# 💥 FIX CRITICAL: بازگشت به ساختار ایمپورت پکیج (اگر astro_handlers در فولدر handlers است)
+# اگر فایل‌های astro_handlers.py و sajil_handlers.py مستقیماً در کنار bot_app.py هستند، 
+# خط زیر را به `import astro_handlers, sajil_handlers` تغییر دهید.
+from handlers import astro_handlers, sajil_handlers 
 
 # ایمپورت‌های ماژول‌های داخلی
 import utils
@@ -194,6 +194,7 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
             
         elif submenu == 'ASTRO' and param == 'CHART_CALC':
             await utils.answer_callback_query(BOT_TOKEN, callback_id) 
+            # 💥 از ایمپورت تصحیح شده استفاده می‌کند: astro_handlers
             await astro_handlers.handle_chart_calculation(chat_id, state, save_user_state)
             return 
 
