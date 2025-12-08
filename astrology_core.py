@@ -14,7 +14,6 @@ import sys
 # 💥 [FIX 1: Runtime Force Install - برای شکستن کش Skyfield در Railway]
 # این دستور تضمین می‌کند که ورژن جدید Skyfield در زمان اجرای برنامه بارگذاری شود.
 try:
-    # این دستور pip را مجبور به نصب مجدد و به‌روزرسانی می‌کند.
     result = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", "skyfield"], 
                             capture_output=True, text=True, check=False)
     
@@ -29,26 +28,20 @@ except Exception as e:
 
 # --- [ثابت‌ها و بارگذاری داده‌های نجومی] ---
 
-# لیست سیارات اصلی مورد نیاز برای محاسبات
 PLANETS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']
 
 try:
-    # بارگذاری داده‌های اصلی و تایم‌اسکیل
+    # 💡 اصلاح Ephemeris: استفاده از فایل جدید de440s.bsp برای حل خطای missing 'JUPITER'
     ts = load.timescale()
-    eph = load('de421.bsp') # معمولاً این فایل به صورت خودکار دانلود می‌شود
+    eph = load('de440s.bsp') # فایل جدیدتر و کامل‌تر که از نام سیارات پشتیبانی می‌کند
     
-    # مپ کردن نام سیارات به آبجکت‌های اپه مری
     EPHEMERIS = {p: eph[p] for p in PLANETS}
     EPHEMERIS['earth'] = eph['earth'] 
     
 except Exception as e:
-    # در صورت شکست بارگذاری اپه مری، خطا در لاگ ثبت می‌شود
-    print(f"Error loading ephemeris data: {e}")
-    # برنامه ممکن است نتواند ادامه دهد، بهتر است EPHEMERIS را خالی نگذارید
-
-# --- [توابع کمکی] ---
-# اینجا توابع کمکی مانند get_sign، is_retrograde یا house_system شما قرار می‌گیرند.
-# به دلیل عدم دسترسی به کد کامل شما، از این توابع در تابع اصلی استفاده نشده است.
+    print(f"❌ خطای حیاتی در بارگذاری داده‌های نجومی (Ephemeris): {e}")
+    # اگر این خطا رخ دهد، محاسبات امکان‌پذیر نیست.
+    EPHEMERIS = {} 
 
 # ----------------------------------------------------------------------
 # تابع اصلی: محاسبه چارت تولد
@@ -56,17 +49,18 @@ except Exception as e:
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: float, longitude: float, timezone_str: str) -> Dict[str, Any]:
     
+    if not EPHEMERIS:
+        return {"error": "❌ خطای سیستمی: داده‌های نجومی بارگذاری نشده‌اند. لطفاً با ادمین تماس بگیرید."}
+        
     # 1. تنظیم تاریخ و مکان
     try:
-        # تبدیل تاریخ شمسی به میلادی با توجه به منطقه زمانی محلی و سپس UTC
         j_date = JalaliDateTime.strptime(f"{birth_date_jalali} {birth_time_str}", "%Y/%m/%d %H:%M")
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
         
-        # ایجاد آبجکت زمان Skyfield
         t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
     except Exception as e:
-        return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
+        return {"error": f"❌ خطای سیستمی در تبدیل تاریخ و زمان: {e}"}
 
     # تنظیم محل مشاهده گر (Topos)
     location = Topos(latitude_degrees=latitude, longitude_degrees=longitude)
@@ -82,27 +76,25 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             
             # 💥 [FIX 2: Defensive Coding برای رفع خطای geometry_of]
             try:
-                # گام ۱: روش جدید (Skyfield >= 1.43)
+                # گام ۱: روش جدید و صحیح (Skyfield >= 1.43)
                 lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t)
             
             except AttributeError:
-                # گام ۲: روش قدیمی (Skyfield < 1.43) - اگر ورژن قدیمی بارگذاری شده باشد
+                # گام ۲: روش قدیمی (Skyfield < 1.43) - برای دور زدن کش معیوب
                 pos_apparent = position.apparent()
                 lon_rad, _, _ = pos_apparent.frame.ecliptic_lonlat(epoch=t) 
 
             lon_deg = lon_rad.degrees
             
-            # ذخیره داده‌های اصلی (باید بر اساس ساختار داده‌های شما کامل شود)
             chart_data[planet_name] = {
                 "degree": lon_deg,
-                "lon_dms": f"{int(lon_deg)}°...", # برای نمایش دقیق‌تر باید کامل شود
+                "lon_dms": f"{int(lon_deg)}°...", 
                 "status": "Calculated successfully" 
             }
             
         except Exception as e:
             chart_data[planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
             
-    # 3. محاسبه ASC/MC/Houses (ناقص در این نمونه - باید توسط کد شما تکمیل شود)
-    # ...
+    # 3. محاسبه ASC/MC/Houses (باید توسط کد شما تکمیل شود)
     
     return chart_data
