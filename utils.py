@@ -146,8 +146,6 @@ def escape_code_block(text: str) -> str:
     text = text.replace('`', r'\`')
     return text
 
-# در ماژول utils.py
-
 def parse_persian_time(time_str: str) -> Optional[str]:
     """تلاش برای تبدیل رشته زمان (ساعت:دقیقه) به فرمت HH:MM."""
     try:
@@ -157,3 +155,4 @@ def parse_persian_time(time_str: str) -> Optional[str]:
         return dt_time.strftime('%H:%M')
     except ValueError:
         return None
+        
