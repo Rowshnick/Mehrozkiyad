@@ -145,3 +145,15 @@ def escape_code_block(text: str) -> str:
     # Escape بک‌تیک
     text = text.replace('`', r'\`')
     return text
+
+# در ماژول utils.py
+
+def parse_persian_time(time_str: str) -> Optional[str]:
+    """تلاش برای تبدیل رشته زمان (ساعت:دقیقه) به فرمت HH:MM."""
+    try:
+        # فرض استاندارد: 14:30 یا 2:30
+        dt_time = datetime.datetime.strptime(time_str.strip(), '%H:%M').time()
+        # بازگرداندن به فرمت HH:MM (مثلاً '14:30')
+        return dt_time.strftime('%H:%M')
+    except ValueError:
+        return None
