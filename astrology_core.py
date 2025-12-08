@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (اصلاح نهایی برای Ephemeris)
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و پایدار)
 # ----------------------------------------------------------------------
 
 import datetime
@@ -8,35 +8,32 @@ from skyfield.timelib import Time
 from typing import Dict, Any, Tuple
 from persiantools.jdatetime import JalaliDateTime
 import pytz 
-import subprocess
-import sys
-
-# 💥 FIX: حذف دستور نصب مجدد در زمان اجرا (Runtime Reinstall) 
-# این دستور باعث مشکلات فایل و ناسازگاری‌های غیرضروری در محیط Railway می‌شود.
-# اگر پکیج‌ها در Dockerfile به درستی نصب شده باشند، نیازی به این کار نیست.
+# 💥 FIX: حذف ایمپورت‌های subprocess و sys
+# import subprocess
+# import sys 
 
 # --- [ثابت‌ها و بارگذاری داده‌های نجومی] ---
 
-# 💡 توجه: لیستی از سیارات مورد نیاز (نام‌های استاندارد Skyfield)
+# 💥 FIX: حذف کامل کد نصب مجدد در زمان اجرا (Runtime Force Install)
+
 PLANETS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']
 
 try:
-    # 💡 FIX Ephemeris: استفاده از فایل استاندارد و کامل de421.bsp 
+    # 💡 FIX Ephemeris: استفاده مجدد از فایل استاندارد de421.bsp (پایدارترین گزینه)
     ts = load.timescale()
     eph = load('de421.bsp')
     
-    # اطمینان از اینکه همه سیارات مورد نیاز در Ephemeris موجود هستند
     EPHEMERIS = {}
     for p in PLANETS:
-        # اگر سیاره مستقیماً در eph موجود نبود، ممکن است خطایی رخ دهد، که با try/except حل می‌شود
+        # Skyfield از این شیوه برای دسترسی به سیارات استفاده می‌کند
         EPHEMERIS[p] = eph[p]
         
     EPHEMERIS['earth'] = eph['earth'] 
     
-    print("✅ داده‌های نجومی با موفقیت بارگذاری شدند.")
+    print("✅ داده‌های نجومی با موفقیت بارگذاری شدند. (تکیه بر نصب Dockerfile)")
     
 except Exception as e:
-    # این خطا دقیقاً همان خطایی است که در لاگ‌ها دیدیم (missing 'MARS' یا 'JUPITER')
+    # در صورت شکست، این خطا به کاربر برگردانده می‌شود.
     print(f"❌ خطای حیاتی در بارگذاری داده‌های نجومی (Ephemeris): {e}")
     EPHEMERIS = {} 
 
@@ -48,17 +45,13 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     
     # 1. بررسی وضعیت بارگذاری Ephemeris
     if not EPHEMERIS:
-        # اگر دیکشنری EPHEMERIS خالی باشد، یعنی بارگذاری در زمان شروع برنامه شکست خورده است
         return {"error": "داده‌های نجومی بارگذاری نشده‌اند. (خطای Ephemeris)"}
         
     # 2. تنظیم تاریخ و مکان
     try:
-        # ts از بخش global بارگذاری می‌شود
-        # ساختن آبجکت JalaliDateTime از دو رشته ورودی
         j_dt_str = f"{birth_date_jalali} {birth_time_str}"
         j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M") 
         
-        # تبدیل به UTC
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
         
@@ -75,14 +68,15 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     # 3. محاسبه موقعیت سیارات
     for planet_name in PLANETS:
         try:
-            # استفاده از آبجکت‌های از قبل بارگذاری شده
             planet_ephem = EPHEMERIS[planet_name] 
             position = observer.at(t).observe(planet_ephem)
             
-            # 💥 FIX Defensive Coding: رفع خطای geometry_of با سازگاری به عقب
+            # 💥 FIX Defensive Coding: رفع خطای geometry_of با سازگاری به عقب (Skyfield Version Conflict)
             try:
+                # روش جدید
                 lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t)
             except AttributeError:
+                # روش قدیمی
                 pos_apparent = position.apparent()
                 lon_rad, _, _ = pos_apparent.frame.ecliptic_lonlat(epoch=t) 
 
@@ -94,9 +88,6 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
                 "status": "Calculated successfully" 
             }
             
-        except KeyError:
-            # اگر بارگذاری Ephemeris موفق بود، اما سیاره‌ای در PLANETS پیدا نشد (نباید اتفاق بیفتد)
-            chart_data[planet_name] = {"error": f"❌ سیاره '{planet_name}' در Ephemeris موجود نیست."}
         except Exception as e:
             chart_data[planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
             
