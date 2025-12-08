@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# bot_app.py - ماژول اصلی ربات تلگرام (اصلاح نهایی و کامل هندلینگ Callback)
+# bot_app.py - ماژول اصلی ربات تلگرام (نسخه نهایی)
 # ----------------------------------------------------------------------
 
 from fastapi import FastAPI, Request
@@ -14,7 +14,7 @@ from persiantools.jdatetime import JalaliDateTime
 # 💡 ایمپورت ماژول مدیریت وضعیت
 import state_manager 
 
-# 💡 ایمپورت هندلرهای جدید
+# 💡 ایمپورت هندلرهای جدید (با فرض اینکه در یک فولدر/پکیج به نام 'handlers' قرار دارند)
 from handlers import astro_handlers, sajil_handlers 
 
 # ایمپورت‌های ماژول‌های داخلی
@@ -22,7 +22,8 @@ import utils
 import keyboards
 import astrology_core
 
-# --- تنظیمات ضروری ---\nBOT_TOKEN = os.environ.get("BOT_TOKEN")
+# --- تنظیمات ضروری ---
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 if not BOT_TOKEN:
     print("FATAL ERROR: BOT_TOKEN environment variable is not set.")
@@ -30,7 +31,7 @@ if not BOT_TOKEN:
 # --- توابع مدیریت وضعیت (Wrapper برای State Manager) ---
 
 async def get_user_state(chat_id: int) -> Dict[str, Any]:
-    """دریافت وضعیت وضعیت کاربر از دیتابیس."""
+    """دریافت وضعیت کاربر از دیتابیس."""
     return await state_manager.get_user_state_db(chat_id)
 
 async def save_user_state(chat_id: int, state: Dict[str, Any]):
@@ -44,6 +45,7 @@ async def handle_start_command(chat_id: int):
     """هندل کردن دستور /start یا بازگشت به منوی اصلی."""
     state = await get_user_state(chat_id)
     state['step'] = 'WELCOME'
+    # در شروع مجدد، داده‌های موقت قبلی پاک می‌شوند
     state['data'] = {} 
     
     welcome_message = utils.escape_markdown_v2(
@@ -65,6 +67,8 @@ async def handle_text_message(chat_id: int, text: str):
         jdate = utils.parse_persian_date(text)
         if jdate:
             state['data']['birth_date'] = jdate.strftime('%Y/%m/%d')
+            
+            # 💥 NEW STEP: انتقال به حالت دریافت زمان
             state['step'] = 'AWAITING_TIME' 
             await save_user_state(chat_id, state)
 
@@ -75,6 +79,7 @@ async def handle_text_message(chat_id: int, text: str):
             )
             await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.time_input_keyboard())
             return 
+
         else:
             msg = utils.escape_markdown_v2("❌ فرمت تاریخ نامعتبر است.\n لطفاً تاریخ را به صورت YYYY/MM/DD (مثلاً 1370/01/01) وارد کنید.")
             await utils.send_message(BOT_TOKEN, chat_id, msg)
@@ -87,6 +92,8 @@ async def handle_text_message(chat_id: int, text: str):
         
         if birth_time:
             state['data']['birth_time'] = birth_time
+            
+            # 💥 NEXT STEP: انتقال به حالت دریافت شهر
             state['step'] = 'AWAITING_CITY'
             await save_user_state(chat_id, state)
 
@@ -144,7 +151,6 @@ async def handle_text_message(chat_id: int, text: str):
 
     # 4. هندلینگ در حالات دیگر
     else:
-        # اگر کاربر پیام متنی داد اما در وضعیت WELCOME یا START نبود
         msg = utils.escape_markdown_v2("لطفاً از دکمه‌های منوی زیر استفاده کنید یا /start را بزنید.")
         await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
         await save_user_state(chat_id, state) 
@@ -161,10 +167,9 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
     
     # 💡 ذخیره آخرین اکشن
     state['data']['last_action'] = data 
-
-    # 1. هندلینگ منوی اصلی (MAIN)
+    
+    # 1. هندلینگ منوی اصلی (MAIN) - 💥 FIX CRITICAL HERE
     if menu == 'MAIN':
-        # 💥 FIX CRITICAL: هندل کردن تمام دکمه‌های منوی اصلی
         if submenu == 'SERVICES':
             state['step'] = 'WELCOME' 
             msg = utils.escape_markdown_v2("🔮 لطفا خدمت مورد نظر خود را انتخاب کنید:")
@@ -181,8 +186,9 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
         elif submenu == 'WELCOME':
             # بازگشت به منوی اصلی
             await handle_start_command(chat_id)
-            await utils.answer_callback_query(BOT_TOKEN, callback_id) 
-            return
+            await utils.answer_callback_query(BOT_TOKEN, callback_id) # پاسخ به کلیک
+            await save_user_state(chat_id, state) # ذخیره وضعیت
+            return # خروج سریع
 
         
     # 2. هندلینگ منوی خدمات (SERVICES)
@@ -198,7 +204,7 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
         elif submenu == 'ASTRO' and param == 'CHART_CALC':
             await utils.answer_callback_query(BOT_TOKEN, callback_id, text="محاسبه چارت در حال انجام است...") 
             await astro_handlers.handle_chart_calculation(chat_id, state, save_user_state)
-            return # خروج سریع پس از اجرای هندلر محاسبه
+            return 
 
         elif submenu == 'SIGIL' and param == '0': 
             state['step'] = 'SAJIL_INPUT'
@@ -213,7 +219,7 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
             msg = utils.escape_markdown_v2("🌿 خدمات گیاه‌شناسی در دست ساخت است.")
             await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
 
-    # 2.5. هندلینگ زیرمنوی زمان (TIME)
+    # 2.5. هندلینگ زیرمنوی زمان (TIME) 
     elif menu == 'TIME':
         if submenu == 'DEFAULT':
             default_time = param 
@@ -233,13 +239,60 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
             await save_user_state(chat_id, state)
             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی (مثلاً 1370/01/01) وارد کنید."))
 
+
     # 3. هندلینگ زیرمنوی چارت تولد (CHART)
     elif menu == 'CHART':
-        # منطق هندلینگ نمایش جزئیات چارت (مانند PLANETS, HOUSES و...) اینجا قرار می‌گیرد.
-        msg = utils.escape_markdown_v2(f"در حال نمایش جزئیات {submenu}...")
-        await utils.send_message(BOT_TOKEN, chat_id, msg)
+        # ... (منطق نمایش جزئیات چارت) ...
+        pass
 
 
     # 4. بستن اخطار Callback و ذخیره وضعیت 
     await utils.answer_callback_query(BOT_TOKEN, callback_id)
     await save_user_state(chat_id, state)
+
+
+# --- پیکربندی FastAPI ---
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 💡 فراخوانی ایجاد دیتابیس در هنگام شروع برنامه
+    await state_manager.init_db() 
+    print("INFO: FastAPI Bot Application Starting... Database initialized.")
+    yield
+    print("INFO: FastAPI Bot Application Shutting Down...")
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post(f"/{BOT_TOKEN}")
+async def webhook_handler(request: Request):
+    """هندلر اصلی وب‌هوک تلگرام."""
+    
+    body = await request.json()
+    
+    if 'message' in body:
+        message = body['message']
+        chat_id = message['chat']['id']
+        text = message.get('text', '')
+        
+        if text.startswith('/start'):
+            await handle_start_command(chat_id)
+        
+        else:
+             state = await get_user_state(chat_id)
+             # اطمینان از اینکه پیام متنی در یک وضعیت معتبر دریافت شده است
+             if text and state['step'] != 'START' and state['step'] != 'WELCOME':
+                await handle_text_message(chat_id, text)
+             else:
+                # اگر کاربر در حالتی بود که نباید پیام متنی بفرستد، یا پیام /start بود
+                await handle_start_command(chat_id)
+
+
+    elif 'callback_query' in body:
+        query = body['callback_query']
+        chat_id = query['message']['chat']['id']
+        callback_id = query['id']
+        data = query['data']
+        
+        await handle_callback_query(chat_id, callback_id, data)
+        
+    return {"ok": True}
