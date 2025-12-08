@@ -59,8 +59,8 @@ async def save_user_state_db(chat_id: int, state: Dict[str, Any]):
         await db.execute(
             """
             INSERT INTO UserStates (chat_id, state_json) VALUES (?, ?)
-            ON CONFLICT(chat_id) DO UPDATE SET state_json = ?
+            ON CONFLICT(chat_id) DO UPDATE SET state_json = excluded.state_json
             """,
-            (chat_id, state_json, state_json)
+            (chat_id, state_json)
         )
         await db.commit()
