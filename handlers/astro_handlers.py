@@ -9,18 +9,41 @@ from persiantools.jdatetime import JalaliDateTime
 from typing import Dict, Any
 
 async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_func):
-    
+    """
+    محاسبه چارت تولد با استفاده از داده‌های ذخیره‌شده کاربر.
+    """
     state_data: Dict[str, Any] = state.get('data', {})
     
-    # ... (اعتبارسنجی ورودی‌ها بدون تغییر)
+    # --- 1. اعتبارسنجی و تعریف متغیرها (این بخش باید در ابتدای تابع باشد) ---
+    # 💥 FIX CRITICAL: اطمینان از تعریف متغیرها در بالاترین سطح تابع برای رفع NameError
+    birth_date_str = state_data.get('birth_date') 
+    birth_time = state_data.get('birth_time', '12:00') 
+    city_name = state_data.get('city_name')
+    latitude = state_data.get('latitude')
+    longitude = state_data.get('longitude')
+    timezone = state_data.get('timezone')
 
-    # 💥 FIX NAME ERROR: تعریف متغیر نتیجه با مقدار پیش‌فرض قبل از try
-    chart_result = None # یا {}
+    # بررسی صحت تمام داده‌های ضروری
+    if not (birth_date_str and city_name and latitude is not None and longitude is not None and timezone):
+        # ❌ اگر هر کدام از مقادیر None یا رشته خالی باشند
+        await utils.send_message(
+            utils.BOT_TOKEN, 
+            chat_id, 
+            utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً دوباره از منوی اصلی شروع کنید."),
+            keyboards.main_menu_keyboard()
+        )
+        # 💡 به‌روزرسانی وضعیت در این حالت
+        state['step'] = 'WELCOME' 
+        await save_user_state_func(chat_id, state)
+        return
+
+    # 💡 مقداردهی اولیه برای جلوگیری از NameError در بلوک except
+    chart_result = None 
 
     # --- 2. فراخوانی تابع محاسبه چارت ---
     try:
         chart_result = astrology_core.calculate_natal_chart(
-            birth_date_jalali=birth_date_str,
+            birth_date_jalali=birth_date_str, # اکنون birth_date_str مطمئناً تعریف شده است
             birth_time_str=birth_time, 
             city_name=city_name,
             latitude=latitude,
@@ -29,13 +52,10 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         )
 
         # --- 3. پردازش و ارسال نتیجه ---
-        # اکنون chart_result حتماً تعریف شده است (یا None، یا نتیجه محاسبه)
-        
-        # 💡 اطمینان از تعریف chart_result قبل از استفاده
+        # (بقیه کد شما برای ساختار پیام و ارسال آن)
         if chart_result and 'error' in chart_result:
             msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
         elif chart_result:
-            # ایجاد یک گزارش ساده از موقعیت سیارات
             planets_info = "\n".join([
                 f"*{p.capitalize()}*: {data.get('degree'):.2f}° ({data.get('status')})" 
                 for p, data in chart_result.items() if 'error' not in data
@@ -46,16 +66,18 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
                 f"شهر: {city_name}\n\n"
                 f"**موقعیت سیارات:**\n{planets_info}"
             )
-            
-            await utils.send_message(
-                utils.BOT_TOKEN, 
-                chat_id, 
-                msg, 
-                keyboards.main_menu_keyboard()
-            )
+        else:
+             msg = utils.escape_markdown_v2("❌ *خطای نامشخص*: نتیجه محاسبه چارت خالی است.")
+
+        await utils.send_message(
+            utils.BOT_TOKEN, 
+            chat_id, 
+            msg, 
+            keyboards.main_menu_keyboard()
+        )
 
     except Exception as e:
-        # در صورت بروز خطای غیرمنتظره در حین اجرای تابع calculate_natal_chart
+        # در اینجا birth_date_str استفاده نمی‌شود و به خطا نمی‌خورد
         error_msg = utils.escape_markdown_v2(f"❌ *خطای غیرمنتظره در هندلر چارت*:\n`{e}`")
         await utils.send_message(utils.BOT_TOKEN, chat_id, error_msg, keyboards.main_menu_keyboard())
 
