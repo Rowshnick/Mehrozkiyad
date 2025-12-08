@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astro_handlers.py - هندلر سرویس‌های آسترولوژی (تصحیح نهایی)
+# astro_handlers.py - هندلر سرویس‌های آسترولوژی (تصحیح نهایی و دفاعی)
 # ----------------------------------------------------------------------
 
 import astrology_core
@@ -14,8 +14,8 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     """
     state_data: Dict[str, Any] = state.get('data', {})
     
-    # --- 1. اعتبارسنجی و تعریف متغیرها (این بخش باید در ابتدای تابع باشد) ---
-    # 💥 FIX CRITICAL: اطمینان از تعریف متغیرها در بالاترین سطح تابع برای رفع NameError
+    # --- 1. اعتبارسنجی و تعریف متغیرها ---
+    # متغیرهای ورودی در ابتدای تابع تعریف می‌شوند (حل NameError)
     birth_date_str = state_data.get('birth_date') 
     birth_time = state_data.get('birth_time', '12:00') 
     city_name = state_data.get('city_name')
@@ -26,23 +26,22 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     # بررسی صحت تمام داده‌های ضروری
     if not (birth_date_str and city_name and latitude is not None and longitude is not None and timezone):
         # ❌ اگر هر کدام از مقادیر None یا رشته خالی باشند
+        msg = utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً دوباره از منوی اصلی شروع کنید.")
         await utils.send_message(
             utils.BOT_TOKEN, 
             chat_id, 
-            utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً دوباره از منوی اصلی شروع کنید."),
+            msg,
             keyboards.main_menu_keyboard()
         )
-        # 💡 به‌روزرسانی وضعیت در این حالت
         state['step'] = 'WELCOME' 
         await save_user_state_func(chat_id, state)
         return
 
-    # 💡 مقداردهی اولیه برای جلوگیری از NameError در بلوک except
+    # مقداردهی اولیه برای جلوگیری از NameError در بلوک except
     chart_result = None 
 
     # --- 2. فراخوانی تابع محاسبه چارت ---
     try:
-        # 💥 FIX: astrology_core اکنون دیکشنری خطا را برمی‌گرداند، نه Exception
         chart_result = astrology_core.calculate_natal_chart(
             birth_date_jalali=birth_date_str, 
             birth_time_str=birth_time, 
@@ -55,14 +54,33 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         # --- 3. پردازش و ارسال نتیجه ---
         msg = ""
         
-        # 💡 مدیریت خطای برگشتی از calculate_natal_chart
+        # مدیریت خطای برگشتی از calculate_natal_chart
         if chart_result and 'error' in chart_result:
             msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
         elif chart_result:
-            planets_info = "\n".join([
-                f"*{p.capitalize()}*: {data.get('degree'):.2f}° ({data.get('status')})" 
-                for p, data in chart_result.items() if 'error' not in data
-            ])
+            
+            # 💥 FIX DEFENSIVE: ایجاد گزارش سیارات با حلقه ساده و مدیریت خطا (حل مشکل توقف پیام)
+            planets_info_lines = []
+            for p, data in chart_result.items():
+                # فقط سیاراتی که خطا ندارند و دارای درجه و وضعیت هستند را پردازش کن
+                if 'error' not in data and 'degree' in data and 'status' in data:
+                    degree_value = data.get('degree', 0.0) 
+                    status_value = data.get('status', 'Unknown')
+                    
+                    try:
+                        # تلاش برای فرمت‌دهی امن
+                        planets_info_lines.append(
+                            f"*{p.capitalize()}*: {degree_value:.2f}° ({status_value})"
+                        )
+                    except TypeError:
+                        # اگر درجه قابل فرمت‌دهی نبود (مثلاً None بود)
+                        planets_info_lines.append(
+                            f"*{p.capitalize()}*: [خطای فرمت‌دهی درجه] ({status_value})"
+                        )
+                        
+            planets_info = "\n".join(planets_info_lines)
+
+            # ساختار نهایی پیام
             msg = utils.escape_markdown_v2(
                 f"✨ **چارت تولد شما**\n"
                 f"تاریخ: {birth_date_str}، زمان: {birth_time}\n"
@@ -72,12 +90,14 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         else:
              msg = utils.escape_markdown_v2("❌ *خطای نامشخص*: نتیجه محاسبه چارت خالی است.")
 
-        await utils.send_message(
-            utils.BOT_TOKEN, 
-            chat_id, 
-            msg, 
-            keyboards.main_menu_keyboard()
-        )
+        # اطمینان از تعریف msg قبل از ارسال
+        if msg:
+            await utils.send_message(
+                utils.BOT_TOKEN, 
+                chat_id, 
+                msg, 
+                keyboards.main_menu_keyboard()
+            )
 
     except Exception as e:
         # این بلوک فقط خطاهای بسیار غیرمنتظره را مدیریت می‌کند
