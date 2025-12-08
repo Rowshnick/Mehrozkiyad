@@ -120,3 +120,15 @@ def chart_menu_keyboard():
         ]
     ]
     return create_keyboard(buttons)
+
+# --- ۱۰. منوی ورود زمان ---
+def time_input_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
+    """کیبورد اینلاین برای انتخاب زمان پیش‌فرض یا ورود دستی."""
+    keyboard = [
+        [
+            create_button("نمی‌دانم / پیش‌فرض (12:00) 🕐", callback_data='TIME|DEFAULT|12:00'),
+        ],
+        [create_button("بازگشت به تاریخ 🔙", callback_data='SERVICES|ASTRO|CHART_INPUT')],
+    ]
+    return create_keyboard(keyboard)
+
