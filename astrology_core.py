@@ -10,6 +10,31 @@ from persiantools.jdatetime import JalaliDateTime
 import utils 
 import pytz 
 
+# 💥 [کد حیاتی برای رفع خطای "geometry_of" - نصب اجباری در زمان اجرای اولیه]
+# این کد، Skyfield را مجبور می‌کند که حتی در صورت وجود کش، خود را دوباره نصب کند.
+
+try:
+    import subprocess
+    import sys
+    
+    # دستور نصب اجباری Skyfield (فقط در زمان Deploy/شروع برنامه)
+    # توجه: از subprocess.run استفاده شده تا خطای زمان اجرا در Railway را نادیده نگیرد
+    
+    # این دستور اگر موفقیت‌آمیز باشد، تضمین می‌کند که ورژن صحیح بارگذاری شود.
+    result = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", "skyfield"], 
+                            capture_output=True, text=True, check=False)
+    
+    # اگر نصب موفقیت‌آمیز بود (کد بازگشتی 0)، یک پیغام در لاگ‌ها ثبت شود
+    if result.returncode == 0:
+        print("✅ Skyfield successfully re-installed and upgraded at runtime.")
+    else:
+        # در صورت شکست (مثلاً عدم دسترسی به شبکه)، خطا را ثبت کنید اما برنامه ادامه دهد
+        print(f"❌ Failed to force-reinstall Skyfield at runtime. Error: {result.stderr}")
+        
+except Exception as e:
+    # در صورت شکست در اجرای subprocess، پیام خطا ثبت می‌شود
+    print(f"Error during runtime Skyfield check: {e}")
+
 # ثابت‌ها
 PLANETS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'] 
 DEGREES_PER_SIGN = 30
