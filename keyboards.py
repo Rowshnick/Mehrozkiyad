@@ -1,10 +1,10 @@
 # ----------------------------------------------------------------------
-# ماژول Keyboards - شامل توابعی برای تولید کیبوردهای اینلاین تلگرام.
+# keyboards.py - ماژول نهایی کیبوردهای ربات
 # ----------------------------------------------------------------------
 
 from typing import Dict, List, Any, Optional
 
-# --- توابع کمکی برای تولید دکمه ---\
+# --- توابع کمکی برای تولید دکمه ---
 def create_button(text: str, callback_data: Optional[str] = None, url: Optional[str] = None) -> Dict[str, str]:
     """ایجاد یک شیء دکمه برای API تلگرام"""
     button: Dict[str, str] = {"text": text}
@@ -30,60 +30,35 @@ def main_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
 
 # --- ۲. منوی خدمات (سطح ۲) ---
 def services_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
+    """منوی خدمات اصلی."""
     keyboard = [
-        [
-            create_button("چارت آسترولوژی 🪐", callback_data='SERVICES|ASTRO|0'),
-            create_button("سجیل 📜", callback_data='SERVICES|SIGIL|0'),
-        ],
-        [
-            create_button("سنگ شخصی 💎", callback_data='SERVICES|GEM|0'),
-            create_button("گیاه‌شناسی 🌿", callback_data='SERVICES|HERB|0'),
-        ],
+        [create_button("آسترولوژی 🪐", callback_data='SERVICES|ASTRO|0')],
+        [create_button("علم اعداد (سجیل) 🔢", callback_data='SERVICES|SIGIL|0')],
+        [create_button("سنگ شناسی 💎", callback_data='SERVICES|GEM|0')],
+        [create_button("گیاه شناسی 🌿", callback_data='SERVICES|HERB|0')],
         [create_button("بازگشت به منوی اصلی 🔙", callback_data='MAIN|WELCOME|0')],
     ]
     return create_keyboard(keyboard)
 
 # --- ۳. منوی آسترولوژی (سطح ۳) ---
 def astrology_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
+    """منوی اصلی آسترولوژی."""
     keyboard = [
-        [
-            create_button("تولید چارت تولد 📝", callback_data='SERVICES|ASTRO|CHART_INPUT'),
-        ],
+        [create_button("چارت تولد (ناتال) 📝", callback_data='SERVICES|ASTRO|CHART_INPUT')],
         [create_button("بازگشت به خدمات ↩️", callback_data='MAIN|SERVICES|0')],
     ]
     return create_keyboard(keyboard)
 
-
-# --- ۴. منوی فروشگاه ---
-def shop_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
-    keyboard = [
-        [create_button("مشاوره چارت 📞", url="https://t.me/your_admin_link")],
-        [create_button("سفارش سجیل شخصی ✨", url="https://t.me/your_admin_link")],
-        [create_button("بازگشت به منوی اصلی 🔙", callback_data='MAIN|WELCOME|0')],
-    ]
-    return create_keyboard(keyboard)
-
-# --- ۵. منوی سنگ‌شناسی ---
+# --- ۴. منوی سنگ‌شناسی (سطح ۳) ---
 def gem_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
+    """منوی اصلی سنگ‌شناسی."""
     keyboard = [
-        [create_button("سنگ شخصی 💎", callback_data='GEM|PERSONAL_INPUT')],
-        [create_button("اطلاعات سنگ‌ها 🔍", callback_data='GEM|INFO')],
+        [create_button("سنگ شخصی 🔮", callback_data='GEM|PERSONAL|0')],
         [create_button("بازگشت به خدمات ↩️", callback_data='MAIN|SERVICES|0')],
     ]
     return create_keyboard(keyboard)
-
-# --- ۶. منوی شبکه‌های اجتماعی ---
-def socials_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
-    keyboard = [
-        [
-            create_button("کانال تلگرام", url="https://t.me/your_channel"),
-            create_button("اینستاگرام", url="https://instagram.com/your_page"),
-        ],
-        [create_button("بازگشت به منوی اصلی 🔙", callback_data='MAIN|WELCOME|0')],
-    ]
-    return create_keyboard(keyboard)
-
-# --- ۷. دکمه بازگشت ساده ---
+    
+# --- ۵. کیبورد بازگشت به منوی اصلی ---
 def back_to_main_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
     """یک کیبورد ساده با دکمه بازگشت به منوی اصلی."""
     keyboard = [
@@ -91,39 +66,7 @@ def back_to_main_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
     ]
     return create_keyboard(keyboard)
 
-# --- ۸. منوی چارت تولد (پس از محاسبه) - [جدید] ---
-def birth_chart_menu_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
-    """منوی کیبورد اینلاین برای نمایش نتایج چارت تولد."""
-    keyboard = [
-        [
-            create_button("موقعیت سیارات 🪐", callback_data='CHART|PLANETS|0'),
-            create_button("وضعیت خانه‌ها 🏡", callback_data='CHART|HOUSES|0'),
-        ],
-        [
-            create_button("زوایای سیارات (Aspects) 📐", callback_data='CHART|ASPECTS|0'),
-        ],
-        [
-            create_button("محاسبه دوباره 🔄", callback_data='SERVICES|ASTRO|CHART_INPUT'),
-            create_button("بازگشت به خدمات ↩️", callback_data='MAIN|SERVICES|0'),
-        ]
-    ]
-    return create_keyboard(keyboard) 
-
-# --- ۹. منوی جزئیات چارت (در دست ساخت) ---
-def chart_menu_keyboard():
-    """کیبورد اینلاین برای نمایش نتایج چارت (جزئیات، خانه‌ها، برگشت)"""
-    
-    # دکمه‌های اینلاین برای منوی چارت
-    buttons = [
-        [
-            create_button("بازگشت به منوی اصلی 🔙", callback_data='MAIN|WELCOME|0'),
-        ]
-    ]
-    return create_keyboard(buttons)
-
-# در ماژول keyboards.py
-
-# --- ۱۰. منوی ورود زمان ---
+# --- ۶. منوی ورود زمان (NEW) ---
 def time_input_keyboard() -> Dict[str, List[List[Dict[str, Any]]]]:
     """کیبورد اینلاین برای انتخاب زمان پیش‌فرض یا ورود دستی."""
     keyboard = [
