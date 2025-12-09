@@ -102,39 +102,40 @@ def parse_persian_time(time_str: str) -> Optional[str]:
 # توابع مکان‌یابی (با جستجوی پشتیبان)
 # ======================================================================
 
-async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Optional[float], Optional[pytz.BaseTzInfo]]:
-    """دریافت مختصات و منطقه زمانی از نام شهر با مکانیزم جستجوی پشتیبان."""
+async def get_coordinates_from_city(city_name: str):
+    """دریافت مختصات و منطقه زمانی از نام شهر با مکانیزم درست و بدون خطا."""
     try:
         loop = asyncio.get_event_loop()
-        location = None
-        
-        # 1. تلاش اول: جستجو با زبان فارسی
-        location = await loop.run_in_executor(None, geolocator.geocode, city_name, language='fa')
-        
-        # 2. تلاش دوم (Fallback): اگر با زبان فارسی پیدا نشد، بدون پارامتر زبان جستجو کن.
+
+        # Wrapper برای عبور زبان به geocode
+        def geocode_fa():
+            return geolocator.geocode(city_name, language="fa")
+
+        # تلاش اول: با زبان فارسی
+        location = await loop.run_in_executor(None, geocode_fa)
+
+        # تلاش دوم: بدون زبان
         if not location:
-            location = await loop.run_in_executor(None, geolocator.geocode, city_name)
+            def geocode_default():
+                return geolocator.geocode(city_name)
+            location = await loop.run_in_executor(None, geocode_default)
 
         if location:
             lat = location.latitude
             lon = location.longitude
-            
+
             # پیدا کردن منطقه زمانی
             tz_name = tf.timezone_at(lat=lat, lng=lon)
-            
-            if tz_name:
-                tz = pytz.timezone(tz_name)
-            else:
-                tz = pytz.utc 
-                print(f"Warning: Could not find specific timezone for {city_name}. Using UTC.")
-                
+            tz = pytz.timezone(tz_name) if tz_name else pytz.utc
+
             return lat, lon, tz
-        
-        # اگر هیچ‌کدام از دو تلاش موفقیت‌آمیز نبود
+
         return None, None, None
+
     except Exception as e:
         print(f"Error in get_coordinates_from_city: {e}")
         return None, None, None
+
 
 
 # ======================================================================
