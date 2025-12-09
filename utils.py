@@ -101,6 +101,15 @@ def parse_persian_time(time_str: str) -> Optional[str]:
 # ======================================================================
 # توابع مکان‌یابی (با جستجوی پشتیبان)
 # ======================================================================
+# ----------------------------------------------------------------------
+# utils.py - اصلاحیه نهایی تابع get_coordinates_from_city
+# ----------------------------------------------------------------------
+
+# ... (بقیه کد و ایمپورت‌ها در بالای utils.py) ...
+
+# ======================================================================
+# توابع مکان‌یابی (با اصلاحیه نحوه فراخوانی زبان)
+# ======================================================================
 
 async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Optional[float], Optional[pytz.BaseTzInfo]]:
     """دریافت مختصات و منطقه زمانی از نام شهر با مکانیزم جستجوی پشتیبان."""
@@ -108,12 +117,19 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
         loop = asyncio.get_event_loop()
         location = None
         
-        # 1. تلاش اول: جستجو با زبان فارسی
-        location = await loop.run_in_executor(None, geolocator.geocode, city_name, language='fa')
+        # 1. تلاش اول: جستجو با زبان فارسی (استفاده از lambda برای انتقال پارامتر keyword)
+        # 💥 FIX: آرگومان‌های keyword باید داخل تابع lambda یا partial قرار گیرند
+        location = await loop.run_in_executor(
+            None, 
+            lambda: geolocator.geocode(city_name, language='fa') # 💡 اصلاح شد
+        )
         
         # 2. تلاش دوم (Fallback): اگر با زبان فارسی پیدا نشد، بدون پارامتر زبان جستجو کن.
         if not location:
-            location = await loop.run_in_executor(None, geolocator.geocode, city_name)
+            location = await loop.run_in_executor(
+                None, 
+                lambda: geolocator.geocode(city_name) # 💡 اصلاح شد
+            )
 
         if location:
             lat = location.latitude
@@ -134,9 +150,9 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
         return None, None, None
     except Exception as e:
         print(f"Error in get_coordinates_from_city: {e}")
+        # اگر خطای دیگری رخ داد، باز هم None برمی‌گرداند تا ربات کرش نکند.
         return None, None, None
-
-
+        
 # ======================================================================
 # توابع Escape (رفع مشکل \ در پیام‌ها)
 # ======================================================================
