@@ -1,11 +1,10 @@
 # ----------------------------------------------------------------------
-# astro_handlers.py - هندلر سرویس‌های آسترولوژی (نسخه نهایی و کاملاً دفاعی)
+# astro_handlers.py - هندلر سرویس‌های آسترولوژی (نسخه نهایی و هماهنگ با astrology_core)
 # ----------------------------------------------------------------------
 
 import astrology_core
 import utils
 import keyboards
-from persiantools.jdatetime import JalaliDateTime
 from typing import Dict, Any
 
 async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_func):
@@ -14,74 +13,54 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     """
     state_data: Dict[str, Any] = state.get('data', {})
     
-    # 1. تعریف متغیرها و بازیابی از وضعیت (اطمینان از وجود birth_time)
-    birth_date_str = state_data.get('birth_date') 
-    birth_time = state_data.get('birth_time') # این متغیر از bot_app.py می‌آید
+    # 1. بازیابی داده‌ها
+    birth_date_str = state_data.get('birth_date')
+    birth_time = state_data.get('birth_time')
     city_name = state_data.get('city_name')
     latitude = state_data.get('latitude')
     longitude = state_data.get('longitude')
     timezone = state_data.get('timezone')
 
-    # بررسی صحت تمام داده‌های ضروری (birth_time نیز اکنون ضروری است)
+    # بررسی صحت داده‌ها
     if not (birth_date_str and birth_time and city_name and latitude is not None and longitude is not None and timezone):
-        # ❌ اگر هر کدام از مقادیر None یا رشته خالی باشند
         msg = utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً تاریخ، ساعت و شهر را دوباره وارد کنید.")
-        await utils.send_message(
-            utils.BOT_TOKEN, 
-            chat_id, 
-            msg,
-            keyboards.main_menu_keyboard()
-        )
-        state['step'] = 'WELCOME' 
+        await utils.send_message(utils.BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
+        state['step'] = 'WELCOME'
         await save_user_state_func(chat_id, state)
         return
 
-    chart_result = None 
-
-    # 2. فراخوانی تابع محاسبه چارت
     try:
+        # 2. محاسبه چارت
         chart_result = astrology_core.calculate_natal_chart(
-            birth_date_jalali=birth_date_str, 
-            birth_time_str=birth_time, # استفاده از متغیر ساعت جدید
+            birth_date_jalali=birth_date_str,
+            birth_time_str=birth_time,
             city_name=city_name,
             latitude=latitude,
             longitude=longitude,
             timezone_str=timezone
         )
 
-        # 3. پردازش و ارسال نتیجه
+        # 3. پردازش خروجی
         msg = ""
-        
         if chart_result and 'error' in chart_result:
             msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
-        elif chart_result:
-            
-            # حلقه کاملاً دفاعی: تولید گزارش سیارات با مدیریت خطاهای فرمت‌دهی
+        elif chart_result and chart_result.get("status") == "ok":
             planets_info_lines = []
-            for p, data in chart_result.items():
-                if 'error' not in data and 'degree' in data and 'status' in data:
-                    degree_value = data.get('degree') 
-                    status_value = data.get('status', 'Unknown')
-                    
+            planets = chart_result.get("planets", {})
+
+            for p, data in planets.items():
+                if "error" not in data and "longitude_deg" in data:
                     try:
-                        # تلاش برای فرمت‌دهی امن
-                        if isinstance(degree_value, (int, float)):
-                            planets_info_lines.append(
-                                f"*{p.capitalize()}*: {degree_value:.2f}° ({status_value})"
-                            )
-                        else:
-                            planets_info_lines.append(
-                                f"*{p.capitalize()}*: [درجه نامعتبر] ({status_value})"
-                            )
-                            
+                        lon = data.get("longitude_deg")
+                        sign = data.get("sign", "نامشخص")
+                        planets_info_lines.append(f"*{p.capitalize()}*: {lon:.2f}° در برج {sign}")
                     except Exception:
-                        planets_info_lines.append(
-                            f"*{p.capitalize()}*: [خطای فرمت‌دهی درجه] ({status_value})"
-                        )
-                        
+                        planets_info_lines.append(f"*{p.capitalize()}*: [خطای فرمت‌دهی]")
+                else:
+                    planets_info_lines.append(f"*{p.capitalize()}*: {data.get('error', '❌ داده نامعتبر')}")
+
             planets_info = "\n".join(planets_info_lines)
 
-            # ساختار نهایی پیام
             msg = utils.escape_markdown_v2(
                 f"✨ **چارت تولد شما**\n"
                 f"تاریخ: {birth_date_str}، زمان: {birth_time}\n"
@@ -89,22 +68,16 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
                 f"**موقعیت سیارات:**\n{planets_info}"
             )
         else:
-             msg = utils.escape_markdown_v2("❌ *خطای نامشخص*: نتیجه محاسبه چارت خالی است.")
+            msg = utils.escape_markdown_v2("❌ *خطای نامشخص*: نتیجه محاسبه چارت خالی است.")
 
-        # ارسال پیام نهایی
+        # 4. ارسال پیام
         if msg:
-            await utils.send_message(
-                utils.BOT_TOKEN, 
-                chat_id, 
-                msg, 
-                keyboards.main_menu_keyboard()
-            )
+            await utils.send_message(utils.BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
 
     except Exception as e:
-        # مدیریت خطاهای بسیار غیرمنتظره
         error_msg = utils.escape_markdown_v2(f"❌ *خطای غیرمنتظره در هندلر چارت*:\n`{e}`")
         await utils.send_message(utils.BOT_TOKEN, chat_id, error_msg, keyboards.main_menu_keyboard())
 
-    # 4. به‌روزرسانی وضعیت (این بخش باید همیشه اجرا شود)
-    state['step'] = 'WELCOME' 
+    # 5. به‌روزرسانی وضعیت
+    state['step'] = 'WELCOME'
     await save_user_state_func(chat_id, state)
