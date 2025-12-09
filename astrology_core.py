@@ -205,10 +205,11 @@ def calculate_daily_prediction(
         try:
             target = EPHEMERIS.get(planet)
             if target is None:
+                today_positions[planet] = None
                 continue
             pos = observer.at(t_today).observe(target).apparent()
             lon, lat, dist = pos.ecliptic_latlon()
-            today_positions[planet] = lon.degrees
+            today_positions[planet] = float(lon.degrees)
         except Exception:
             today_positions[planet] = None
 
@@ -217,13 +218,26 @@ def calculate_daily_prediction(
     for planet, natal_data in natal_planets.items():
         natal_lon = natal_data.get("longitude_deg")
         today_lon = today_positions.get(planet)
-        if natal_lon and today_lon:
-            diff = abs(today_lon - natal_lon) % 360
-            if diff < 8:
-                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما هم‌نشین است → انرژی مشابه و پررنگ.")
-            elif abs(diff - 120) < 8:
-                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما در تریگون است → هماهنگی و فرصت‌های مثبت.")
-            elif abs(diff - 90) < 8:
-                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما در مربع است → چالش و فشار احتمالی.")
-            elif abs(diff - 180) < 8:
-                predictions.append(f"{planet.capitalize()}
+        if natal_lon is None or today_lon is None:
+            continue
+
+        diff = abs(today_lon - natal_lon) % 360.0
+
+        # نزدیکی‌ها با آستانه 8 درجه
+        orb = 8.0
+
+        if diff < orb or abs(diff - 360.0) < orb:
+            predictions.append("{} امروز با موقعیت تولد شما هم‌نشین است → انرژی مشابه و پررنگ.".format(planet.capitalize()))
+        elif abs(diff - 120.0) < orb:
+            predictions.append("{} امروز با موقعیت تولد شما در تریگون است → هماهنگی و فرصت‌های مثبت.".format(planet.capitalize()))
+        elif abs(diff - 90.0) < orb:
+            predictions.append("{} امروز با موقعیت تولد شما در مربع است → چالش و فشار احتمالی.".format(planet.capitalize()))
+        elif abs(diff - 180.0) < orb:
+            predictions.append("{} امروز با موقعیت تولد شما در مقابله است → توجه به تعادل و آگاهی از تضادها.".format(planet.capitalize()))
+
+    return {
+        "date": target_date.isoformat(),
+        "natal_chart": natal_chart,
+        "predictions": predictions,
+        "status": "ok"
+    }
