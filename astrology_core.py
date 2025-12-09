@@ -2,242 +2,109 @@
 # astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و پایدار)
 # ----------------------------------------------------------------------
 
-import os
-import math
 import datetime
-from typing import Dict, Any, Optional
-
-from skyfield.api import load, wgs84, Loader
+from skyfield.api import load, Topos
+from skyfield.timelib import Time
+from typing import Dict, Any, Tuple
 from persiantools.jdatetime import JalaliDateTime
-import pytz
+import pytz 
 
-# ----------------------------------------------------------------------
-# تنظیمات و ثابت‌ها
-# ----------------------------------------------------------------------
+# --- [ثابت‌ها و بارگذاری داده‌های نجومی] ---
 
-PLANETS = [
-    'sun', 'moon', 'mercury', 'venus', 'mars',
-    'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
-]
+PLANETS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']
 
-PLANET_TARGETS = {
+# 💡 FIX: تعریف نگاشت برای استفاده از 'Barycenter' در سیارات بیرونی (راه حل خطای Ephemeris)
+PLANET_MAPPING = {
     'sun': 'sun',
     'moon': 'moon',
     'mercury': 'mercury',
     'venus': 'venus',
     'mars': 'mars',
-    'jupiter': 'jupiter barycenter',
+    # 💥 اصلاحیه حیاتی: استفاده از مرکز ثقل برای سیارات بیرونی در de421.bsp
+    'jupiter': 'jupiter barycenter', 
     'saturn': 'saturn barycenter',
     'uranus': 'uranus barycenter',
     'neptune': 'neptune barycenter',
     'pluto': 'pluto barycenter',
 }
 
-ZODIAC_SIGNS_EN = [
-    "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
-    "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
-]
 
-DEFAULT_EPHEMERIS_FILE = os.getenv("EPHEMERIS_FILE", "de421.bsp")
-EPHEMERIS_DIR = os.getenv("EPHEMERIS_DIR", "data/ephemeris")
-os.makedirs(EPHEMERIS_DIR, exist_ok=True)
-
-loader = Loader(EPHEMERIS_DIR)
-ts = load.timescale()
-
-# ----------------------------------------------------------------------
-# بارگذاری اپهمریس
-# ----------------------------------------------------------------------
-
-def load_ephemeris() -> Optional[dict]:
-    try:
-        eph_path = os.path.join(EPHEMERIS_DIR, DEFAULT_EPHEMERIS_FILE)
-        eph = loader(DEFAULT_EPHEMERIS_FILE) if os.path.exists(eph_path) else load(DEFAULT_EPHEMERIS_FILE)
-    except Exception:
-        try:
-            eph = loader("de440s.bsp")
-        except Exception:
-            try:
-                eph = load("de421.bsp")
-            except Exception:
-                return None
-
-    ephem_map = {'earth': eph['earth']}
-    for key, target in PLANET_TARGETS.items():
-        try:
-            ephem_map[key] = eph[target]
-        except Exception:
-            ephem_map[key] = None
-    return ephem_map
-
-EPHEMERIS = load_ephemeris()
-
-# ----------------------------------------------------------------------
-# ابزارهای زمان و مکان
-# ----------------------------------------------------------------------
-
-def to_utc_from_jalali(jalali_date_str: str, time_str: str, timezone_str: str):
-    try:
-        j_dt = JalaliDateTime.strptime(f"{jalali_date_str} {time_str}", "%Y/%m/%d %H:%M")
-        g_dt_naive = j_dt.to_gregorian()
-        tz = pytz.timezone(timezone_str)
-        g_dt_local = tz.localize(g_dt_naive, is_dst=None)
-        g_dt_utc = g_dt_local.astimezone(pytz.utc)
-        return g_dt_utc
-    except Exception as e:
-        raise ValueError(f"خطا در تبدیل زمان/تایم‌زون: {e}")
-
-def sign_name_from_longitude(lon_deg: float) -> str:
-    idx = int(math.floor(lon_deg % 360.0) // 30)
-    return ZODIAC_SIGNS_EN[idx]
-
-# ----------------------------------------------------------------------
-# محاسبه موقعیت سیارات
-# ----------------------------------------------------------------------
-
-def compute_planet_positions(dt_utc, latitude: float, longitude: float) -> Dict[str, Any]:
-    if EPHEMERIS is None:
-        return {"error": "Ephemeris بارگذاری نشد."}
-
-    try:
-        t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
-        location = wgs84.latlon(latitude, longitude)
-        observer = EPHEMERIS['earth'] + location
-    except Exception as e:
-        return {"error": f"خطا در آماده‌سازی زمان/مکان: {e}"}
-
-    results: Dict[str, Any] = {}
-    for planet in PLANETS:
-        try:
-            target = EPHEMERIS.get(planet)
-            if target is None:
-                results[planet] = {"error": "هدف ephemeris یافت نشد."}
-                continue
-
-            position = observer.at(t).observe(target).apparent()
-            lon, lat, distance = position.ecliptic_latlon()
-            lon_deg = float(lon.degrees)
-
-            results[planet] = {
-                "longitude_deg": lon_deg,
-                "sign": sign_name_from_longitude(lon_deg),
-            }
-        except Exception as e:
-            results[planet] = {"error": f"خطا در محاسبه سیاره: {e}"}
-
-    return results
+try:
+    ts = load.timescale()
+    eph = load('de421.bsp')
+    
+    EPHEMERIS = {}
+    
+    # 💥 اصلاحیه: حلقه برای استفاده از نگاشت جدید
+    for p_key, p_target in PLANET_MAPPING.items():
+        EPHEMERIS[p_key] = eph[p_target]
+        
+    EPHEMERIS['earth'] = eph['earth'] 
+    
+    print("✅ داده‌های نجومی با موفقیت بارگذاری شدند.")
+    
+except Exception as e:
+    # در صورت شکست، این خطا به کاربر برگردانده می‌شود.
+    print(f"❌ خطای حیاتی در بارگذاری داده‌های نجومی (Ephemeris): {e}")
+    EPHEMERIS = {} 
 
 # ----------------------------------------------------------------------
 # تابع اصلی: محاسبه چارت تولد
 # ----------------------------------------------------------------------
 
-def calculate_natal_chart(
-    birth_date_jalali: str,
-    birth_time_str: str,
-    city_name: str,
-    latitude: float,
-    longitude: float,
-    timezone_str: str
-) -> Dict[str, Any]:
-    if EPHEMERIS is None:
-        return {"error": "داده‌های Ephemeris در دسترس نیست."}
-
+def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: float, longitude: float, timezone_str: str) -> Dict[str, Any]:
+    
+    # 1. بررسی وضعیت بارگذاری Ephemeris
+    if not EPHEMERIS:
+        return {"error": "داده‌های نجومی بارگذاری نشده‌اند. (خطای Ephemeris)"}
+        
+    # 2. تنظیم تاریخ و مکان
     try:
-        dt_utc = to_utc_from_jalali(birth_date_jalali, birth_time_str, timezone_str)
+        j_dt_str = f"{birth_date_jalali} {birth_time_str}"
+        j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M") 
+        
+        # تبدیل به زمان محلی و سپس UTC
+        dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
+        dt_utc = dt_local.astimezone(pytz.utc)
+        
+        t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
+        
+        # تنظیم محل مشاهده گر (Topos)
+        location = Topos(latitude_degrees=latitude, longitude_degrees=longitude)
+        observer = EPHEMERIS['earth'] + location
+        
+    # 💥 FIX CRITICAL: در صورت خطای تبدیل تاریخ/زمان، دیکشنری خطا را برمی‌گرداند ( NameError حل می‌شود)
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
 
-    planets = compute_planet_positions(dt_utc, latitude, longitude)
-    if "error" in planets:
-        return planets
+    
+    chart_data = {}
 
-    return {
-        "input": {
-            "birth_date_jalali": birth_date_jalali,
-            "birth_time": birth_time_str,
-            "city": city_name,
-            "latitude": latitude,
-            "longitude": longitude,
-            "timezone": timezone_str,
-        },
-        "datetime_utc": dt_utc.isoformat(),
-        "planets": planets,
-        "ascendant": None,
-        "status": "ok"
-    }
-
-# ----------------------------------------------------------------------
-# تابع جدید: پیشگویی روزانه
-# ----------------------------------------------------------------------
-
-def calculate_daily_prediction(
-    birth_date_jalali: str,
-    birth_time_str: str,
-    city_name: str,
-    latitude: float,
-    longitude: float,
-    timezone_str: str,
-    target_date: Optional[datetime.date] = None
-) -> Dict[str, Any]:
-    if EPHEMERIS is None:
-        return {"error": "Ephemeris بارگذاری نشد."}
-
-    if target_date is None:
-        target_date = datetime.date.today()
-
-    try:
-        dt_birth_utc = to_utc_from_jalali(birth_date_jalali, birth_time_str, timezone_str)
-    except Exception as e:
-        return {"error": f"خطا در تبدیل زمان تولد: {e}"}
-
-    natal_chart = calculate_natal_chart(
-        birth_date_jalali, birth_time_str, city_name, latitude, longitude, timezone_str
-    )
-    if "error" in natal_chart:
-        return natal_chart
-
-    t_today = ts.utc(target_date.year, target_date.month, target_date.day)
-    location = wgs84.latlon(latitude, longitude)
-    observer = EPHEMERIS['earth'] + location
-
-    today_positions = {}
-    for planet in PLANETS:
+    # 3. محاسبه موقعیت سیارات
+    for planet_name in PLANETS:
         try:
-            target = EPHEMERIS.get(planet)
-            if target is None:
-                today_positions[planet] = None
-                continue
-            pos = observer.at(t_today).observe(target).apparent()
-            lon, lat, dist = pos.ecliptic_latlon()
-            today_positions[planet] = float(lon.degrees)
-        except Exception:
-            today_positions[planet] = None
+            planet_ephem = EPHEMERIS[planet_name] 
+            position = observer.at(t).observe(planet_ephem)
+            
+            # 💥 FIX Defensive Coding: رفع خطای geometry_of با سازگاری به عقب (Skyfield Version Conflict)
+            try:
+                # روش جدید
+                lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t)
+            except AttributeError:
+                # روش قدیمی
+                pos_apparent = position.apparent()
+                lon_rad, _, _ = pos_apparent.frame.ecliptic_lonlat(epoch=t) 
 
-    predictions = []
-    natal_planets = natal_chart.get("planets", {})
-    for planet, natal_data in natal_planets.items():
-        natal_lon = natal_data.get("longitude_deg")
-        today_lon = today_positions.get(planet)
-        if natal_lon is None or today_lon is None:
-            continue
-
-        diff = abs(today_lon - natal_lon) % 360.0
-
-        # نزدیکی‌ها با آستانه 8 درجه
-        orb = 8.0
-
-        if diff < orb or abs(diff - 360.0) < orb:
-            predictions.append("{} امروز با موقعیت تولد شما هم‌نشین است → انرژی مشابه و پررنگ.".format(planet.capitalize()))
-        elif abs(diff - 120.0) < orb:
-            predictions.append("{} امروز با موقعیت تولد شما در تریگون است → هماهنگی و فرصت‌های مثبت.".format(planet.capitalize()))
-        elif abs(diff - 90.0) < orb:
-            predictions.append("{} امروز با موقعیت تولد شما در مربع است → چالش و فشار احتمالی.".format(planet.capitalize()))
-        elif abs(diff - 180.0) < orb:
-            predictions.append("{} امروز با موقعیت تولد شما در مقابله است → توجه به تعادل و آگاهی از تضادها.".format(planet.capitalize()))
-
-    return {
-        "date": target_date.isoformat(),
-        "natal_chart": natal_chart,
-        "predictions": predictions,
-        "status": "ok"
-    }
+            lon_deg = lon_rad.degrees
+            
+            chart_data[planet_name] = {
+                "degree": lon_deg,
+                "lon_dms": f"{lon_deg:.2f}°...", 
+                "status": "Calculated successfully" 
+            }
+            
+        except Exception as e:
+            # اگر خطای محاسباتی جزئی رخ داد، آن را در همان آیتم ذخیره می‌کنیم
+            chart_data[planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
+            
+    return chart_data
