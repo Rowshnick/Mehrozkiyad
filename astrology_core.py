@@ -1,161 +1,229 @@
 # ----------------------------------------------------------------------
-# bot_app.py - اپلیکیشن اصلی ربات تلگرام (نسخه نهایی و اصلاح‌شده)
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و پایدار)
 # ----------------------------------------------------------------------
 
-import asyncio
-import utils
-import astrology_core
-import keyboards
+import os
+import math
+import datetime
+from typing import Dict, Any, Optional
 
-BOT_TOKEN = utils.BOT_TOKEN
-
+from skyfield.api import load, wgs84, Loader
+from persiantools.jdatetime import JalaliDateTime
+import pytz
 
 # ----------------------------------------------------------------------
-# هندلر چارت تولد
+# تنظیمات و ثابت‌ها
 # ----------------------------------------------------------------------
-async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_func):
-    """
-    محاسبه چارت تولد با استفاده از داده‌های ذخیره‌شده کاربر.
-    """
-    state_data = state.get('data', {})
 
-    birth_date = state_data.get('birth_date')
-    birth_time = state_data.get('birth_time')
-    city_name = state_data.get('city_name')
-    latitude = state_data.get('latitude')
-    longitude = state_data.get('longitude')
-    timezone = state_data.get('timezone')
+PLANETS = [
+    'sun', 'moon', 'mercury', 'venus', 'mars',
+    'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
+]
 
-    if not (birth_date and birth_time and city_name and latitude and longitude and timezone):
-        msg = utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً تاریخ، ساعت و شهر را دوباره وارد کنید.")
-        await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
-        state['step'] = 'WELCOME'
-        await save_user_state_func(chat_id, state)
-        return
+PLANET_TARGETS = {
+    'sun': 'sun',
+    'moon': 'moon',
+    'mercury': 'mercury',
+    'venus': 'venus',
+    'mars': 'mars',
+    'jupiter': 'jupiter barycenter',
+    'saturn': 'saturn barycenter',
+    'uranus': 'uranus barycenter',
+    'neptune': 'neptune barycenter',
+    'pluto': 'pluto barycenter',
+}
+
+ZODIAC_SIGNS_EN = [
+    "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+    "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+]
+
+DEFAULT_EPHEMERIS_FILE = os.getenv("EPHEMERIS_FILE", "de421.bsp")
+EPHEMERIS_DIR = os.getenv("EPHEMERIS_DIR", "data/ephemeris")
+os.makedirs(EPHEMERIS_DIR, exist_ok=True)
+
+loader = Loader(EPHEMERIS_DIR)
+ts = load.timescale()
+
+# ----------------------------------------------------------------------
+# بارگذاری اپهمریس
+# ----------------------------------------------------------------------
+
+def load_ephemeris() -> Optional[dict]:
+    try:
+        eph_path = os.path.join(EPHEMERIS_DIR, DEFAULT_EPHEMERIS_FILE)
+        eph = loader(DEFAULT_EPHEMERIS_FILE) if os.path.exists(eph_path) else load(DEFAULT_EPHEMERIS_FILE)
+    except Exception:
+        try:
+            eph = loader("de440s.bsp")
+        except Exception:
+            try:
+                eph = load("de421.bsp")
+            except Exception:
+                return None
+
+    ephem_map = {'earth': eph['earth']}
+    for key, target in PLANET_TARGETS.items():
+        try:
+            ephem_map[key] = eph[target]
+        except Exception:
+            ephem_map[key] = None
+    return ephem_map
+
+EPHEMERIS = load_ephemeris()
+
+# ----------------------------------------------------------------------
+# ابزارهای زمان و مکان
+# ----------------------------------------------------------------------
+
+def to_utc_from_jalali(jalali_date_str: str, time_str: str, timezone_str: str):
+    try:
+        j_dt = JalaliDateTime.strptime(f"{jalali_date_str} {time_str}", "%Y/%m/%d %H:%M")
+        g_dt_naive = j_dt.to_gregorian()
+        tz = pytz.timezone(timezone_str)
+        g_dt_local = tz.localize(g_dt_naive, is_dst=None)
+        g_dt_utc = g_dt_local.astimezone(pytz.utc)
+        return g_dt_utc
+    except Exception as e:
+        raise ValueError(f"خطا در تبدیل زمان/تایم‌زون: {e}")
+
+def sign_name_from_longitude(lon_deg: float) -> str:
+    idx = int(math.floor(lon_deg % 360.0) // 30)
+    return ZODIAC_SIGNS_EN[idx]
+
+# ----------------------------------------------------------------------
+# محاسبه موقعیت سیارات
+# ----------------------------------------------------------------------
+
+def compute_planet_positions(dt_utc, latitude: float, longitude: float) -> Dict[str, Any]:
+    if EPHEMERIS is None:
+        return {"error": "Ephemeris بارگذاری نشد."}
 
     try:
-        chart_result = astrology_core.calculate_natal_chart(
-            birth_date_jalali=birth_date,
-            birth_time_str=birth_time,
-            city_name=city_name,
-            latitude=latitude,
-            longitude=longitude,
-            timezone_str=timezone
-        )
-
-        if "error" in chart_result:
-            msg = utils.escape_markdown_v2(f"❌ خطا در محاسبه چارت:\n`{chart_result['error']}`")
-        else:
-            planets_info_lines = []
-            planets = chart_result.get("planets", {})
-            for p, data in planets.items():
-                if "error" not in data and "longitude_deg" in data:
-                    lon = data.get("longitude_deg")
-                    sign = data.get("sign", "نامشخص")
-                    planets_info_lines.append(f"*{p.capitalize()}*: {lon:.2f}° در برج {sign}")
-                else:
-                    planets_info_lines.append(f"*{p.capitalize()}*: {data.get('error', '❌ داده نامعتبر')}")
-
-            planets_info = "\n".join(planets_info_lines)
-
-            msg = utils.escape_markdown_v2(
-                f"✨ **چارت تولد شما**\n"
-                f"تاریخ: {birth_date}، زمان: {birth_time}\n"
-                f"شهر: {city_name}\n\n"
-                f"**موقعیت سیارات:**\n{planets_info}"
-            )
-
-        await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
-
+        t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
+        location = wgs84.latlon(latitude, longitude)
+        observer = EPHEMERIS['earth'] + location
     except Exception as e:
-        error_msg = utils.escape_markdown_v2(f"❌ خطای غیرمنتظره در چارت:\n`{e}`")
-        await utils.send_message(BOT_TOKEN, chat_id, error_msg, keyboards.main_menu_keyboard())
+        return {"error": f"خطا در آماده‌سازی زمان/مکان: {e}"}
 
-    state['step'] = 'WELCOME'
-    await save_user_state_func(chat_id, state)
+    results: Dict[str, Any] = {}
+    for planet in PLANETS:
+        try:
+            target = EPHEMERIS.get(planet)
+            if target is None:
+                results[planet] = {"error": "هدف ephemeris یافت نشد."}
+                continue
 
+            position = observer.at(t).observe(target).apparent()
+            lon, lat, distance = position.ecliptic_latlon()
+            lon_deg = float(lon.degrees)
+
+            results[planet] = {
+                "longitude_deg": lon_deg,
+                "sign": sign_name_from_longitude(lon_deg),
+            }
+        except Exception as e:
+            results[planet] = {"error": f"خطا در محاسبه سیاره: {e}"}
+
+    return results
 
 # ----------------------------------------------------------------------
-# هندلر پیشگویی روزانه
+# تابع اصلی: محاسبه چارت تولد
 # ----------------------------------------------------------------------
-async def handle_daily_prediction(chat_id: int, state: dict, save_user_state_func):
-    """
-    محاسبه پیشگویی روزانه بر اساس وضعیت آسمان امروز و چارت تولد کاربر.
-    """
-    state_data = state.get("data", {})
-    birth_date = state_data.get("birth_date")
-    birth_time = state_data.get("birth_time")
-    city_name = state_data.get("city_name")
-    latitude = state_data.get("latitude")
-    longitude = state_data.get("longitude")
-    timezone = state_data.get("timezone")
 
-    if not (birth_date and birth_time and city_name and latitude and longitude and timezone):
-        msg = utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً ابتدا چارت تولد خود را ثبت کنید.")
-        await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
-        return
+def calculate_natal_chart(
+    birth_date_jalali: str,
+    birth_time_str: str,
+    city_name: str,
+    latitude: float,
+    longitude: float,
+    timezone_str: str
+) -> Dict[str, Any]:
+    if EPHEMERIS is None:
+        return {"error": "داده‌های Ephemeris در دسترس نیست."}
 
     try:
-        prediction_result = astrology_core.calculate_daily_prediction(
-            birth_date_jalali=birth_date,
-            birth_time_str=birth_time,
-            city_name=city_name,
-            latitude=latitude,
-            longitude=longitude,
-            timezone_str=timezone
-        )
-
-        if "error" in prediction_result:
-            msg = utils.escape_markdown_v2(f"❌ خطا در محاسبه پیشگویی:\n`{prediction_result['error']}`")
-        else:
-            predictions_text = "\n".join(prediction_result.get("predictions", []))
-            msg = utils.escape_markdown_v2(
-                f"🔮 **پیشگویی روزانه شما ({prediction_result['date']})**\n\n{predictions_text}"
-            )
-
-        await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
-
+        dt_utc = to_utc_from_jalali(birth_date_jalali, birth_time_str, timezone_str)
     except Exception as e:
-        error_msg = utils.escape_markdown_v2(f"❌ خطای غیرمنتظره در پیشگویی روزانه:\n`{e}`")
-        await utils.send_message(BOT_TOKEN, chat_id, error_msg, keyboards.main_menu_keyboard())
+        return {"error": str(e)}
 
-    state['step'] = 'WELCOME'
-    await save_user_state_func(chat_id, state)
+    planets = compute_planet_positions(dt_utc, latitude, longitude)
+    if "error" in planets:
+        return planets
 
+    return {
+        "input": {
+            "birth_date_jalali": birth_date_jalali,
+            "birth_time": birth_time_str,
+            "city": city_name,
+            "latitude": latitude,
+            "longitude": longitude,
+            "timezone": timezone_str,
+        },
+        "datetime_utc": dt_utc.isoformat(),
+        "planets": planets,
+        "ascendant": None,
+        "status": "ok"
+    }
 
 # ----------------------------------------------------------------------
-# سایر بخش‌های ربات (دست‌نخورده باقی مانده‌اند)
+# تابع جدید: پیشگویی روزانه
 # ----------------------------------------------------------------------
 
-# اینجا سایر هندلرها و منوهای ربات قرار دارند
-# مثل: handle_start, handle_help, handle_store, handle_fengshui, handle_symbols, handle_plants
-# همچنین بخش‌های مربوط به FastAPI/Uvicorn برای وب‌هوک Railway
-# و مدیریت دیتابیس کاربران با aiosqlite
-# هیچ‌کدام از این بخش‌ها حذف یا تغییر داده نشده‌اند و همانند نسخه اصلی باقی مانده‌اند.
+def calculate_daily_prediction(
+    birth_date_jalali: str,
+    birth_time_str: str,
+    city_name: str,
+    latitude: float,
+    longitude: float,
+    timezone_str: str,
+    target_date: Optional[datetime.date] = None
+) -> Dict[str, Any]:
+    if EPHEMERIS is None:
+        return {"error": "Ephemeris بارگذاری نشد."}
 
+    if target_date is None:
+        target_date = datetime.date.today()
 
-# ----------------------------------------------------------------------
-# نقطه ورود اصلی (برای تست محلی)
-# ----------------------------------------------------------------------
-if __name__ == "__main__":
-    async def test():
-        # شبیه‌سازی یک کاربر
-        state = {
-            "data": {
-                "birth_date": "1365/05/23",
-                "birth_time": "14:30",
-                "city_name": "Tehran, IR",
-                "latitude": 35.6892,
-                "longitude": 51.3890,
-                "timezone": "Asia/Tehran"
-            },
-            "step": "CHART"
-        }
+    try:
+        dt_birth_utc = to_utc_from_jalali(birth_date_jalali, birth_time_str, timezone_str)
+    except Exception as e:
+        return {"error": f"خطا در تبدیل زمان تولد: {e}"}
 
-        async def dummy_save(chat_id, state):
-            print(f"State saved for {chat_id}: {state}")
+    natal_chart = calculate_natal_chart(
+        birth_date_jalali, birth_time_str, city_name, latitude, longitude, timezone_str
+    )
+    if "error" in natal_chart:
+        return natal_chart
 
-        await handle_chart_calculation(12345, state, dummy_save)
-        await handle_daily_prediction(12345, state, dummy_save)
+    t_today = ts.utc(target_date.year, target_date.month, target_date.day)
+    location = wgs84.latlon(latitude, longitude)
+    observer = EPHEMERIS['earth'] + location
 
-    asyncio.run(test())
+    today_positions = {}
+    for planet in PLANETS:
+        try:
+            target = EPHEMERIS.get(planet)
+            if target is None:
+                continue
+            pos = observer.at(t_today).observe(target).apparent()
+            lon, lat, dist = pos.ecliptic_latlon()
+            today_positions[planet] = lon.degrees
+        except Exception:
+            today_positions[planet] = None
+
+    predictions = []
+    natal_planets = natal_chart.get("planets", {})
+    for planet, natal_data in natal_planets.items():
+        natal_lon = natal_data.get("longitude_deg")
+        today_lon = today_positions.get(planet)
+        if natal_lon and today_lon:
+            diff = abs(today_lon - natal_lon) % 360
+            if diff < 8:
+                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما هم‌نشین است → انرژی مشابه و پررنگ.")
+            elif abs(diff - 120) < 8:
+                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما در تریگون است → هماهنگی و فرصت‌های مثبت.")
+            elif abs(diff - 90) < 8:
+                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما در مربع است → چالش و فشار احتمالی.")
+            elif abs(diff - 180) < 8:
+                predictions.append(f"{planet.capitalize()}
