@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# utils.py - ماژول نهایی توابع کمکی (با اصلاحیه نهایی مکان‌یابی)
+# utils.py - ماژول نهایی توابع کمکی (با اصلاحیه قطعی مکان‌یابی)
 # ----------------------------------------------------------------------
 
 import httpx
@@ -14,8 +14,8 @@ import datetime
 
 # --- تنظیمات ضروری ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-tf = TimezoneFinder() # آبجکت سراسری TimezoneFinder
-# 💡 آبجکت سراسری Nominatim (برای استفاده از geopy)
+tf = TimezoneFinder() 
+# آبجکت سراسری Nominatim: مطمئن شوید که این آبجکت فقط یک بار ساخته شده است
 geolocator = Nominatim(user_agent="astro_bot_v1") 
 
 # ======================================================================
@@ -80,7 +80,6 @@ def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
         parts = date_str.split('/')
         if len(parts) == 3:
             year, month, day = map(int, parts)
-            # اعتبارسنجی ابتدایی برای جلوگیری از کرش
             if 1 <= month <= 12 and 1 <= day <= 31:
                 return JalaliDateTime(year, month, day)
         return None
@@ -90,25 +89,14 @@ def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
 def parse_persian_time(time_str: str) -> Optional[str]:
     """تلاش برای تبدیل رشته زمان (ساعت:دقیقه) به فرمت HH:MM."""
     try:
-        # پاک کردن فضای خالی اطراف
         dt_time = datetime.datetime.strptime(time_str.strip(), '%H:%M').time()
-        # بازگرداندن به فرمت استاندارد 'HH:MM'
         return dt_time.strftime('%H:%M')
     except ValueError:
         return None
 
 
 # ======================================================================
-# توابع مکان‌یابی (با جستجوی پشتیبان)
-# ======================================================================
-# ----------------------------------------------------------------------
-# utils.py - اصلاحیه نهایی تابع get_coordinates_from_city
-# ----------------------------------------------------------------------
-
-# ... (بقیه کد و ایمپورت‌ها در بالای utils.py) ...
-
-# ======================================================================
-# توابع مکان‌یابی (با اصلاحیه نحوه فراخوانی زبان)
+# توابع مکان‌یابی (با جستجوی پشتیبان و استفاده از Lambda)
 # ======================================================================
 
 async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Optional[float], Optional[pytz.BaseTzInfo]]:
@@ -117,18 +105,18 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
         loop = asyncio.get_event_loop()
         location = None
         
-        # 1. تلاش اول: جستجو با زبان فارسی (استفاده از lambda برای انتقال پارامتر keyword)
-        # 💥 FIX: آرگومان‌های keyword باید داخل تابع lambda یا partial قرار گیرند
+        # 1. تلاش اول: جستجو با زبان فارسی (استفاده از Lambda برای انتقال پارامتر keyword)
+        # 💡 این روش، خطای run_in_executor() got an unexpected keyword argument 'language' را رفع می‌کند.
         location = await loop.run_in_executor(
             None, 
-            lambda: geolocator.geocode(city_name, language='fa') # 💡 اصلاح شد
+            lambda: geolocator.geocode(city_name, language='fa') 
         )
         
         # 2. تلاش دوم (Fallback): اگر با زبان فارسی پیدا نشد، بدون پارامتر زبان جستجو کن.
         if not location:
             location = await loop.run_in_executor(
                 None, 
-                lambda: geolocator.geocode(city_name) # 💡 اصلاح شد
+                lambda: geolocator.geocode(city_name)
             )
 
         if location:
@@ -150,9 +138,9 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
         return None, None, None
     except Exception as e:
         print(f"Error in get_coordinates_from_city: {e}")
-        # اگر خطای دیگری رخ داد، باز هم None برمی‌گرداند تا ربات کرش نکند.
         return None, None, None
-        
+
+
 # ======================================================================
 # توابع Escape (رفع مشکل \ در پیام‌ها)
 # ======================================================================
@@ -167,7 +155,6 @@ def escape_markdown_v2(text: str) -> str:
         '-', '=', '|', '{', '}', '.', '!'
     ]
     
-    # اعمال Escape
     for char in reserved_chars:
         text = text.replace(char, f'\\{char}')
         
@@ -179,3 +166,4 @@ def escape_code_block(text: str) -> str:
     text = text.replace('\\', '\\\\')
     text = text.replace('`', '\\`')
     return text
+
