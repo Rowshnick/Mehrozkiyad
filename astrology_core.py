@@ -248,3 +248,90 @@ if __name__ == "__main__":
         timezone_str="Asia/Tehran"
     )
     print(sample)
+
+
+
+# ----------------------------------------------------------------------
+# تابع جدید: پیشگویی روزانه
+# ----------------------------------------------------------------------
+
+def calculate_daily_prediction(
+    birth_date_jalali: str,
+    birth_time_str: str,
+    city_name: str,
+    latitude: float,
+    longitude: float,
+    timezone_str: str,
+    target_date: Optional[datetime.date] = None
+) -> Dict[str, Any]:
+    """
+    محاسبه پیشگویی روزانه بر اساس:
+      - وضعیت آسمان امروز (ترنزیت سیارات)
+      - مقایسه با چارت تولد کاربر
+    ورودی:
+      - تاریخ و ساعت تولد کاربر
+      - مختصات محل تولد
+      - تایم‌زون
+      - target_date: تاریخ مورد نظر (پیش‌فرض: امروز)
+    خروجی:
+      - متن پیشگویی روزانه
+    """
+    if EPHEMERIS is None:
+        return {"error": "Ephemeris بارگذاری نشد."}
+
+    # تاریخ هدف (امروز اگر مشخص نشده)
+    if target_date is None:
+        target_date = datetime.date.today()
+
+    # زمان تولد کاربر (UTC)
+    try:
+        dt_birth_utc = to_utc_from_jalali(birth_date_jalali, birth_time_str, timezone_str)
+    except Exception as e:
+        return {"error": f"خطا در تبدیل زمان تولد: {e}"}
+
+    # محاسبه چارت تولد
+    natal_chart = calculate_natal_chart(
+        birth_date_jalali, birth_time_str, city_name, latitude, longitude, timezone_str
+    )
+    if "error" in natal_chart:
+        return natal_chart
+
+    # محاسبه وضعیت امروز
+    t_today = ts.utc(target_date.year, target_date.month, target_date.day)
+    location = wgs84.latlon(latitude, longitude)
+    observer = EPHEMERIS['earth'] + location
+
+    today_positions = {}
+    for planet in PLANETS:
+        try:
+            target = EPHEMERIS.get(planet)
+            if target is None:
+                continue
+            pos = observer.at(t_today).observe(target).apparent()
+            lon, lat, dist = pos.ecliptic_latlon()
+            today_positions[planet] = lon.degrees
+        except Exception:
+            today_positions[planet] = None
+
+    # مقایسه ساده جنبه‌ها (conjunction, trine, square, opposition)
+    predictions = []
+    natal_planets = natal_chart.get("planets", {})
+    for planet, natal_data in natal_planets.items():
+        natal_lon = natal_data.get("longitude_deg")
+        today_lon = today_positions.get(planet)
+        if natal_lon and today_lon:
+            diff = abs(today_lon - natal_lon) % 360
+            if diff < 8:  # conjunction
+                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما هم‌نشین است → انرژی مشابه و پررنگ.")
+            elif abs(diff - 120) < 8:  # trine
+                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما در تریگون است → هماهنگی و فرصت‌های مثبت.")
+            elif abs(diff - 90) < 8:  # square
+                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما در مربع است → چالش و فشار احتمالی.")
+            elif abs(diff - 180) < 8:  # opposition
+                predictions.append(f"{planet.capitalize()} امروز با موقعیت تولد شما در مقابله است → نیاز به تعادل و مراقبت.")
+
+    return {
+        "date": target_date.isoformat(),
+        "predictions": predictions,
+        "status": "ok"
+    }
