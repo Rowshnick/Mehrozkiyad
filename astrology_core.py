@@ -67,14 +67,19 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
         
+        # 💡 گزارش موفقیت آمیز بودن تبدیل تاریخ
+        print(f"DEBUG: Converted UTC Time: {dt_utc}, Timezone: {timezone_str}")
+        
         t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
         
         # تنظیم محل مشاهده گر (Topos)
         location = Topos(latitude_degrees=latitude, longitude_degrees=longitude)
         observer = EPHEMERIS['earth'] + location
         
-    # 💥 FIX CRITICAL: در صورت خطای تبدیل تاریخ/زمان، دیکشنری خطا را برمی‌گرداند ( NameError حل می‌شود)
+    # 💥 FIX CRITICAL: در صورت خطای تبدیل تاریخ/زمان، دیکشنری خطا را برمی‌گرداند
     except Exception as e:
+        # 💡 گزارش خطا در تبدیل تاریخ
+        print(f"DEBUG ERROR: Date/Time conversion failed: {e}") 
         return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
 
     
