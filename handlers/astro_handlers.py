@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astro_handlers.py - هندلر سرویس‌های آسترولوژی (نسخه نهایی و کاملاً دفاعی)
+# astro_handlers.py - هندلر سرویس‌های آسترولوژی (نسخه اصلاح‌شده نهایی)
 # ----------------------------------------------------------------------
 
 import astrology_core
@@ -7,6 +7,11 @@ import utils
 import keyboards
 from persiantools.jdatetime import JalaliDateTime
 from typing import Dict, Any
+import logging # 💡 ایمپورت جدید برای لاگ
+
+# تنظیم لاگینگ
+logging.basicConfig(level=logging.INFO)
+
 
 async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_func):
     """
@@ -14,16 +19,22 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     """
     state_data: Dict[str, Any] = state.get('data', {})
     
+    # 💡 خط DEBUG جدید: چاپ تمام داده‌های بازیابی شده
+    logging.info(f"DEBUG: Chart Calculation Data for chat {chat_id}: {state_data}")
+    
     # 1. تعریف متغیرها و بازیابی از وضعیت (اطمینان از وجود birth_time)
     birth_date_str = state_data.get('birth_date') 
-    birth_time = state_data.get('birth_time') # این متغیر از bot_app.py می‌آید
+    birth_time = state_data.get('birth_time') 
     city_name = state_data.get('city_name')
     latitude = state_data.get('latitude')
     longitude = state_data.get('longitude')
     timezone = state_data.get('timezone')
 
-    # بررسی صحت تمام داده‌های ضروری (birth_time نیز اکنون ضروری است)
+    # بررسی صحت تمام داده‌های ضروری
     if not (birth_date_str and birth_time and city_name and latitude is not None and longitude is not None and timezone):
+        # 💡 خط DEBUG جدید: چاپ مقداری که خالی است
+        logging.error(f"FATAL: Missing Chart Data: Date={birth_date_str}, Time={birth_time}, City={city_name}, Lat={latitude}, Lon={longitude}, TZ={timezone}")
+        
         # ❌ اگر هر کدام از مقادیر None یا رشته خالی باشند
         msg = utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً تاریخ، ساعت و شهر را دوباره وارد کنید.")
         await utils.send_message(
@@ -36,7 +47,12 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         await save_user_state_func(chat_id, state)
         return
 
-    chart_result = None 
+    # ---------------------------------------------------
+    # 💡 اگر تا اینجا نرسیده است، این بخش اجرا نمی‌شود.
+    # ---------------------------------------------------
+    
+    # بقیه کد... (از اینجا به بعد باید اجرا شود اگر شرط بالا برقرار نشود)
+    chart_result = None
 
     # 2. فراخوانی تابع محاسبه چارت
     try:
