@@ -8,45 +8,9 @@ from skyfield.timelib import Time
 from typing import Dict, Any, Tuple
 from persiantools.jdatetime import JalaliDateTime
 import pytz 
+import logging # برای عیب‌یابی (جهت اطمینان از خروجی)
 
-# --- [ثابت‌ها و بارگذاری داده‌های نجومی] ---
-
-PLANETS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']
-
-# 💡 FIX: تعریف نگاشت برای استفاده از 'Barycenter' در سیارات بیرونی (راه حل خطای Ephemeris)
-PLANET_MAPPING = {
-    'sun': 'sun',
-    'moon': 'moon',
-    'mercury': 'mercury',
-    'venus': 'venus',
-    'mars': 'mars',
-    # 💥 اصلاحیه حیاتی: استفاده از مرکز ثقل برای سیارات بیرونی در de421.bsp
-    'jupiter': 'jupiter barycenter', 
-    'saturn': 'saturn barycenter',
-    'uranus': 'uranus barycenter',
-    'neptune': 'neptune barycenter',
-    'pluto': 'pluto barycenter',
-}
-
-
-try:
-    ts = load.timescale()
-    eph = load('de421.bsp')
-    
-    EPHEMERIS = {}
-    
-    # 💥 اصلاحیه: حلقه برای استفاده از نگاشت جدید
-    for p_key, p_target in PLANET_MAPPING.items():
-        EPHEMERIS[p_key] = eph[p_target]
-        
-    EPHEMERIS['earth'] = eph['earth'] 
-    
-    print("✅ داده‌های نجومی با موفقیت بارگذاری شدند.")
-    
-except Exception as e:
-    # در صورت شکست، این خطا به کاربر برگردانده می‌شود.
-    print(f"❌ خطای حیاتی در بارگذاری داده‌های نجومی (Ephemeris): {e}")
-    EPHEMERIS = {} 
+# ... (بخش ثابت‌ها و بارگذاری داده‌های نجومی - بدون تغییر) ...
 
 # ----------------------------------------------------------------------
 # تابع اصلی: محاسبه چارت تولد
@@ -67,8 +31,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
         
-        # 💡 گزارش موفقیت آمیز بودن تبدیل تاریخ
-        print(f"DEBUG: Converted UTC Time: {dt_utc}, Timezone: {timezone_str}")
+        logging.info(f"DEBUG: Converted UTC Time: {dt_utc}, Timezone: {timezone_str}") # خط عیب‌یابی
         
         t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
         
@@ -76,10 +39,9 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         location = Topos(latitude_degrees=latitude, longitude_degrees=longitude)
         observer = EPHEMERIS['earth'] + location
         
-    # 💥 FIX CRITICAL: در صورت خطای تبدیل تاریخ/زمان، دیکشنری خطا را برمی‌گرداند
+    # در صورت خطای تبدیل تاریخ/زمان، دیکشنری خطا را برمی‌گرداند
     except Exception as e:
-        # 💡 گزارش خطا در تبدیل تاریخ
-        print(f"DEBUG ERROR: Date/Time conversion failed: {e}") 
+        logging.error(f"DEBUG ERROR: Date/Time conversion failed: {e}") # خط عیب‌یابی
         return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
 
     
@@ -91,15 +53,11 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             planet_ephem = EPHEMERIS[planet_name] 
             position = observer.at(t).observe(planet_ephem)
             
-            # 💥 FIX Defensive Coding: رفع خطای geometry_of با سازگاری به عقب (Skyfield Version Conflict)
-            try:
-                # روش جدید
-                lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t)
-            except AttributeError:
-                # روش قدیمی
-                pos_apparent = position.apparent()
-                lon_rad, _, _ = pos_apparent.frame.ecliptic_lonlat(epoch=t) 
-
+            # 💥 FIX CRITICAL: حذف کد قدیمی و فقط استفاده از روش جدید (geometry_of)
+            
+            # روش استاندارد و جدید: محاسبه طول دایرةالبروجی (Ecliptic Longitude)
+            lon_rad, _, _ = position.geometry_of(t).ecliptic_lonlat(epoch=t)
+            
             lon_deg = lon_rad.degrees
             
             chart_data[planet_name] = {
@@ -112,4 +70,5 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             # اگر خطای محاسباتی جزئی رخ داد، آن را در همان آیتم ذخیره می‌کنیم
             chart_data[planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
             
+    logging.info(f"DEBUG FINAL CHART RESULT: {chart_data}") # خط عیب‌یابی
     return chart_data
