@@ -140,7 +140,6 @@ async def get_coordinates_from_city(city_name: str) -> Tuple[Optional[float], Op
         print(f"Error in get_coordinates_from_city: {e}")
         return None, None, None
 
-
 # ======================================================================
 # توابع Escape (رفع مشکل \ در پیام‌ها)
 # ======================================================================
@@ -152,18 +151,11 @@ def escape_markdown_v2(text: str) -> str:
     reserved_chars = [
         '\\', 
         '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', 
-        '-', '=', '|', '{', '}', '.', '!'
+        '-', '=', '|', '{', '}', '.', '!', ':'  # <<--- : اضافه شد
     ]
     
     for char in reserved_chars:
-        text = text.replace(char, f'\\{char}')
+        # 💡 این خط، کلید حل مشکل است: هر کاراکتر رزرو شده (شامل خود \) را به صورت \+کاراکتر فراردهی می‌کند.
+        text = text.replace(char, f'\\{char}') 
         
     return text
-    
-def escape_code_block(text: str) -> str:
-    """فقط کاراکترهای بک‌تیک و بک‌اسلش را برای بلاک‌های کد Escape می‌کند."""
-    text = str(text)
-    text = text.replace('\\', '\\\\')
-    text = text.replace('`', '\\`')
-    return text
-
