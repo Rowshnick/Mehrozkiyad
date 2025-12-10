@@ -53,13 +53,24 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         msg = ""
         
         if chart_result and 'error' in chart_result:
+            # خطای کلی محاسبه (مانند خطای تبدیل تاریخ و زمان)
             msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
         elif chart_result:
             
-            # حلقه کاملاً دفاعی: تولید گزارش سیارات با مدیریت خطاهای فرمت‌دهی
+            # حلقه کاملاً دفاعی: تولید گزارش سیارات با مدیریت خطاهای فرمت‌دهی و نمایش خطاهای محاسباتی
             planets_info_lines = []
             for p, data in chart_result.items():
-                if 'error' not in data and 'degree' in data and 'status' in data:
+                
+                # 💡 اصلاح: اگر کلید 'error' وجود دارد، آن را نمایش بده
+                if 'error' in data:
+                    error_detail = data.get('error', 'خطای ناشناخته در محاسبه.')
+                    planets_info_lines.append(
+                        f"*{p.capitalize()}*: ❌ {error_detail}"
+                    )
+                    continue # به سیاره بعدی برو
+                
+                # اگر خطا نداشت، وضعیت موفقیت‌آمیز را بررسی کن
+                elif 'degree' in data and 'status' in data:
                     degree_value = data.get('degree') 
                     status_value = data.get('status', 'Unknown')
                     
@@ -78,6 +89,11 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
                         planets_info_lines.append(
                             f"*{p.capitalize()}*: [خطای فرمت‌دهی درجه] ({status_value})"
                         )
+                else:
+                    # در صورتی که داده نه خطا داشته باشد و نه درجه/وضعیت (ناقص)
+                    planets_info_lines.append(
+                        f"*{p.capitalize()}*: [داده ناقص یا نامعتبر]"
+                    )
                         
             planets_info = "\n".join(planets_info_lines)
 
