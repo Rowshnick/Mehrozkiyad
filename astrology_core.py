@@ -51,12 +51,12 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
         
-        # تبدیل زمان UTC به Julian Day (JD)
+        # محاسبه ساعت کلی UTC (ساعت + دقیقه/60 + ثانیه/3600)
         total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
         
-        # se.julday(سال, ماه, روز, ساعت (ساعت + اعشار دقیقه/ثانیه), تقویم)
-        # 💥 اصلاح نهایی: تغییر se.SE_GREG_CAL به se.GREGORIAN
-        jd_utc = se.julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, se.GREGORIAN) 
+        # 💥 اصلاح نهایی و ضروری: استفاده از se.julday و se.GREGORIAN
+        # se.julday(سال, ماه, روز, ساعت, تقویم)
+        jd_utc = se.julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, se.GREGORIAN)
         
         # لاگ برای تأیید تبدیل زمان
         logging.info(f"زمان UTC تبدیل شده: {dt_utc.isoformat()}. Julian Day: {jd_utc:.6f}")
