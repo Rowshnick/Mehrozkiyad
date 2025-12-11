@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# bot_app.py - ماژول اصلی ربات تلگرام (نسخه نهایی و تصحیح شده برای Escape)
+# bot_app.py - ماژول اصلی ربات تلگرام (نسخه نهایی و مقاوم در برابر خطا)
 # ----------------------------------------------------------------------
 
 from fastapi import FastAPI, Request
@@ -10,6 +10,7 @@ import pytz
 import asyncio
 from contextlib import asynccontextmanager 
 from persiantools.jdatetime import JalaliDateTime
+import logging # 💡 مطمئن شوید logging ایمپورت شده است
 
 # 💡 ایمپورت ماژول مدیریت وضعیت
 import state_manager 
@@ -29,7 +30,7 @@ if not BOT_TOKEN:
     print("FATAL ERROR: BOT_TOKEN environment variable is not set.")
 
 # --- توابع مدیریت وضعیت (Wrapper برای State Manager) ---
-
+# (بدون تغییر)
 async def get_user_state(chat_id: int) -> Dict[str, Any]:
     """دریافت وضعیت وضعیت کاربر از دیتابیس."""
     return await state_manager.get_user_state_db(chat_id)
@@ -40,7 +41,7 @@ async def save_user_state(chat_id: int, state: Dict[str, Any]):
 
 
 # --- توابع هندلینگ پیام ---
-
+# (handle_start_command و handle_text_message بدون تغییر)
 async def handle_start_command(chat_id: int):
     """هندل کردن دستور /start یا بازگشت به منوی اصلی."""
     state = await get_user_state(chat_id)
@@ -48,7 +49,6 @@ async def handle_start_command(chat_id: int):
     # در شروع مجدد، داده‌های موقت قبلی پاک می‌شوند
     state['data'] = {} 
     
-    # ❌ اصلاح: حذف بک‌اسلش‌های دستی در "!\"
     welcome_message = utils.escape_markdown_v2(
         "✨ به ربات طالع‌بینی و سجیل خوش آمدید!\n"
         "برای شروع، می‌توانید از منوی خدمات در زیر استفاده کنید."
@@ -73,7 +73,6 @@ async def handle_text_message(chat_id: int, text: str):
             state['step'] = 'AWAITING_TIME' 
             await save_user_state(chat_id, state)
 
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \(\), \.\*, و \.\
             msg = utils.escape_markdown_v2(
                 f"✅ تاریخ تولد شما ({jdate.strftime('%Y/%m/%d')}) ثبت شد.\n"
                 "*لطفاً ساعت تولد خود را به صورت HH:MM (مثلاً 14:30) وارد کنید.*\n"
@@ -83,10 +82,8 @@ async def handle_text_message(chat_id: int, text: str):
             return 
 
         else:
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \.\ و \n
             msg = utils.escape_markdown_v2("❌ فرمت تاریخ نامعتبر است.\n لطفاً تاریخ را به صورت YYYY/MM/DD (مثلاً 1370/01/01) وارد کنید.")
             await utils.send_message(BOT_TOKEN, chat_id, msg)
-            # وضعیت در AWAITING_DATE باقی می‌ماند
             await save_user_state(chat_id, state) 
             return 
     
@@ -101,7 +98,6 @@ async def handle_text_message(chat_id: int, text: str):
             state['step'] = 'AWAITING_CITY'
             await save_user_state(chat_id, state)
 
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \(\) و \.\
             msg = utils.escape_markdown_v2(
                 f"✅ ساعت تولد شما ({birth_time}) ثبت شد.\n"
                 "حالا نام *شهر تولد* خود را به فارسی وارد کنید."
@@ -109,10 +105,8 @@ async def handle_text_message(chat_id: int, text: str):
             await utils.send_message(BOT_TOKEN, chat_id, msg)
             return
         else:
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \.\ و \n
             msg = utils.escape_markdown_v2("❌ فرمت ساعت نامعتبر است.\n لطفاً ساعت را به صورت HH:MM (مثلاً 02:30 یا 14:30) وارد کنید.")
             await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.time_input_keyboard())
-            # وضعیت در AWAITING_TIME باقی می‌ماند
             await save_user_state(chat_id, state)
             return
 
@@ -120,7 +114,7 @@ async def handle_text_message(chat_id: int, text: str):
     # 2. هندلینگ ورود داده برای چارت تولد (شهر)
     elif step == 'AWAITING_CITY':
         city_name = text
-        # 💡 اصلاح CRITICAL: تابع در utils.py با نام 'get_city_lookup_data' و به صورت سنکرون تعریف شده است.
+        # 💡 فراخوانی تابع اصلاح‌شده مکان‌یابی از utils.py
         city_data = utils.get_city_lookup_data(city_name)
         
         if city_data:
@@ -134,16 +128,15 @@ async def handle_text_message(chat_id: int, text: str):
                 await utils.send_message(BOT_TOKEN, chat_id, msg)
                 await save_user_state(chat_id, state) 
                 return
-
+            
             state['data']['city_name'] = city_name
             state['data']['latitude'] = lat
             state['data']['longitude'] = lon
-            state['data']['timezone'] = timezone_str # ذخیره رشته منطقه زمانی
+            state['data']['timezone'] = timezone_str 
             
             state['step'] = 'CHART_INPUT_COMPLETE'
             await save_user_state(chat_id, state)
             
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \* و \n
             msg = utils.escape_markdown_v2(
                 f"✅ شهر *{city_name}* ثبت شد.\n"
                 f"مختصات: {lat:.4f}, {lon:.4f}\n"
@@ -160,10 +153,8 @@ async def handle_text_message(chat_id: int, text: str):
             return 
 
         else:
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \.\ و \n
             msg = utils.escape_markdown_v2("❌ شهر مورد نظر پیدا نشد.\n لطفاً نام شهر را دقیق‌تر وارد کنید.")
             await utils.send_message(BOT_TOKEN, chat_id, msg)
-            # وضعیت در AWAITING_CITY باقی می‌ماند
             await save_user_state(chat_id, state) 
             return 
 
@@ -174,7 +165,6 @@ async def handle_text_message(chat_id: int, text: str):
 
     # 4. هندلینگ در حالات دیگر
     else:
-        # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \/\start و \.\
         msg = utils.escape_markdown_v2("لطفاً از دکمه‌های منوی زیر استفاده کنید یا /start را بزنید.")
         await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
         await save_user_state(chat_id, state) 
@@ -184,107 +174,108 @@ async def handle_text_message(chat_id: int, text: str):
 async def handle_callback_query(chat_id: int, callback_id: str, data: str):
     """هندل کردن کلیک‌های کاربر روی دکمه‌های اینلاین."""
     state = await get_user_state(chat_id)
-    parts = data.split('|')
-    menu = parts[0]
-    submenu = parts[1]
-    param = parts[2] if len(parts) > 2 else '0'
     
-    # 💡 ذخیره آخرین اکشن
-    state['data']['last_action'] = data 
-    
-    # 1. هندلینگ منوی اصلی (MAIN) - 💥 FIX CRITICAL: رفع مشکل دکمه خدمات
-    if menu == 'MAIN':
-        if submenu == 'SERVICES':
-            state['step'] = 'WELCOME' 
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \:
-            msg = utils.escape_markdown_v2("🔮 لطفا خدمت مورد نظر خود را انتخاب کنید:")
-            await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.services_menu_keyboard())
-        elif submenu == 'SHOP':
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \.\
-            msg = utils.escape_markdown_v2("🛍️ فروشگاه در دست توسعه است.")
-            await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
-        elif submenu == 'SOCIALS':
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \.\
-            msg = utils.escape_markdown_v2("🌐 شبکه‌های اجتماعی در دست توسعه است.")
-            await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
-        elif submenu == 'ABOUT':
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \.\
-            msg = utils.escape_markdown_v2("🧑‍💻 درباره ما و راهنما در دست توسعه است.")
-            await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
-        elif submenu == 'WELCOME':
-            # بازگشت به منوی اصلی
-            await handle_start_command(chat_id)
-            await utils.answer_callback_query(BOT_TOKEN, callback_id) # پاسخ به کلیک
-            await save_user_state(chat_id, state) # ذخیره وضعیت
-            return # خروج سریع
-
+    # 💡 اضافه کردن مدیریت خطا
+    try:
+        parts = data.split('|')
+        menu = parts[0]
+        submenu = parts[1]
+        param = parts[2] if len(parts) > 2 else '0'
         
-    # 2. هندلینگ منوی خدمات (SERVICES)
-    elif menu == 'SERVICES':
-        if submenu == 'ASTRO' and param == '0': 
-            state['step'] = 'ASTRO_MENU'
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \:
-            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("خدمات آسترولوژی را انتخاب کنید:"), keyboards.astrology_menu_keyboard())
+        logging.info(f"Callback Query Received: Chat ID: {chat_id}, Data: {data}")
         
-        elif submenu == 'ASTRO' and param == 'CHART_INPUT':
-            # 💡 شروع فرایند ورود داده چارت
-            state['step'] = 'AWAITING_DATE'
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \:
-            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی (مثلاً 1370/01/01) وارد کنید."))
+        # 💡 ذخیره آخرین اکشن
+        state['data']['last_action'] = data 
+        
+        # 1. هندلینگ منوی اصلی (MAIN)
+        if menu == 'MAIN':
+            if submenu == 'SERVICES':
+                state['step'] = 'WELCOME' 
+                msg = utils.escape_markdown_v2("🔮 لطفا خدمت مورد نظر خود را انتخاب کنید:")
+                await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.services_menu_keyboard())
+                
+            elif submenu == 'SHOP':
+                msg = utils.escape_markdown_v2("🛍️ فروشگاه در دست توسعه است.")
+                await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
+            elif submenu == 'SOCIALS':
+                msg = utils.escape_markdown_v2("🌐 شبکه‌های اجتماعی در دست توسعه است.")
+                await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
+            elif submenu == 'ABOUT':
+                msg = utils.escape_markdown_v2("🧑‍💻 درباره ما و راهنما در دست توسعه است.")
+                await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
+            elif submenu == 'WELCOME':
+                # بازگشت به منوی اصلی
+                await handle_start_command(chat_id)
+                await utils.answer_callback_query(BOT_TOKEN, callback_id) # پاسخ به کلیک
+                await save_user_state(chat_id, state) # ذخیره وضعیت
+                return # خروج سریع
+
             
-        elif submenu == 'ASTRO' and param == 'CHART_CALC':
-            # 💡 فراخوانی هندلر محاسبه چارت
-            await utils.answer_callback_query(BOT_TOKEN, callback_id, text="محاسبه چارت در حال انجام است...") 
-            await astro_handlers.handle_chart_calculation(chat_id, state, save_user_state)
-            return 
-
-        elif submenu == 'SIGIL' and param == '0': 
-            state['step'] = 'SAJIL_INPUT'
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \:
-            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً کلمه یا اعداد مورد نظر برای تولید سجیل را وارد کنید."))
+        # 2. هندلینگ منوی خدمات (SERVICES)
+        elif menu == 'SERVICES':
+            if submenu == 'ASTRO' and param == '0': 
+                state['step'] = 'ASTRO_MENU'
+                await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("خدمات آسترولوژی را انتخاب کنید:"), keyboards.astrology_menu_keyboard())
             
-        elif submenu == 'GEM' and param == '0':
-            state['step'] = 'GEM_MENU'
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \:
-            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("خدمات سنگ‌شناسی را انتخاب کنید:"), keyboards.gem_menu_keyboard())
+            elif submenu == 'ASTRO' and param == 'CHART_INPUT':
+                # 💡 شروع فرایند ورود داده چارت
+                state['step'] = 'AWAITING_DATE'
+                await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی (مثلاً 1370/01/01) وارد کنید."))
+                
+            elif submenu == 'ASTRO' and param == 'CHART_CALC':
+                # 💡 فراخوانی هندلر محاسبه چارت
+                await utils.answer_callback_query(BOT_TOKEN, callback_id, text="محاسبه چارت در حال انجام است...") 
+                await astro_handlers.handle_chart_calculation(chat_id, state, save_user_state)
+                return 
 
-        elif submenu == 'HERB' and param == '0': 
-            state['step'] = 'HERB_MENU'
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \.\
-            msg = utils.escape_markdown_v2("🌿 خدمات گیاه‌شناسی در دست ساخت است.")
-            await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
+            elif submenu == 'SIGIL' and param == '0': 
+                state['step'] = 'SAJIL_INPUT'
+                await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً کلمه یا اعداد مورد نظر برای تولید سجیل را وارد کنید."))
+                
+            elif submenu == 'GEM' and param == '0':
+                state['step'] = 'GEM_MENU'
+                await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("خدمات سنگ‌شناسی را انتخاب کنید:"), keyboards.gem_menu_keyboard())
 
-    # 2.5. هندلینگ زیرمنوی زمان (TIME) 
-    elif menu == 'TIME':
-        if submenu == 'DEFAULT':
-            default_time = param 
-            state['data']['birth_time'] = default_time
-            state['step'] = 'AWAITING_CITY'
-            await save_user_state(chat_id, state)
+            elif submenu == 'HERB' and param == '0': 
+                state['step'] = 'HERB_MENU'
+                msg = utils.escape_markdown_v2("🌿 خدمات گیاه‌شناسی در دست ساخت است.")
+                await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.back_to_main_menu_keyboard())
 
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \(\), \.\*, و \.\
-            msg = utils.escape_markdown_v2(
-                f"✅ ساعت تولد شما به صورت پیش‌فرض ({default_time}) ثبت شد.\n"
-                "حالا نام *شهر تولد* خود را به فارسی وارد کنید."
-            )
-            await utils.send_message(BOT_TOKEN, chat_id, msg)
+        # 2.5. هندلینگ زیرمنوی زمان (TIME) 
+        elif menu == 'TIME':
+            if submenu == 'DEFAULT':
+                default_time = param 
+                state['data']['birth_time'] = default_time
+                state['step'] = 'AWAITING_CITY'
+                await save_user_state(chat_id, state)
+
+                msg = utils.escape_markdown_v2(
+                    f"✅ ساعت تولد شما به صورت پیش‌فرض ({default_time}) ثبت شد.\n"
+                    "حالا نام *شهر تولد* خود را به فارسی وارد کنید."
+                )
+                await utils.send_message(BOT_TOKEN, chat_id, msg)
+                
+            elif submenu == 'BACK':
+                # بازگشت به دریافت تاریخ
+                state['step'] = 'AWAITING_DATE'
+                await save_user_state(chat_id, state)
+                await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی (مثلاً 1370/01/01) وارد کنید."))
+
+
+        # 3. هندلینگ زیرمنوی چارت تولد (CHART)
+        elif menu == 'CHART':
+            # ... (منطق نمایش جزئیات چارت) ...
+            pass
             
-        elif submenu == 'BACK':
-            # بازگشت به دریافت تاریخ
-            state['step'] = 'AWAITING_DATE'
-            await save_user_state(chat_id, state)
-            # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \.\
-            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی (مثلاً 1370/01/01) وارد کنید."))
+    except Exception as e:
+        # 💥 اگر خطا رخ داد، آن را ثبت کرده و به کاربر پیام خطا می‌دهیم
+        logging.error(f"FATAL: Unhandled Exception in handle_callback_query for data {data}: {e}", exc_info=True)
+        error_msg = utils.escape_markdown_v2(f"❌ *خطای داخلی*:\n`{e.__class__.__name__}: {e}`\n\nلطفاً /start را بزنید.")
+        await utils.send_message(BOT_TOKEN, chat_id, error_msg, keyboards.main_menu_keyboard())
 
 
-    # 3. هندلینگ زیرمنوی چارت تولد (CHART)
-    elif menu == 'CHART':
-        # ... (منطق نمایش جزئیات چارت) ...
-        pass
-
-
-    # 4. بستن اخطار Callback و ذخیره وضعیت 
-    await utils.answer_callback_query(BOT_TOKEN, callback_id)
+    # 4. بستن اخطار Callback و ذخیره وضعیت (این بخش برای رفع مشکل سکوت حیاتی است)
+    await utils.answer_callback_query(BOT_TOKEN, callback_id) 
     await save_user_state(chat_id, state)
 
 
