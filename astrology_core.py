@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی با استفاده از PYSWISSEPH
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی با استفاده از PYSWISSEPH (نسخه نهایی و اصلاح شده)
 # ----------------------------------------------------------------------
 
 import swisseph as se
@@ -20,11 +20,8 @@ PLANETS_MAP = {
 
 # --- [تنظیمات اولیه] ---
 
-# swisseph از فرمت فایل‌های استاندارد نجومی استفاده می‌کند.
-# اگر این پوشه وجود ندارد، swisseph به صورت خودکار از مکان‌های پیش‌فرض جستجو می‌کند.
 try:
-    # تعیین مسیر فایل‌های ephemeris (اختیاری، اما خوب است)
-    se.set_ephe_path('') # جستجو در مسیرهای پیش فرض
+    se.set_ephe_path('') 
     print("✅ سوپرامریس (Swiss Ephemeris) با موفقیت تنظیم شد.")
 except Exception as e:
     print(f"❌ خطای تنظیم Swiss Ephemeris: {e}")
@@ -45,9 +42,12 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
         
+        # 💥 FIX CRITICAL: اصلاح نام تابع از date_to_jd به swe_julday
         # تبدیل زمان UTC به Julian Day (فرمت مورد نیاز swisseph)
-        # swisseph از زمان UTC برای محاسبه استفاده می‌کند.
-        jd_utc = se.date_to_jd(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0)[1]
+        total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
+        
+        # se.swe_julday(سال, ماه, روز, ساعت (ساعت + اعشار دقیقه/ثانیه), تقویم)
+        jd_utc = se.swe_julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, se.SE_GREG_CAL)
         
     except Exception as e:
         return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
@@ -59,13 +59,11 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
             # محاسبه موقعیت سیاره:
-            # jd_utc: زمان
-            # planet_code: کد سیاره
-            # se.FLG_ECLIP_TRUE: پرچم برای موقعیت حقیقی دایرةالبروجی (Ecliptic True Position)
+            # FLG_SWIEPH: استفاده از ephemeris پیش‌فرض
+            # FLG_TOPOCTR: محاسبات توابع مرکزی (اختیاری، اما توصیه می‌شود)
+            # پرچم‌های دیگر به صورت پیش‌فرض Tropical و True Node/Mean Node هستند.
             
-            # 💡 توجه: swisseph به طور پیش‌فرض موقعیت‌های Astrometric را برای محاسبات آسترولوژی استفاده می‌کند.
-            # برای حالت رجعت (R/D)، پارامتر 'res' را بررسی می‌کنیم.
-            res = se.calc_ut(jd_utc, planet_code, se.FLG_SWIEPH | se.FLG_TOPOCTR | se.FLG_SIDEREAL)
+            res = se.calc_ut(jd_utc, planet_code, se.FLG_SWIEPH | se.FLG_TOPOCTR)
             
             # res[0] = [longitude, latitude, distance, speed_long, speed_lat, speed_dist]
             lon_deg = res[0][0]
@@ -83,7 +81,6 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             }
             
         except Exception as e:
-            # اگر خطای محاسباتی جزئی رخ داد، آن را در همان آیتم ذخیره می‌کنیم
             chart_data[planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
             
     return chart_data
