@@ -132,7 +132,8 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
                 msg = utils.escape_markdown_v2(
                     f"✨ **چارت تولد شما**\n"
                     f"تاریخ: {birth_date_str}، زمان: {birth_time}\n"
-                    f"شهر: {city_name} (Lat: {latitude:.2f}, Lon: {longitude:.2f})\n\n"
+                    f"شهر: {city_name} (Lat: {latitude:.2f}, Lon: {longitude:.2f})\n"
+                    f"منطقه زمانی: {timezone}\n\n"
                     f"{houses_info}"
                     f"**موقعیت سیارات:**\n{planets_info}"
                 )
