@@ -41,32 +41,31 @@ except Exception as e:
 # ----------------------------------------------------------------------
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: float, longitude: float, timezone_str: str) -> Dict[str, Any]:
-    
+
     # 1. تبدیل تاریخ و زمان
     try:
         j_dt_str = f"{birth_date_jalali} {birth_time_str}"
         j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M") 
         
         # تبدیل به زمان محلی و سپس UTC
-        # استفاده از replace(tzinfo=...) برای تنظیم منطقه زمانی آگاهانه (timezone-aware)
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
         
-        # تبدیل زمان UTC به Julian Day (JD)
+        # 💥 اصلاح حیاتی: تغییر swe_julday به julday
+        # تبدیل زمان UTC به Julian Day (فرمت مورد نیاز swisseph)
         total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
         
-        # se.swe_julday(سال, ماه, روز, ساعت (ساعت + اعشار دقیقه/ثانیه), تقویم)
-        jd_utc = se.swe_julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, se.SE_GREG_CAL)
+        # se.julday(سال, ماه, روز, ساعت (ساعت + اعشار دقیقه/ثانیه), تقویم)
+        jd_utc = se.julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, se.SE_GREG_CAL)
         
         # لاگ برای تأیید تبدیل زمان
         logging.info(f"زمان UTC تبدیل شده: {dt_utc.isoformat()}. Julian Day: {jd_utc:.6f}")
-
+        
     except Exception as e:
         # ثبت خطا و بازگشت پیام خطا
         logging.error(f"خطا در تبدیل تاریخ و زمان ورودی: {e}", exc_info=True)
         return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
 
-    
     chart_data = {
         "datetime_utc": dt_utc.isoformat(),
         "jd_utc": jd_utc,
