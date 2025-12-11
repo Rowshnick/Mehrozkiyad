@@ -39,7 +39,7 @@ except Exception as e:
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: Union[float, int], longitude: Union[float, int], timezone_str: str) -> Dict[str, Any]:
     
-    # اطمینان از صحت نوع ورودی‌ها (برای محافظت در برابر خطاهای سیستمی)
+    # اطمینان از صحت نوع ورودی‌ها 
     try:
         latitude = float(latitude)
         longitude = float(longitude)
@@ -61,8 +61,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         # محاسبه ساعت کلی UTC (ساعت + دقیقه/60 + ثانیه/3600)
         total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
         
-        # 💥 اصلاح نهایی و حیاتی: استفاده از عدد 1 به جای ثابت SE_GREG_CAL یا GREGORIAN
-        # 1 معادل تقویم گرگوری است و خطای AttributeError را رفع می‌کند.
+        # 💥 اصلاح نهایی و حیاتی: استفاده از عدد 1 به جای ثابت SE_GREG_CAL 
         jd_utc = se.julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, 1)
         
         logging.info(f"زمان UTC تبدیل شده: {dt_utc.isoformat()}. Julian Day: {jd_utc:.6f}")
@@ -94,7 +93,6 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             
             # تعیین وضعیت (مستقیم یا رجعت)
             status = "Direct"
-            # مقدار آستانه کوچکتر برای دقت بیشتر
             if speed_long < -0.000001: 
                 status = "Retrograde"
             
@@ -109,7 +107,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             
     # 3. محاسبه خانه ها (Houses) و آسندانت (Ascendant)
     try:
-        house_system = b'P' # سیستم خانه Placidus (رایج‌ترین)
+        house_system = b'P' # سیستم خانه Placidus 
         
         # محاسبه (Houses) و cusps (نوک خانه‌ها)
         cusps, ascmc = se.house_ut(jd_utc, latitude, longitude, house_system)
