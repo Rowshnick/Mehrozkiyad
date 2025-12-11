@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و قوی‌ترین اصلاح)
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و سازگار با نسخه‌های قدیمی)
 # ----------------------------------------------------------------------
 
 import datetime
@@ -27,10 +27,9 @@ PLANET_MAPPING = {
     'pluto': 'pluto barycenter',
 }
 
-# 💥 FIX: تعریف اولیه EPHEMERIS در سطح ماژول برای جلوگیری از NameError
 EPHEMERIS = {} 
-ts = None # تعریف سراسری برای timescale
-eph = None # تعریف سراسری برای ephemeris
+ts = None 
+eph = None 
 
 try:
     ts = load.timescale()
@@ -56,7 +55,6 @@ except Exception as e:
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: float, longitude: float, timezone_str: str) -> Dict[str, Any]:
     
     # 1. بررسی وضعیت بارگذاری Ephemeris
-    # همچنین مطمئن می‌شویم که eph و ts تعریف شده باشند.
     if not EPHEMERIS or eph is None or ts is None: 
         return {"error": "داده‌های نجومی بارگذاری نشده‌اند. (خطای Ephemeris)"}
         
@@ -87,11 +85,11 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             planet_ephem = EPHEMERIS[planet_name] 
             position = observer.at(t).observe(planet_ephem)
             
-            # 💥 FIX CRITICAL V3: استفاده از روش frame_of برای بیشترین سازگاری با نسخه‌های مختلف Skyfield
-            # این روش مستقیماً طول دایرةالبروجی را محاسبه می‌کند و از خطاهای مکرر 'frame' و 'geometry_of' جلوگیری می‌کند.
-            
-            # استفاده از frame_of برای تبدیل به مختصات دایرةالبروجی (Ecliptic Coordinates)
-            lon_rad, _, _ = position.frame_of(eph['earth'].target).ecliptic_lonlat(epoch=t)
+            # 💥 FIX CRITICAL V4: استفاده از متد to_apparent و سپس to_ecliptic
+            # این روش برای نسخه‌های قدیمی تر Skyfield بهترین سازگاری را دارد.
+            pos_apparent = position.apparent()
+            pos_ecliptic = pos_apparent.frame_of(eph['earth']).ecliptic_lonlat(epoch=t)
+            lon_rad, _, _ = pos_ecliptic
 
             lon_deg = lon_rad.degrees
             
