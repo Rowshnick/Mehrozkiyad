@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و پایدار)
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و قوی‌ترین اصلاح)
 # ----------------------------------------------------------------------
 
 import datetime
@@ -27,8 +27,10 @@ PLANET_MAPPING = {
     'pluto': 'pluto barycenter',
 }
 
-# 💥 تعریف اولیه EPHEMERIS در سطح ماژول برای جلوگیری از NameError
+# 💥 FIX: تعریف اولیه EPHEMERIS در سطح ماژول برای جلوگیری از NameError
 EPHEMERIS = {} 
+ts = None # تعریف سراسری برای timescale
+eph = None # تعریف سراسری برای ephemeris
 
 try:
     ts = load.timescale()
@@ -53,7 +55,9 @@ except Exception as e:
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: float, longitude: float, timezone_str: str) -> Dict[str, Any]:
     
-    if not EPHEMERIS: 
+    # 1. بررسی وضعیت بارگذاری Ephemeris
+    # همچنین مطمئن می‌شویم که eph و ts تعریف شده باشند.
+    if not EPHEMERIS or eph is None or ts is None: 
         return {"error": "داده‌های نجومی بارگذاری نشده‌اند. (خطای Ephemeris)"}
         
     # 2. تنظیم تاریخ و مکان
@@ -63,6 +67,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
+        
+        logging.info(f"DEBUG: Converted UTC Time: {dt_utc}, Timezone: {timezone_str}")
         
         t = ts.utc(dt_utc.year, dt_utc.month, dt_utc.day, dt_utc.hour, dt_utc.minute, dt_utc.second)
         
@@ -81,11 +87,11 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             planet_ephem = EPHEMERIS[planet_name] 
             position = observer.at(t).observe(planet_ephem)
             
-            # 💥 FIX CRITICAL V2: استفاده از روش apparent().ecliptic_lonlat() که در نسخه‌های قدیمی‌تر Skyfield کار می‌کند
-            # این روش درواقع معادل متد قدیمی است و مشکل "frame" را حل می‌کند.
+            # 💥 FIX CRITICAL V3: استفاده از روش frame_of برای بیشترین سازگاری با نسخه‌های مختلف Skyfield
+            # این روش مستقیماً طول دایرةالبروجی را محاسبه می‌کند و از خطاهای مکرر 'frame' و 'geometry_of' جلوگیری می‌کند.
             
-            # 💡 توجه: این روش موقعیت ظاهری (Apparent Position) را محاسبه می‌کند
-            lon_rad, _, _ = position.apparent().ecliptic_lonlat(epoch=t) 
+            # استفاده از frame_of برای تبدیل به مختصات دایرةالبروجی (Ecliptic Coordinates)
+            lon_rad, _, _ = position.frame_of(eph['earth'].target).ecliptic_lonlat(epoch=t)
 
             lon_deg = lon_rad.degrees
             
