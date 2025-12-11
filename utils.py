@@ -9,7 +9,7 @@ import os
 import datetime
 import logging 
 import pytz 
-# ❌ ایمپورت‌های مربوط به geopy و timezonefinder حذف شدند
+# ❌ ایمپورت‌های مربوط به geopy و timezonefinder کاملاً حذف شدند
 
 # --- تنظیمات ضروری ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -57,7 +57,7 @@ def get_city_lookup_data(city_name: str) -> Optional[Dict[str, Union[float, str]
     
 
 # ======================================================================
-# توابع اصلی ارتباط با تلگرام
+# توابع اصلی ارتباط با تلگرام و اعتبارسنجی (بدون تغییر)
 # ======================================================================
 
 async def send_message(bot_token: Optional[str], chat_id: int, text: str, reply_markup: Optional[Dict[str, Any]] = None):
@@ -107,18 +107,12 @@ async def answer_callback_query(bot_token: Optional[str], callback_id: str, text
         except Exception as e:
             print(f"An unexpected error occurred in answer_callback_query: {e}")
 
-
-# ======================================================================
-# توابع اعتبارسنجی و تبدیل تاریخ/زمان
-# ======================================================================
-
 def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
     """تلاش برای تبدیل رشته تاریخ شمسی (YYYY/MM/DD) به JalaliDateTime."""
     try:
         parts = date_str.split('/')
         if len(parts) == 3:
             year, month, day = map(int, parts)
-            # اعتبارسنجی ساده
             if 1 <= month <= 12 and 1 <= day <= 31:
                 return JalaliDateTime(year, month, day)
         return None
@@ -133,10 +127,6 @@ def parse_persian_time(time_str: str) -> Optional[str]:
     except ValueError:
         return None
 
-
-# ======================================================================
-# توابع Escape (رفع مشکل \ در پیام‌ها)
-# ======================================================================
 def escape_markdown_v2(text: str) -> str:
     """فراردهی کاراکترهای رزرو شده برای MarkdownV2 تلگرام."""
     reserved_chars = [
