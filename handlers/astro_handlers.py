@@ -58,7 +58,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
 
         # 3. فراخوانی تابع محاسبه چارت
         try:
-            # 💥 اطمینان از نوع داده float (اصلاح حیاتی)
+            # 💥 اطمینان از نوع داده float (اصلاح حیاتی برای جلوگیری از کرش C-level)
             chart_result = astrology_core.calculate_natal_chart(
                 birth_date_jalali=birth_date_str, 
                 birth_time_str=birth_time, 
@@ -72,7 +72,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
             msg = ""
             
             if chart_result and 'error' in chart_result:
-                # خطای کلی محاسبه (مانند خطای swisseph)
+                # خطای کلی محاسبه 
                 msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
             elif chart_result:
                 
