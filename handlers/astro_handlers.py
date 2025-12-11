@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astro_handlers.py - هندلر سرویس‌های آسترولوژی (نسخه اصلاح‌شده نهایی)
+# astro_handlers.py - هندلر سرویس‌های آسترولوژی (نسخه اصلاح‌شده نهایی و قطعی)
 # ----------------------------------------------------------------------
 
 import astrology_core
@@ -21,15 +21,12 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     
     logging.info(f"DEBUG: Chart Calculation Data for chat {chat_id}: {state_data}")
     
-    # 1. بازیابی داده‌های اصلی از وضعیت
+    # 1. بازیابی داده‌های اصلی از وضعیت (فقط تاریخ، زمان و نام شهر را نیاز داریم)
     birth_date_str = state_data.get('birth_date') 
     birth_time = state_data.get('birth_time') 
     city_name = state_data.get('city_name')
     
-    # ❌ حذف بازیابی latitude, longitude, timezone از state:
-    # latitude = state_data.get('latitude') 
-    # longitude = state_data.get('longitude')
-    # timezone = state_data.get('timezone')
+    # ❌ حذف بازیابی latitude, longitude, timezone از state (زیرا اکنون در لحظه جستجو می‌شوند)
 
     # بررسی صحت تمام داده‌های ضروری قبل از جستجو
     if not (birth_date_str and birth_time and city_name):
@@ -40,7 +37,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         await save_user_state_func(chat_id, state)
         return
 
-    # 💥💥💥 [جدید] گام ۲: جستجوی مختصات شهر در لحظه (با اولویت محلی) 💥💥💥
+    # 💥💥💥 گام ۲: جستجوی مختصات شهر در لحظه (با اولویت محلی در utils.py) 💥💥💥
     city_lookup_data = utils.get_city_lookup_data(city_name)
     
     if city_lookup_data is None:
@@ -49,13 +46,12 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         await utils.send_message(utils.BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
         state['step'] = 'WELCOME' 
         await save_user_state_func(chat_id, state)
-        # ❌ در صورت عدم موفقیت در جستجو، تابع پایان می‌یابد
         return
     
     # استخراج مختصات از نتیجه جستجوی موفق
     latitude = city_lookup_data['latitude']
     longitude = city_lookup_data['longitude']
-    timezone = city_lookup_data['timezone'] # نام منطقه زمانی (مثل Asia/Tehran)
+    timezone = city_lookup_data['timezone'] 
     
     # ---------------------------------------------------
     # ادامه کد شما برای محاسبه چارت
@@ -65,29 +61,26 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
 
     # 3. فراخوانی تابع محاسبه چارت
     try:
+        # 💥 اصلاح حیاتی: استفاده از float() برای اطمینان از نوع داده برای swisseph
         chart_result = astrology_core.calculate_natal_chart(
             birth_date_jalali=birth_date_str, 
             birth_time_str=birth_time, 
             city_name=city_name,
-            latitude=latitude, # 💥 مختصات جدید
-            longitude=longitude, # 💥 مختصات جدید
-            timezone_str=timezone # 💥 منطقه زمانی جدید
+            latitude=float(latitude), 
+            longitude=float(longitude), 
+            timezone_str=timezone
         )
 
         # 4. پردازش و ارسال نتیجه
         msg = ""
         
         if chart_result and 'error' in chart_result:
-            # خطای کلی محاسبه (مانند خطای تبدیل تاریخ و زمان)
-            # این خطا شامل خطاهای swisseph نیز می‌شود
+            # خطای کلی محاسبه (مانند خطای تبدیل تاریخ و زمان یا swisseph)
             msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
         elif chart_result:
             
             # حلقه کاملاً دفاعی: تولید گزارش سیارات
             planets_info_lines = []
-            
-            # 💡 اصلاح: برای چاپ زیبا و منطقی داده‌های سیارات و خانه‌ها، باید آن را از کلیدهای ثابت chart_result['planets'] و chart_result['houses'] بخوانیم.
-            # ساختار فعلی شما: for p, data in chart_result.items() شامل planet و houses و jd_utc می‌شود. بهتر است فقط planets را پیمایش کنید.
             
             planets_data = chart_result.get('planets', {})
             houses_data = chart_result.get('houses', {})
@@ -126,7 +119,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
                         
             planets_info = "\n".join(planets_info_lines)
 
-            # 4.2. اطلاعات آسندانت (اختیاری: برای نمایش خانه ها)
+            # 4.2. اطلاعات آسندانت 
             asc_degree = houses_data.get('ascendant')
             mc_degree = houses_data.get('midheaven')
             
@@ -159,7 +152,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
             )
 
     except Exception as e:
-        # مدیریت خطاهای بسیار غیرمنتظره
+        # مدیریت خطاهای بسیار غیرمنتظره که از هسته محاسباتی خارج شده‌اند
         error_msg = utils.escape_markdown_v2(f"❌ *خطای غیرمنتظره در هندلر چارت*:\n`{e}`")
         await utils.send_message(utils.BOT_TOKEN, chat_id, error_msg, keyboards.main_menu_keyboard())
 
