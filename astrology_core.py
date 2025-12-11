@@ -10,6 +10,7 @@ from persiantools.jdatetime import JalaliDateTime
 from typing import Dict, Any
 
 # پیکربندی لاگ‌گیری (برای ثبت خطاهای داخلی محاسبات)
+# این خط تضمین می‌کند که هر خطای داخلی در لاگ‌های شما ثبت شود.
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- [ثابت‌ها و تعاریف] ---
@@ -20,16 +21,13 @@ PLANETS_MAP = {
     'mercury': se.MERCURY, 'venus': se.VENUS, 'mars': se.MARS, 
     'jupiter': se.JUPITER, 'saturn': se.SATURN, 
     'uranus': se.URANUS, 'neptune': se.NEPTUNE, 'pluto': se.PLUTO,
-    # 💥 بهبود: اضافه کردن گره‌های ماه (اختیاری)
-    'true_node': se.MEAN_NODE, 
+    'true_node': se.MEAN_NODE, # اضافه شدن گره ماه واقعی
 }
 
 # --- [تنظیمات اولیه] ---
 
 try:
-    # تعیین مسیر فایل‌های اپمریس (Ephemeris files)
-    # اگر فایل‌ها در مسیر اجرایی قرار دارند، '' کفایت می‌کند، اما بهتر است مسیر مطلق را مشخص کنید.
-    # برای مثال: se.set_ephe_path('/path/to/ephe/')
+    # تعیین مسیر فایل‌های اپمریس. '' به معنای استفاده از مسیرهای پیش‌فرض است.
     se.set_ephe_path('') 
     logging.info("✅ سوپرامریس (Swiss Ephemeris) با موفقیت تنظیم شد.")
 except Exception as e:
@@ -54,7 +52,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         # محاسبه ساعت کلی UTC (ساعت + دقیقه/60 + ثانیه/3600)
         total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
         
-        # 💥 اصلاح نهایی و ضروری: استفاده از se.julday و se.GREGORIAN
+        # 💥 اصلاح ضروری: استفاده از se.julday به جای swe_julday و se.GREGORIAN به جای SE_GREG_CAL
         # se.julday(سال, ماه, روز, ساعت, تقویم)
         jd_utc = se.julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, se.GREGORIAN)
         
@@ -66,6 +64,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         logging.error(f"خطا در تبدیل تاریخ و زمان ورودی: {e}", exc_info=True)
         return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
 
+    
     chart_data = {
         "datetime_utc": dt_utc.isoformat(),
         "jd_utc": jd_utc,
@@ -79,40 +78,31 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     # 2. محاسبه موقعیت سیارات
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
-            # استفاده از پرچم‌های پیش‌فرض (SE_FLG_SWIEPH) به علاوه محاسبات توپوسنتریک
-            # Topocentric (FLG_TOPOCTR) برای دقیق‌تر کردن محاسبه ماه و سیارات نزدیک، با استفاده از مختصات (مهم)
-            res = se.calc_ut(jd_utc, planet_code, se.SE_FLG_SWIEPH | se.SE_FLG_TOPOCTR)
+            # استفاده از پرچم Topocentric برای دقت بیشتر بر اساس مختصات
+            res = se.calc_ut(jd_utc, planet_code, se.SE_FLG_SWIEPH | se.SE_FLG_TOPOCTR) 
             
-            # res[0] = [longitude, latitude, distance, speed_long, speed_lat, speed_dist]
             lon_deg = res[0][0]
             speed_long = res[0][3]
             
             # تعیین وضعیت (مستقیم یا رجعت)
             status = "Direct"
-            if speed_long < -0.000001: # کمی آستانه برای جلوگیری از خطای محاسبات
+            if speed_long < -0.000001:
                 status = "Retrograde"
             
             chart_data['planets'][planet_name] = {
                 "degree": lon_deg,
                 "status": status,
-                # برای نمایش درجه و علامت (Degree, Sign, Minute) باید از se.swe_dms_str استفاده کنید
-                # فعلاً برای سادگی فقط درجه را نگه می‌داریم
             }
             
         except Exception as e:
             logging.error(f"خطا در محاسبه موقعیت سیاره {planet_name}: {e}", exc_info=True)
             chart_data['planets'][planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
-    
+            
     # 3. محاسبه خانه ها (Houses) و آسندانت (Ascendant)
     try:
-        # se.house_name(jd_utc, latitude, longitude, house_system)
-        # سیستم خانه (House System) را می‌توان تغییر داد. K = Koch، P = Placidus (رایج‌ترین)
-        # پرچم‌ها: SE_FLG_SIDEREAL را اگر لازم باشد اضافه کنید.
-        house_system = b'P' # Placidus
+        house_system = b'P' # سیستم خانه Placidus (رایج‌ترین)
         
         # محاسبه (Houses) و cusps (نوک خانه‌ها)
-        # cusps[1] = Ascendant
-        # ascmc[0] = Ascendant, ascmc[1] = MC/Midheaven
         cusps, ascmc = se.house_ut(jd_utc, latitude, longitude, house_system)
         
         # آسندانت و میدهیون
