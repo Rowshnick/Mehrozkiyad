@@ -5,8 +5,12 @@
 import swisseph as se
 import pytz
 import datetime
+import logging
 from persiantools.jdatetime import JalaliDateTime
 from typing import Dict, Any
+
+# پیکربندی لاگ‌گیری (برای ثبت خطاهای داخلی محاسبات)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- [ثابت‌ها و تعاریف] ---
 
@@ -16,15 +20,20 @@ PLANETS_MAP = {
     'mercury': se.MERCURY, 'venus': se.VENUS, 'mars': se.MARS, 
     'jupiter': se.JUPITER, 'saturn': se.SATURN, 
     'uranus': se.URANUS, 'neptune': se.NEPTUNE, 'pluto': se.PLUTO,
+    # 💥 بهبود: اضافه کردن گره‌های ماه (اختیاری)
+    'true_node': se.MEAN_NODE, 
 }
 
 # --- [تنظیمات اولیه] ---
 
 try:
+    # تعیین مسیر فایل‌های اپمریس (Ephemeris files)
+    # اگر فایل‌ها در مسیر اجرایی قرار دارند، '' کفایت می‌کند، اما بهتر است مسیر مطلق را مشخص کنید.
+    # برای مثال: se.set_ephe_path('/path/to/ephe/')
     se.set_ephe_path('') 
-    print("✅ سوپرامریس (Swiss Ephemeris) با موفقیت تنظیم شد.")
+    logging.info("✅ سوپرامریس (Swiss Ephemeris) با موفقیت تنظیم شد.")
 except Exception as e:
-    print(f"❌ خطای تنظیم Swiss Ephemeris: {e}")
+    logging.error(f"❌ خطای تنظیم Swiss Ephemeris: {e}")
     
 
 # ----------------------------------------------------------------------
@@ -39,31 +48,41 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M") 
         
         # تبدیل به زمان محلی و سپس UTC
+        # استفاده از replace(tzinfo=...) برای تنظیم منطقه زمانی آگاهانه (timezone-aware)
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
         
-        # 💥 FIX CRITICAL: اصلاح نام تابع از date_to_jd به swe_julday
-        # تبدیل زمان UTC به Julian Day (فرمت مورد نیاز swisseph)
+        # تبدیل زمان UTC به Julian Day (JD)
         total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
         
         # se.swe_julday(سال, ماه, روز, ساعت (ساعت + اعشار دقیقه/ثانیه), تقویم)
         jd_utc = se.swe_julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, se.SE_GREG_CAL)
         
+        # لاگ برای تأیید تبدیل زمان
+        logging.info(f"زمان UTC تبدیل شده: {dt_utc.isoformat()}. Julian Day: {jd_utc:.6f}")
+
     except Exception as e:
+        # ثبت خطا و بازگشت پیام خطا
+        logging.error(f"خطا در تبدیل تاریخ و زمان ورودی: {e}", exc_info=True)
         return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
 
     
-    chart_data = {}
+    chart_data = {
+        "datetime_utc": dt_utc.isoformat(),
+        "jd_utc": jd_utc,
+        "city_name": city_name,
+        "latitude": latitude,
+        "longitude": longitude,
+        "planets": {},
+        "houses": {}
+    }
 
     # 2. محاسبه موقعیت سیارات
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
-            # محاسبه موقعیت سیاره:
-            # FLG_SWIEPH: استفاده از ephemeris پیش‌فرض
-            # FLG_TOPOCTR: محاسبات توابع مرکزی (اختیاری، اما توصیه می‌شود)
-            # پرچم‌های دیگر به صورت پیش‌فرض Tropical و True Node/Mean Node هستند.
-            
-            res = se.calc_ut(jd_utc, planet_code, se.FLG_SWIEPH | se.FLG_TOPOCTR)
+            # استفاده از پرچم‌های پیش‌فرض (SE_FLG_SWIEPH) به علاوه محاسبات توپوسنتریک
+            # Topocentric (FLG_TOPOCTR) برای دقیق‌تر کردن محاسبه ماه و سیارات نزدیک، با استفاده از مختصات (مهم)
+            res = se.calc_ut(jd_utc, planet_code, se.SE_FLG_SWIEPH | se.SE_FLG_TOPOCTR)
             
             # res[0] = [longitude, latitude, distance, speed_long, speed_lat, speed_dist]
             lon_deg = res[0][0]
@@ -71,16 +90,41 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             
             # تعیین وضعیت (مستقیم یا رجعت)
             status = "Direct"
-            if speed_long < 0:
+            if speed_long < -0.000001: # کمی آستانه برای جلوگیری از خطای محاسبات
                 status = "Retrograde"
             
-            chart_data[planet_name] = {
+            chart_data['planets'][planet_name] = {
                 "degree": lon_deg,
-                "lon_dms": f"{lon_deg:.2f}°...", 
-                "status": status
+                "status": status,
+                # برای نمایش درجه و علامت (Degree, Sign, Minute) باید از se.swe_dms_str استفاده کنید
+                # فعلاً برای سادگی فقط درجه را نگه می‌داریم
             }
             
         except Exception as e:
-            chart_data[planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
-            
+            logging.error(f"خطا در محاسبه موقعیت سیاره {planet_name}: {e}", exc_info=True)
+            chart_data['planets'][planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
+    
+    # 3. محاسبه خانه ها (Houses) و آسندانت (Ascendant)
+    try:
+        # se.house_name(jd_utc, latitude, longitude, house_system)
+        # سیستم خانه (House System) را می‌توان تغییر داد. K = Koch، P = Placidus (رایج‌ترین)
+        # پرچم‌ها: SE_FLG_SIDEREAL را اگر لازم باشد اضافه کنید.
+        house_system = b'P' # Placidus
+        
+        # محاسبه (Houses) و cusps (نوک خانه‌ها)
+        # cusps[1] = Ascendant
+        # ascmc[0] = Ascendant, ascmc[1] = MC/Midheaven
+        cusps, ascmc = se.house_ut(jd_utc, latitude, longitude, house_system)
+        
+        # آسندانت و میدهیون
+        chart_data['houses']['ascendant'] = ascmc[0]
+        chart_data['houses']['midheaven'] = ascmc[1]
+        
+        # نوک 12 خانه
+        chart_data['houses']['cusps'] = {i: cusps[i] for i in range(1, 13)}
+        
+    except Exception as e:
+        logging.error(f"خطا در محاسبه خانه‌ها و آسندانت: {e}", exc_info=True)
+        chart_data['houses']['error'] = f"❌ خطا در محاسبه خانه‌ها: {str(e)}"
+        
     return chart_data
