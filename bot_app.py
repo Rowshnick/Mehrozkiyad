@@ -76,7 +76,7 @@ async def handle_text_message(chat_id: int, text: str):
             # ❌ اصلاح: حذف بک‌اسلش‌های دستی در \(\), \.\*, و \.\
             msg = utils.escape_markdown_v2(
                 f"✅ تاریخ تولد شما ({jdate.strftime('%Y/%m/%d')}) ثبت شد.\n"
-                "*لطفاً ساعت تولد خود را به صورت HH:MM (مثلاً 14:30) وارد کنید.\*\n"
+                "*لطفاً ساعت تولد خود را به صورت HH:MM (مثلاً 14:30) وارد کنید.*\n"
                 "اگر نمی‌دانید، از دکمه زیر استفاده کنید."
             )
             await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.time_input_keyboard())
@@ -120,14 +120,25 @@ async def handle_text_message(chat_id: int, text: str):
     # 2. هندلینگ ورود داده برای چارت تولد (شهر)
     elif step == 'AWAITING_CITY':
         city_name = text
-        # 💡 فراخوانی تابع اصلاح‌شده مکان‌یابی از utils.py
-        lat, lon, tz = await utils.get_coordinates_from_city(city_name)
+        # 💡 اصلاح CRITICAL: تابع در utils.py با نام 'get_city_lookup_data' و به صورت سنکرون تعریف شده است.
+        city_data = utils.get_city_lookup_data(city_name)
         
-        if lat is not None and lon is not None:
+        if city_data:
+            lat = city_data.get('latitude')
+            lon = city_data.get('longitude')
+            timezone_str = city_data.get('timezone')
+            
+            # بررسی ایمنی داده
+            if lat is None or lon is None or timezone_str is None:
+                msg = utils.escape_markdown_v2("❌ خطای داده‌ی شهر. لطفاً نام شهر را دقیق‌تر وارد کنید.")
+                await utils.send_message(BOT_TOKEN, chat_id, msg)
+                await save_user_state(chat_id, state) 
+                return
+
             state['data']['city_name'] = city_name
             state['data']['latitude'] = lat
             state['data']['longitude'] = lon
-            state['data']['timezone'] = tz.zone 
+            state['data']['timezone'] = timezone_str # ذخیره رشته منطقه زمانی
             
             state['step'] = 'CHART_INPUT_COMPLETE'
             await save_user_state(chat_id, state)
@@ -136,7 +147,7 @@ async def handle_text_message(chat_id: int, text: str):
             msg = utils.escape_markdown_v2(
                 f"✅ شهر *{city_name}* ثبت شد.\n"
                 f"مختصات: {lat:.4f}, {lon:.4f}\n"
-                f"منطقه زمانی: {tz.zone}\n\n"
+                f"منطقه زمانی: {timezone_str}\n\n"
                 "*آماده برای محاسبه چارت تولد*."
             )
             await utils.send_message(
