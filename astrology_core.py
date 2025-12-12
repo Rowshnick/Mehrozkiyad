@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و پایدار)
+# astrology_core.py - نسخه نهایی و پایدار (با مدیریت خطای قطعی خانه‌ها)
 # ----------------------------------------------------------------------
 
 import swisseph as se
@@ -40,26 +40,19 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         latitude = float(latitude)
         longitude = float(longitude)
     except (TypeError, ValueError) as e:
-        err_msg = f"خطا در تبدیل مختصات (Lat/Lon) به عدد: {e}"
-        logging.error(err_msg, exc_info=True)
-        return {"error": err_msg}
+        return {"error": f"خطا در تبدیل مختصات: {e}"}
 
     # 1. تبدیل تاریخ و زمان
     try:
         j_dt_str = f"{birth_date_jalali} {birth_time_str}"
         j_date = JalaliDateTime.strptime(j_dt_str, "%Y/%m/%d %H:%M") 
-        
         dt_local = j_date.to_gregorian().replace(tzinfo=pytz.timezone(timezone_str))
         dt_utc = dt_local.astimezone(pytz.utc)
-        
         total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
-        
         jd_utc = se.julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, 1)
         
     except Exception as e:
-        err_msg = f"خطا در تبدیل تاریخ و زمان ورودی: {e}"
-        logging.error(err_msg, exc_info=True)
-        return {"error": err_msg}
+        return {"error": f"خطا در تبدیل تاریخ و زمان: {e}"}
 
     
     chart_data = {
@@ -69,19 +62,20 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         "latitude": latitude,
         "longitude": longitude,
         "planets": {},
-        # 💡 اطمینان از تعریف اولیه خانه ها برای جلوگیری از Key Error در صورت شکست محاسبه
+        # 💡 گام ۱: ساختار دهی قطعی houses قبل از تلاش برای محاسبه
         "houses": {
              'ascendant': 0.0,
              'midheaven': 0.0,
-             'cusps': {i: 0.0 for i in range(1, 13)},
-             'error': None # کلید خطا برای نگهداری پیام خطا
+             # تضمین وجود کلید 'cusps' با مقادیر پیش فرض
+             'cusps': {i: 0.0 for i in range(1, 13)}, 
+             'error': None 
         }
     }
 
-    # 2. محاسبه موقعیت سیارات
+    # 2. محاسبه موقعیت سیارات (بدون تغییر)
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
-            res = se.calc_ut(jd_utc, planet_code, 0) # استفاده از پرچم 0 (پیش‌فرض)
+            res = se.calc_ut(jd_utc, planet_code, 0) 
             lon_deg = res[0][0]
             chart_data['planets'][planet_name] = {
                 "degree": lon_deg,
@@ -93,28 +87,22 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             
     # 3. محاسبه خانه ها (Houses) و آسندانت (Ascendant)
     try:
-        house_system = b'P' # سیستم خانه Placidus 
+        house_system = b'P' 
         
         cusps_raw, ascmc = se.houses(jd_utc, latitude, longitude, house_system)
         
-        # 💡 اصلاح: بررسی تعداد عناصر خروجی cusps
-        # آرایه cusps در swisseph شامل 13 عنصر است که ایندکس 0 استفاده نمی‌شود و ایندکس‌های 1 تا 12 خانه‌ها هستند.
-        if len(cusps_raw) < 13:
-             raise IndexError(f"خروجی se.houses ناقص است. تعداد: {len(cusps_raw)}")
+        # بررسی دقیق خروجی
+        if len(cusps_raw) < 13 or len(ascmc) < 2:
+             raise IndexError(f"خروجی se.houses ناقص است. طول cusps: {len(cusps_raw)}")
 
-        # آسندانت و میدهیون
+        # در صورت موفقیت: مقادیر را به روز کنید
         chart_data['houses']['ascendant'] = ascmc[0]
         chart_data['houses']['midheaven'] = ascmc[1]
-        
-        # نوک 12 خانه (از ایندکس 1 تا 12 استفاده می‌شود)
-        # 💡 اصلاح: استفاده از cusps_raw
         chart_data['houses']['cusps'] = {i: cusps_raw[i] for i in range(1, 13)}
-        
-        # در صورت موفقیت، کلید خطا را پاک می‌کنیم
-        chart_data['houses']['error'] = None 
+        chart_data['houses']['error'] = None # خطا را پاک کنید
         
     except Exception as e:
-        # اگر خطا رخ داد، خطا را ثبت و در دیکشنری houses ذخیره می‌کنیم
+        # 💡 گام ۲: در صورت بروز خطا، فقط پیام خطا را در ساختار موجود ثبت کنید.
         err_msg = f"FATAL ERROR: خطا در محاسبه خانه‌ها و آسندانت: {e}"
         logging.error(err_msg, exc_info=True)
         chart_data['houses']['error'] = f"❌ خطای محاسبه خانه‌ها: {str(e)}"
