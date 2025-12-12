@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - نسخه نهایی و اصلاح شده (FIXED: AttributeError)
+# astrology_core.py - نسخه نهایی و اصلاح شده (FIXED: TypeError: to_gregorian)
 # ----------------------------------------------------------------------
 
 import swisseph as se
@@ -114,9 +114,12 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         j_date = jdatetime.JalaliDate.strptime(birth_date_jalali, '%Y/%m/%d')
         j_time = datetime.datetime.strptime(birth_time_str, '%H:%M')
         
-        # ترکیب و تبدیل به میلادی
-        dt_local = j_date.to_gregorian(j_time.hour, j_time.minute, j_time.second)
-        
+        # FIX: استفاده از combine برای رفع خطای to_gregorian در برخی ورژن‌های persiantools
+        # 1. تبدیل تاریخ شمسی (j_date) به میلادی (datetime.date)
+        dt_gregorian_date = j_date.to_gregorian()
+        # 2. ترکیب تاریخ میلادی با زمان محلی از j_time برای ساخت datetime.datetime
+        dt_local = datetime.datetime.combine(dt_gregorian_date, j_time.time())
+
         # اعمال منطقه زمانی
         local_tz = pytz.timezone(timezone_str)
         dt_local = local_tz.localize(dt_local)
