@@ -146,4 +146,104 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             # flag 0 به معنای محاسبه استاندارد است که در محیط‌های بدون فایل اپمریس کار می‌کند
             res = se.calc_ut(jd_utc, planet_code, 0) 
             lon_deg = res[0][0]
-            chart_data['planets
+            chart_data['planets'][planet_name] = {
+                "degree": lon_deg,
+                "status": "N/A (Default Flag)", 
+            }
+        except Exception as e:
+            logging.error(f"FATAL ERROR: خطا در محاسبه موقعیت سیاره {planet_name}: {e}", exc_info=True)
+            chart_data['planets'][planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
+            
+    # 3. محاسبه خانه ها (Houses)
+    try:
+        # P = Placidus (سیستم پیش‌فرض)
+        house_system = b'P' 
+        
+        # se.houses برای محاسبه cusps و ascmc (ascendant و midheaven)
+        cusps_raw, ascmc = se.houses(jd_utc, latitude, longitude, house_system)
+        
+        if len(cusps_raw) < 12 or len(ascmc) < 2:
+             raise IndexError(f"خروجی se.houses ناقص است. طول cusps: {len(cusps_raw)}")
+
+        chart_data['houses']['ascendant'] = ascmc[0]
+        chart_data['houses']['midheaven'] = ascmc[1]
+        
+        # ایندکس گذاری امن برای cusps (swisseph از 1 شروع می‌کند، ولی خروجی ممکن است متفاوت باشد)
+        cusps_dict = {}
+        for i in range(1, 13):
+            # برای Placidus، کاپس‌ها از خانه 1 شروع می‌شوند
+            # به خاطر ناسازگاری اندک در خروجی swisseph در برخی محیط‌ها، بهتر است مطمئن شویم
+            index_to_use = i 
+            if index_to_use >= 0 and index_to_use < len(cusps_raw):
+                cusps_dict[i] = cusps_raw[index_to_use]
+            else:
+                cusps_dict[i] = 0.0 
+
+        chart_data['houses']['cusps'] = cusps_dict
+        chart_data['houses']['error'] = None 
+        
+    except Exception as e:
+        err_msg = f"FATAL ERROR: خطا در محاسبه خانه‌ها و آسندانت: {e}"
+        logging.error(err_msg, exc_info=True)
+        chart_data['houses']['error'] = f"❌ خطای محاسبه خانه‌ها: {str(e)}"
+    
+    # 4. محاسبه زوایا (Aspects)
+    chart_data['aspects'] = calculate_aspects(chart_data['planets'])
+
+
+    # 5. محاسبه نقاط عربی (Part of Fortune)
+    try:
+        sun_deg = chart_data['planets']['sun']['degree']
+        moon_deg = chart_data['planets']['moon']['degree']
+        asc_deg = chart_data['houses']['ascendant']
+        desc_deg = chart_data['houses']['cusps'].get(7, 0.0) # درجه کاپس خانه 7
+        
+        # تعیین تولد روز/شب (Day/Night Birth)
+        # اگر خورشید بالای افق (Asc-Desc) باشد (خانه‌های 7، 8، 9، 10، 11، 12)، تولد روز است.
+        is_day_birth = False
+        
+        # محاسبه خانه خورشید
+        def get_house_of_degree_simple(degree: float, asc: float, desc: float) -> int:
+            if asc > desc:
+                # Asc در نیمکره پایین (جنوبی) است.
+                # از Asc تا Desc نیمکره پایین است.
+                if asc >= degree > desc:
+                    return 1 # خانه های 1 تا 6
+                else:
+                    return 7 # خانه های 7 تا 12
+            else:
+                # Desc در نیمکره پایین است.
+                # از Desc تا Asc نیمکره پایین است.
+                if desc >= degree > asc:
+                    return 1 # خانه های 1 تا 6
+                else:
+                    return 7 # خانه های 7 تا 12
+        
+        sun_house_zone = get_house_of_degree_simple(sun_deg, asc_deg, desc_deg)
+        
+        # اگر خورشید در نیمکره بالای افق (خانه 7 تا 12) باشد، روز است.
+        if sun_house_zone == 7: 
+            is_day_birth = True
+        
+        
+        if is_day_birth:
+            # فرمول روز: Ascendant + Moon - Sun
+            pf_degree = asc_deg + moon_deg - sun_deg
+        else:
+            # فرمول شب: Ascendant + Sun - Moon
+            pf_degree = asc_deg + sun_deg - moon_deg
+
+        # نرمال سازی درجه به محدوده 0 تا 360
+        pf_degree = pf_degree % 360
+
+        chart_data['arabic_parts']['part_of_fortune'] = {
+            "degree": pf_degree,
+            "is_day_birth": is_day_birth
+        }
+    except Exception as e:
+         logging.error(f"خطا در محاسبه Part of Fortune: {e}")
+         chart_data['arabic_parts']['part_of_fortune'] = {"error": "❌ خطا در محاسبه سهم سعادت"}
+    
+    
+    return chart_data
+
