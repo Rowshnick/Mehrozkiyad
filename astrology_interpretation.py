@@ -69,10 +69,8 @@ PLANET_HOUSE_INTERPRETATIONS = {
 }
 
 RULER_IN_HOUSE_INTERPRETATIONS = {
-    # نمونه تفسیر برای حاکمیت خانه‌ها (باید بر اساس چارت واقعی شما گسترش یابد)
     "h7_ruler_in_h8": "حاکم خانه روابط (۷) در خانه تحولات (۸) است. شرکا و روابط شما اغلب باعث تغییرات مالی یا روانی عمیق در زندگی‌تان می‌شوند. ممکن است روابطتان محرمانه یا شدید باشد.",
     "h10_ruler_in_h7": "حاکم خانه شغل (۱۰) در خانه روابط (۷) است. مسیر شغلی یا شهرت عمومی شما به شدت به شریک زندگی، همکاری‌ها یا مشتریان شما وابسته است. شما در کارهای مشارکتی موفق هستید.",
-    # شما می‌توانید موارد بیشتری را بر اساس نیاز اضافه کنید.
 }
 
 
@@ -179,11 +177,11 @@ def interpret_planet_placement(planet_name: str, degree: float, cusps: Dict[int,
         return f"**{get_sign_and_degree(degree)}** در {house_name}. تفسیر جامع یافت نشد."
 
     # ترکیب و بازگشت
-    full_interp = f"**{sign_persian} در {house_name}:** "
+    full_interp = f"**{sign_persian}** ({get_sign_and_degree(degree)}) در {house_name}: "
     if sign_interp:
-        full_interp += f"({sign_interp}) "
+        full_interp += f"*{sign_interp}* "
     if house_interp:
-        full_interp += f"({house_interp})"
+        full_interp += f"*{house_interp}*"
         
     return full_interp
 
