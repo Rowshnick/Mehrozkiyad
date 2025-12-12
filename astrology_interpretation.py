@@ -1,19 +1,16 @@
 # ----------------------------------------------------------------------
-# astrology_interpretation.py - ماژول تفسیر چارت تولد
+# astrology_interpretation.py - ماژول تفسیر چارت تولد (نسخه تدافعی)
 # ----------------------------------------------------------------------
 
 from typing import Dict, Any
 
-# --- [ثابت‌های مورد نیاز برای تفسیر] ---
-
-# نگاشت درجه شروع هر برج به نام آن (فارسی و انگلیسی)
+# --- [ثابت‌ها و تعاریف] ---
 ZODIAC_SIGNS = {
     0: "حمل (Aries)", 30: "ثور (Taurus)", 60: "جوزا (Gemini)", 90: "سرطان (Cancer)",
     120: "اسد (Leo)", 150: "سنبله (Virgo)", 180: "میزان (Libra)", 210: "عقرب (Scorpio)",
     240: "قوس (Sagittarius)", 270: "جدی (Capricorn)", 300: "دلو (Aquarius)", 330: "حوت (Pisces)"
 }
 
-# نام خانه‌ها (برای خوانایی بیشتر)
 HOUSE_NAMES = {
     1: "خانه اول (شخصیت و ظاهر)", 2: "خانه دوم (مال و ارزش‌ها)", 
     3: "خانه سوم (ارتباطات و یادگیری)", 4: "خانه چهارم (خانه و خانواده)",
@@ -28,10 +25,7 @@ HOUSE_NAMES = {
 def get_sign_and_degree(degree: float) -> str:
     """درجه را به فرمت '15 درجه جوزا' تبدیل می‌کند."""
     
-    # اطمینان از قرارگیری درجه در محدوده 0 تا 360
     degree = degree % 360 
-    
-    # پیدا کردن برج
     start_degrees = sorted(ZODIAC_SIGNS.keys())
     
     sign_start_degree = 0
@@ -42,11 +36,8 @@ def get_sign_and_degree(degree: float) -> str:
             break
             
     sign_name = ZODIAC_SIGNS[sign_start_degree]
-    
-    # محاسبه درجه داخل برج
     degree_in_sign = degree - sign_start_degree
     
-    # گرد کردن برای نمایش بهتر
     deg_int = int(degree_in_sign)
     min_int = int((degree_in_sign - deg_int) * 60)
     
@@ -57,42 +48,48 @@ def get_house_of_degree(degree: float, cusps: Dict[int, float]) -> str:
     
     degree = degree % 360
     
-    # از cusp خانه شروع (1) تا cusp خانه بعدی (2) خانه 1 است.
-    # به دلیل پیچیدگی عبور از 0/360، بهتر است از تابع‌های داخلی swisseph استفاده شود.
-    # اما چون ما به se دسترسی نداریم، یک منطق ساده ایجاد می‌کنیم.
+    # 💡 اطمینان از وجود cusps کافی
+    if len(cusps) < 12:
+        return "N/A (Cusps Missing)" 
     
-    # تبدیل دیکشنری cusps به لیست مرتب شده
-    house_cusps = sorted(cusps.items()) # لیست (شماره خانه, درجه)
-    
-    # برای هر خانه، بررسی می‌کنیم که درجه بین cusp شروع و cusp بعدی باشد
     for i in range(1, 13):
+        start_cusp = cusps.get(i, 0.0)
+        end_cusp = cusps.get(i % 12 + 1, 0.0) 
         
-        # آستانه شروع (cusp خانه فعلی)
-        start_cusp = cusps[i] 
-        # آستانه پایان (cusp خانه بعدی)
-        end_cusp = cusps[i % 12 + 1] # i+1 یا 1 در مورد خانه 12
-        
-        # حالت عادی: 
         if start_cusp < end_cusp:
             if start_cusp <= degree < end_cusp:
                 return HOUSE_NAMES[i]
-        # حالت عبور از 360 به 0 (مثلا از قوس ۳۵۰ به حمل ۱۰)
         else:
             if degree >= start_cusp or degree < end_cusp:
                 return HOUSE_NAMES[i]
                 
-    return "نامشخص" # اگر خطا رخ داد
+    return "N/A (Logic Error)"
 
 # --- [منطق اصلی تفسیر] ---
 
 def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
     """تفسیر اصلی چارت را بر اساس سیارات و خانه‌ها ایجاد می‌کند."""
     
+    # 💡 گام ۳: بررسی خطای محاسبه خانه‌ها در سطح ماژول تفسیر
+    houses_data = chart_data.get('houses', {})
+    houses_error = houses_data.get('error')
+    
+    if houses_error:
+        # اگر خطا در محاسبه خانه‌ها رخ داده باشد، بلافاصله آن را گزارش دهید.
+        return (
+            "❌ **خطای بحرانی در محاسبه خانه‌ها و آسندانت**:\n"
+            f"متأسفانه محاسبات موقعیت خانه‌ها موفقیت‌آمیز نبود.\n"
+            f"جزئیات خطا: `{houses_error}`\n"
+            "تفسیر بر اساس موقعیت خانه‌ها (House Placement) انجام نشد و از مقادیر پیش‌فرض استفاده شد."
+        )
+
+    # اگر محاسبه خانه‌ها موفق بود:
+    
     planets = chart_data['planets']
-    cusps = chart_data['houses']['cusps']
+    cusps = houses_data.get('cusps') # استفاده امن
     
     # --- 1. تفسیر سیارات اصلی (Sun, Moon, Asc) ---
-    ascendant_degree = chart_data['houses']['ascendant']
+    ascendant_degree = houses_data.get('ascendant', 0.0)
     ascendant_sign = get_sign_and_degree(ascendant_degree)
 
     sun_degree = planets['sun']['degree']
@@ -121,8 +118,7 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
         "--- **سایر جایگیری‌ها** ---",
     ]
     
-    # --- 2. جایگیری مریخ و ونوس (مثال برای سیارات دیگر) ---
-    
+    # --- 2. جایگیری مریخ و ونوس ---
     mars_degree = planets['mars']['degree']
     mars_sign = get_sign_and_degree(mars_degree)
     mars_house = get_house_of_degree(mars_degree, cusps)
@@ -131,11 +127,6 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
     interpretation.append(f"    *تأثیر:* نحوه ابراز خشم، انرژی و اقدام شما در حوزه‌ی {mars_house} انجام می‌شود.")
     
     interpretation.append("")
-    interpretation.append("**توجه:** این تفسیر بسیار ابتدایی است. تفسیر دقیق نیاز به بررسی زوایا (Aspects)، درجات حیاتی و حاکمیت سیارات دارد.")
+    interpretation.append("**توجه:** این تفسیر بسیار ابتدایی است و نیاز به بررسی زوایا و حاکمیت سیارات برای دقت بیشتر دارد.")
 
     return "\n".join(interpretation)
-
-# --- [نحوه استفاده] ---
-# فرض کنید chart_data خروجی calculate_natal_chart است.
-# result_text = interpret_natal_chart(chart_data)
-# print(result_text)
