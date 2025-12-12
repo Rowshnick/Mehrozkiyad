@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه تصحیح‌شده و نهایی)
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و سازگار)
 # ----------------------------------------------------------------------
 
 import swisseph as se
@@ -24,10 +24,15 @@ PLANETS_MAP = {
     'true_node': se.MEAN_NODE, 
 }
 
+# پرچم‌های مورد نیاز برای محاسبه:
+# SEFLG_SPEED: محاسبه سرعت سیاره
+# SEFLG_TOPOCTR: استفاده از مختصات (طول و عرض جغرافیایی)
+CALCULATION_FLAGS = se.SEFLG_SPEED | se.SEFLG_TOPOCTR
+
 # --- [تنظیمات اولیه] ---
 
+# سعی در تنظیم مسیر اپمریس. '' به معنای استفاده از مسیرهای پیش‌فرض است.
 try:
-    # تعیین مسیر فایل‌های اپمریس. '' به معنای استفاده از مسیرهای پیش‌فرض است.
     se.set_ephe_path('') 
     logging.info("✅ سوپرامریس (Swiss Ephemeris) با موفقیت تنظیم شد.")
 except Exception as e:
@@ -62,7 +67,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         # محاسبه ساعت کلی UTC (ساعت + دقیقه/60 + ثانیه/3600)
         total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
         
-        # استفاده از عدد 1 برای تقویم گرگوری (که درست است)
+        # استفاده از عدد 1 برای تقویم گرگوری
         jd_utc = se.julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, 1)
         
         logging.info(f"زمان UTC تبدیل شده: {dt_utc.isoformat()}. Julian Day: {jd_utc:.6f}")
@@ -86,9 +91,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     # 2. محاسبه موقعیت سیارات
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
-            # 💥💥💥 اصلاح نهایی: تغییر SE_FLG_SWIEPH به SEFLG_SWIEPH
-            # استفاده از پرچم Topocentric برای دقت بیشتر بر اساس مختصات
-            res = se.calc_ut(jd_utc, planet_code, se.SEFLG_SWIEPH | se.SEFLG_TOPOCTR) 
+            # 💥 اصلاح پرچم: حذف SEFLG_SWIEPH برای سازگاری بیشتر و استفاده از پرچم‌های ضروری
+            res = se.calc_ut(jd_utc, planet_code, CALCULATION_FLAGS) 
             
             lon_deg = res[0][0]
             speed_long = res[0][3]
@@ -104,15 +108,17 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             }
             
         except Exception as e:
-            logging.error(f"خطا در محاسبه موقعیت سیاره {planet_name}: {e}", exc_info=True)
+            # این خطا اکنون نباید رخ دهد
+            logging.error(f"FATAL ERROR: خطا در محاسبه موقعیت سیاره {planet_name}: {e}", exc_info=True)
             chart_data['planets'][planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
             
     # 3. محاسبه خانه ها (Houses) و آسندانت (Ascendant)
     try:
         house_system = b'P' # سیستم خانه Placidus 
         
-        # محاسبه (Houses) و cusps (نوک خانه‌ها)
-        cusps, ascmc = se.house_ut(jd_utc, latitude, longitude, house_system)
+        # 💥 اصلاح تابع: استفاده از se.houses به جای se.house_ut برای سازگاری با نسخه‌های قدیمی‌تر
+        # توجه: se.houses از jd_utc استفاده می‌کند و نه jd_et، پس باید همچنان با UT کار کند.
+        cusps, ascmc = se.houses(jd_utc, latitude, longitude, house_system)
         
         # آسندانت و میدهیون
         chart_data['houses']['ascendant'] = ascmc[0]
@@ -122,7 +128,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         chart_data['houses']['cusps'] = {i: cusps[i] for i in range(1, 13)}
         
     except Exception as e:
-        err_msg = f"خطا در محاسبه خانه‌ها و آسندانت: {e}"
+        # این خطا اکنون نباید رخ دهد
+        err_msg = f"FATAL ERROR: خطا در محاسبه خانه‌ها و آسندانت: {e}"
         logging.error(err_msg, exc_info=True)
         chart_data['houses']['error'] = f"❌ خطا در محاسبه خانه‌ها: {str(e)}"
         
