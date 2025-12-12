@@ -3,25 +3,17 @@
 # ----------------------------------------------------------------------
 
 from fastapi import FastAPI, Request
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import os
-import datetime 
-import pytz     
-import asyncio
+import logging 
 from contextlib import asynccontextmanager 
-from persiantools.jdatetime import JalaliDateTime
-import logging # 💡 مطمئن شوید logging ایمپورت شده است
-
-# 💡 ایمپورت ماژول مدیریت وضعیت
-import state_manager 
-
-# 💡 ایمپورت هندلرهای جدید 
-from handlers import astro_handlers, sajil_handlers 
 
 # ایمپورت‌های ماژول‌های داخلی
 import utils
 import keyboards
-import astrology_core
+import state_manager 
+from handlers import astro_handlers, sajil_handlers 
+import astrology_core # برای اطمینان از تنظیمات اولیه
 
 # --- تنظیمات ضروری ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -32,21 +24,18 @@ if not BOT_TOKEN:
 # --- توابع مدیریت وضعیت (Wrapper برای State Manager) ---
 # (بدون تغییر)
 async def get_user_state(chat_id: int) -> Dict[str, Any]:
-    """دریافت وضعیت وضعیت کاربر از دیتابیس."""
     return await state_manager.get_user_state_db(chat_id)
 
 async def save_user_state(chat_id: int, state: Dict[str, Any]):
-    """ذخیره وضعیت کاربر در دیتابیس."""
     await state_manager.save_user_state_db(chat_id, state)
 
 
-# --- توابع هندلینگ پیام ---
-# (handle_start_command و handle_text_message بدون تغییر)
+# --- توابع هندلینگ پیام و دستور /start ---
+# ( handle_start_command و handle_text_message بدون تغییر از نسخه قبلی)
 async def handle_start_command(chat_id: int):
     """هندل کردن دستور /start یا بازگشت به منوی اصلی."""
     state = await get_user_state(chat_id)
     state['step'] = 'WELCOME'
-    # در شروع مجدد، داده‌های موقت قبلی پاک می‌شوند
     state['data'] = {} 
     
     welcome_message = utils.escape_markdown_v2(
@@ -114,7 +103,6 @@ async def handle_text_message(chat_id: int, text: str):
     # 2. هندلینگ ورود داده برای چارت تولد (شهر)
     elif step == 'AWAITING_CITY':
         city_name = text
-        # 💡 فراخوانی تابع اصلاح‌شده مکان‌یابی از utils.py
         city_data = utils.get_city_lookup_data(city_name)
         
         if city_data:
@@ -122,7 +110,6 @@ async def handle_text_message(chat_id: int, text: str):
             lon = city_data.get('longitude')
             timezone_str = city_data.get('timezone')
             
-            # بررسی ایمنی داده
             if lat is None or lon is None or timezone_str is None:
                 msg = utils.escape_markdown_v2("❌ خطای داده‌ی شهر. لطفاً نام شهر را دقیق‌تر وارد کنید.")
                 await utils.send_message(BOT_TOKEN, chat_id, msg)
@@ -147,7 +134,6 @@ async def handle_text_message(chat_id: int, text: str):
                 BOT_TOKEN, 
                 chat_id, 
                 msg, 
-                # دکمه محاسبه چارت ناتال
                 keyboards.create_keyboard([[keyboards.create_button("محاسبه چارت ناتال 📝", callback_data='SERVICES|ASTRO|CHART_CALC')]])
             )
             return 
@@ -171,11 +157,12 @@ async def handle_text_message(chat_id: int, text: str):
         return
 
 
+# --- تابع اصلی هندلینگ کلیک‌های اینلاین (Callback Query) ---
 async def handle_callback_query(chat_id: int, callback_id: str, data: str):
     """هندل کردن کلیک‌های کاربر روی دکمه‌های اینلاین."""
     state = await get_user_state(chat_id)
     
-    # 💡 اضافه کردن مدیریت خطا
+    # 💥💥💥 مدیریت خطا برای جلوگیری از سکوت ربات 💥💥💥
     try:
         parts = data.split('|')
         menu = parts[0]
@@ -183,14 +170,13 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
         param = parts[2] if len(parts) > 2 else '0'
         
         logging.info(f"Callback Query Received: Chat ID: {chat_id}, Data: {data}")
-        
-        # 💡 ذخیره آخرین اکشن
         state['data']['last_action'] = data 
         
         # 1. هندلینگ منوی اصلی (MAIN)
         if menu == 'MAIN':
             if submenu == 'SERVICES':
-                state['step'] = 'WELCOME' 
+                # 💥 این همان خط مورد نظر شماست که منو خدمات را نمایش می‌دهد
+                state['step'] = 'WELCOME' # یا 'SERVICE_MENU'
                 msg = utils.escape_markdown_v2("🔮 لطفا خدمت مورد نظر خود را انتخاب کنید:")
                 await utils.send_message(BOT_TOKEN, chat_id, msg, keyboards.services_menu_keyboard())
                 
@@ -206,9 +192,9 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
             elif submenu == 'WELCOME':
                 # بازگشت به منوی اصلی
                 await handle_start_command(chat_id)
-                await utils.answer_callback_query(BOT_TOKEN, callback_id) # پاسخ به کلیک
-                await save_user_state(chat_id, state) # ذخیره وضعیت
-                return # خروج سریع
+                # پاسخ به کلیک و ذخیره وضعیت در انتها انجام می‌شود
+                # توجه: اگر از handle_start_command استفاده می‌کنید، پیام جدیدی ارسال می‌شود و نیازی به answer_callback_query نیست (اما برای بستن دایره بارگذاری لازم است)
+
 
             
         # 2. هندلینگ منوی خدمات (SERVICES)
@@ -226,6 +212,7 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
                 # 💡 فراخوانی هندلر محاسبه چارت
                 await utils.answer_callback_query(BOT_TOKEN, callback_id, text="محاسبه چارت در حال انجام است...") 
                 await astro_handlers.handle_chart_calculation(chat_id, state, save_user_state)
+                # در این حالت، answer_callback_query در داخل هندلر انجام شده است.
                 return 
 
             elif submenu == 'SIGIL' and param == '0': 
@@ -261,17 +248,15 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
                 await save_user_state(chat_id, state)
                 await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("لطفاً تاریخ تولد خود را به صورت شمسی (مثلاً 1370/01/01) وارد کنید."))
 
-
-        # 3. هندلینگ زیرمنوی چارت تولد (CHART)
-        elif menu == 'CHART':
-            # ... (منطق نمایش جزئیات چارت) ...
-            pass
-            
+        
     except Exception as e:
         # 💥 اگر خطا رخ داد، آن را ثبت کرده و به کاربر پیام خطا می‌دهیم
         logging.error(f"FATAL: Unhandled Exception in handle_callback_query for data {data}: {e}", exc_info=True)
         error_msg = utils.escape_markdown_v2(f"❌ *خطای داخلی*:\n`{e.__class__.__name__}: {e}`\n\nلطفاً /start را بزنید.")
         await utils.send_message(BOT_TOKEN, chat_id, error_msg, keyboards.main_menu_keyboard())
+        await utils.answer_callback_query(BOT_TOKEN, callback_id, text="❌ خطای داخلی رخ داد. لاگ‌ها ثبت شد.") # 👈 حتماً پاسخ می‌دهیم
+        await save_user_state(chat_id, state)
+        return
 
 
     # 4. بستن اخطار Callback و ذخیره وضعیت (این بخش برای رفع مشکل سکوت حیاتی است)
@@ -307,11 +292,9 @@ async def webhook_handler(request: Request):
         
         else:
              state = await get_user_state(chat_id)
-             # اطمینان از اینکه پیام متنی در یک وضعیت معتبر دریافت شده است
              if text and state['step'] != 'START' and state['step'] != 'WELCOME':
                 await handle_text_message(chat_id, text)
              else:
-                # اگر کاربر در حالتی بود که نباید پیام متنی بفرستد، یا پیام /start بود
                 await handle_start_command(chat_id)
 
 
