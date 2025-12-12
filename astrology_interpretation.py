@@ -1,8 +1,8 @@
 # ----------------------------------------------------------------------
-# astrology_interpretation.py - ماژول تفسیر عمیق‌تر چارت تولد
+# astrology_interpretation.py - ماژول تفسیر عمیق‌تر (V4)
 # ----------------------------------------------------------------------
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Union
 import math
 
 # --- [ثابت‌ها و تعاریف] ---
@@ -31,14 +31,14 @@ RULERSHIP = {
     "اسد (Leo)": ("Sun", "Sun"),
     "سنبله (Virgo)": ("Mercury", "Mercury"),
     "میزان (Libra)": ("Venus", "Venus"),
-    "عقرب (Scorpio)": ("Mars", "Pluto"), # Mars سنتی، Pluto مدرن
+    "عقرب (Scorpio)": ("Mars", "Pluto"),
     "قوس (Sagittarius)": ("Jupiter", "Jupiter"),
     "جدی (Capricorn)": ("Saturn", "Saturn"),
-    "دلو (Aquarius)": ("Saturn", "Uranus"), # Saturn سنتی، Uranus مدرن
-    "حوت (Pisces)": ("Jupiter", "Neptune"), # Jupiter سنتی، Neptune مدرن
+    "دلو (Aquarius)": ("Saturn", "Uranus"),
+    "حوت (Pisces)": ("Jupiter", "Neptune"),
 }
 
-# متن‌های تفسیری کوتاه برای زوایا (بسیار ساده شده برای مثال)
+# متن‌های تفسیری کوتاه برای زوایا
 ASPECT_INTERPRETATIONS = {
     "Conjunction": " ادغام قدرت و انرژی، تاکید قوی بر ویژگی‌های مشترک آن‌ها.",
     "Sextile": " فرصت‌های آسان برای همکاری و سازگاری، یک جریان حمایتی ملایم.",
@@ -47,11 +47,39 @@ ASPECT_INTERPRETATIONS = {
     "Opposition": " کشمکش و نیاز به تعادل بین دو بخش متضاد از شخصیت.",
 }
 
+# --- [بانک اطلاعاتی تفسیری] ---
+
+PLANET_SIGN_INTERPRETATIONS = {
+    "sun": {"اسد": "هویت شما با غرور، رهبری و نیاز به توجه گره خورده است. بسیار خلاق و مرکزگرا هستید."},
+    "moon": {"قوس": "امنیت عاطفی از طریق جستجو، فلسفه و آزادی تأمین می‌شود. روحیه ماجراجو دارید."},
+    "mercury": {"سنبله": "ذهن بسیار تحلیلی، متمرکز بر جزئیات و خدمات است. نیاز به مفید بودن دارید."},
+    "venus": {"جوزا": "ارتباطات و تنوع برای شما در عشق و روابط بسیار مهم است. جذابیت شما از هوش می‌آید."},
+    "mars": {"میزان": "انرژی و اقدام شما حول عدالت، تعادل و روابط دیپلماتیک می‌چرخد. از درگیری آشکار دوری می‌کنید."},
+    "jupiter": {"سنبله": "رشد و شانس شما از طریق خدمات، سازماندهی و بهبود امور روزمره حاصل می‌شود."},
+    "saturn": {"سنبله": "درس‌های کارما و مسئولیت شما در حوزه کار، سلامتی و کمال‌گرایی است. ساختارهای دقیق برای شما مهم است."},
+}
+
+PLANET_HOUSE_INTERPRETATIONS = {
+    "sun": {7: "انرژی حیاتی شما متمرکز بر روابط یک به یک، شراکت و یافتن هویت از طریق دیگری است."},
+    "moon": {10: "نیازهای عاطفی شما علنی است و در حوزه شغل، جاه‌طلبی و شهرت عمومی امنیت پیدا می‌کنید."},
+    "mercury": {7: "ذهن و ارتباطات شما دائماً درگیر مسائل شراکتی، مشاوره و تعاملات اجتماعی مهم است."},
+    "venus": {7: "ارزش‌ها و نحوه عشق‌ورزی شما از طریق تعاملات و روابط یک به یک تعریف می‌شود."},
+    "mars": {8: "انرژی و عمل شما متوجه منابع مشترک، تحولات عمیق، امور پنهان و بحران‌ها است."},
+    "saturn": {8: "مسئولیت‌ها و درس‌های سختی در مورد منابع مشترک، بدهی‌ها، و تحولات عمیق و مرگ دارید."},
+}
+
+RULER_IN_HOUSE_INTERPRETATIONS = {
+    # نمونه تفسیر برای حاکمیت خانه‌ها (باید بر اساس چارت واقعی شما گسترش یابد)
+    "h7_ruler_in_h8": "حاکم خانه روابط (۷) در خانه تحولات (۸) است. شرکا و روابط شما اغلب باعث تغییرات مالی یا روانی عمیق در زندگی‌تان می‌شوند. ممکن است روابطتان محرمانه یا شدید باشد.",
+    "h10_ruler_in_h7": "حاکم خانه شغل (۱۰) در خانه روابط (۷) است. مسیر شغلی یا شهرت عمومی شما به شدت به شریک زندگی، همکاری‌ها یا مشتریان شما وابسته است. شما در کارهای مشارکتی موفق هستید.",
+    # شما می‌توانید موارد بیشتری را بر اساس نیاز اضافه کنید.
+}
+
+
 # --- [توابع کمکی] ---
 
 def get_sign_and_degree(degree: float) -> str:
-    """درجه را به فرمت '15 درجه جوزا' تبدیل می‌کند."""
-    
+    """درجه را به فرمت 'X° Y' برج (Sign)' تبدیل می‌کند."""
     degree = degree % 360 
     start_degrees = sorted(ZODIAC_SIGNS.keys())
     
@@ -70,44 +98,126 @@ def get_sign_and_degree(degree: float) -> str:
     
     return f"{deg_int}° {min_int}' {sign_name}"
 
-def get_house_of_degree(degree: float, cusps: Dict[int, float]) -> str:
-    """موقعیت یک درجه مشخص را در چارت خانه‌ها پیدا می‌کند."""
-    
+def get_house_of_degree(degree: float, cusps: Dict[int, float]) -> int:
+    """خانه ای که یک درجه مشخص در آن قرار دارد را پیدا می‌کند."""
     degree = degree % 360
     if len(cusps) < 12:
-        return "N/A (Cusps Missing)" 
+        return 0 
     
     for i in range(1, 13):
         start_cusp = cusps.get(i, 0.0)
-        end_cusp = cusps.get(i % 12 + 1, 0.0) 
+        end_cusp = cusps.get(i % 12 + 1, cusps.get(1, 0.0)) # کاپس 13 همان کاپس 1 است
         
         if start_cusp < end_cusp:
             if start_cusp <= degree < end_cusp:
-                return HOUSE_NAMES[i]
+                return i
         else:
+            # برای حالتی که کاپس از 360/0 عبور می‌کند
             if degree >= start_cusp or degree < end_cusp:
-                return HOUSE_NAMES[i]
+                return i
                 
-    return "N/A (Logic Error)"
+    return 0
+
+def get_house_name(house_number: int) -> str:
+    """شماره خانه را به نام فارسی آن تبدیل می‌کند."""
+    return HOUSE_NAMES.get(house_number, "خانه نامشخص")
+
+def get_sign_of_degree(degree: float) -> str:
+    """استخراج نام برج فارسی و انگلیسی (مثلاً 'دلو (Aquarius)')"""
+    return get_sign_and_degree(degree).split(maxsplit=2)[-1]
 
 
 def get_chart_ruler_info(ascendant_degree: float) -> Tuple[str, str, str]:
-    """تعیین برج آسندانت و حاکمان سنتی و مدرن آن."""
-    
-    # استخراج برج کامل (مثلاً 'دلو (Aquarius)')
-    asc_sign_full = get_sign_and_degree(ascendant_degree).split(maxsplit=2)[-1] 
-    
+    """اطلاعات حاکم چارت (آسندانت) را برمی‌گرداند."""
+    asc_sign_full = get_sign_of_degree(ascendant_degree) 
     ruler_info = RULERSHIP.get(asc_sign_full, ("Unknown", "Unknown"))
-    
-    # نام فارسی برج
     asc_sign_persian = asc_sign_full.split()[0]
+    return asc_sign_persian, ruler_info[0], ruler_info[1]
+
+
+# --- [توابع تفسیر عمیق جدید] ---
+
+def get_house_ruler_placement(house_number: int, cusps: Dict[int, float], planets: Dict[str, Any]) -> Tuple[str, int]:
+    """حاکم یک خانه مشخص و خانه ای که در آن قرار گرفته را پیدا می‌کند."""
     
-    return asc_sign_persian, ruler_info[0], ruler_info[1] # Sign, Traditional, Modern
+    # 1. پیدا کردن برج کاپس خانه
+    cusp_degree = cusps.get(house_number)
+    if cusp_degree is None:
+        return "Unknown", 0
+
+    cusp_sign_full = get_sign_of_degree(cusp_degree)
+    
+    # 2. پیدا کردن حاکم سنتی آن برج
+    trad_ruler = RULERSHIP.get(cusp_sign_full, ("Unknown", "Unknown"))[0]
+    
+    if trad_ruler == "Unknown":
+        return "Unknown", 0
+    
+    # 3. پیدا کردن موقعیت حاکم (سیاره) در چارت
+    ruler_planet_data = planets.get(trad_ruler.lower())
+    if ruler_planet_data and 'degree' in ruler_planet_data:
+        ruler_house_num = get_house_of_degree(ruler_planet_data['degree'], cusps)
+        return trad_ruler, ruler_house_num
+        
+    return trad_ruler, 0
+
+
+def interpret_planet_placement(planet_name: str, degree: float, cusps: Dict[int, float]) -> str:
+    """تفسیر مختصر سیاره در برج و خانه."""
+    
+    planet_key = planet_name.lower()
+    sign_full = get_sign_of_degree(degree)
+    sign_persian = sign_full.split()[0]
+    house_num = get_house_of_degree(degree, cusps)
+    house_name = get_house_name(house_num)
+    
+    # استخراج تفسیرهای از پیش تعریف شده
+    sign_interp = PLANET_SIGN_INTERPRETATIONS.get(planet_key, {}).get(sign_persian, "")
+    house_interp = PLANET_HOUSE_INTERPRETATIONS.get(planet_key, {}).get(house_num, "")
+    
+    if not sign_interp and not house_interp:
+        return f"**{get_sign_and_degree(degree)}** در {house_name}. تفسیر جامع یافت نشد."
+
+    # ترکیب و بازگشت
+    full_interp = f"**{sign_persian} در {house_name}:** "
+    if sign_interp:
+        full_interp += f"({sign_interp}) "
+    if house_interp:
+        full_interp += f"({house_interp})"
+        
+    return full_interp
+
+
+def interpret_part_of_fortune(pf_data: Dict[str, Any], cusps: Dict[int, float]) -> str:
+    """تفسیر سهم سعادت (Part of Fortune)"""
+    
+    if 'error' in pf_data:
+        return pf_data['error']
+        
+    pf_degree = pf_data['degree']
+    pf_sign_full = get_sign_of_degree(pf_degree)
+    pf_sign_persian = pf_sign_full.split()[0]
+    pf_house_num = get_house_of_degree(pf_degree, cusps)
+    pf_house_name = get_house_name(pf_house_num)
+    pf_sign_and_degree = get_sign_and_degree(pf_degree)
+    
+    # تفسیر ساده (نیاز به بانک اطلاعاتی جامع‌تر دارد)
+    base_interp = f"سهم سعادت (نقطه بخت) شما در **{pf_sign_persian}** در **{pf_house_name}** قرار دارد."
+    fortune_interp = "این نقطه نشان‌دهنده جایی است که شما به راحتی جریان انرژی و شانس را تجربه می‌کنید."
+    
+    if pf_house_num in [1, 10]:
+        fortune_interp = "این جایگیری نشان‌دهنده اقبال و موفقیت محسوس در حوزه‌ی خود و شهرت عمومی است."
+    elif pf_house_num in [7, 8]:
+         fortune_interp = "شادی و موفقیت شما گره‌خورده به روابط مهم و منابع مشترک یا تحولات عمیق است."
+    elif pf_house_num in [4, 5]:
+        fortune_interp = "شادی و رفاه شما از طریق خانه، خانواده، خلاقیت و فرزندان تأمین می‌شود."
+        
+    return f"**سهم سعادت:** {pf_sign_and_degree} ({pf_house_name}). {base_interp} {fortune_interp}"
+    
 
 # --- [منطق اصلی تفسیر] ---
 
 def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
-    """تفسیر اصلی چارت را بر اساس سیارات، خانه‌ها و زوایا ایجاد می‌کند."""
     
     houses_data = chart_data.get('houses', {})
     planets = chart_data['planets']
@@ -122,42 +232,86 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
             "لطفاً با توسعه‌دهنده تماس بگیرید. تفسیر ناقص خواهد بود."
         )
 
-    # 2. اطلاعات اولیه و حاکم چارت
+    # 2. اطلاعات اولیه و حاکم چارت 
     ascendant_degree = houses_data.get('ascendant', 0.0)
     ascendant_sign = get_sign_and_degree(ascendant_degree)
     
     asc_sign_persian, trad_ruler, mod_ruler = get_chart_ruler_info(ascendant_degree)
 
-    # پیدا کردن موقعیت حاکم چارت
-    ruler_placement = "نامشخص"
     ruler_degree = planets.get(trad_ruler.lower(), {}).get('degree')
+    ruler_house = 0
+    ruler_placement_text = "نامشخص"
     
     if ruler_degree is not None:
         ruler_house = get_house_of_degree(ruler_degree, cusps)
-        ruler_placement = f"{get_sign_and_degree(ruler_degree).split()[0]} در {ruler_house}"
+        ruler_house_name = get_house_name(ruler_house)
+        ruler_placement_text = f"{get_sign_of_degree(ruler_degree).split()[0]} در {ruler_house_name}"
         
     
     interpretation = [
-        "**تفسیر اولیه چارت تولد**",
+        "✨ **تفسیر عمیق چارت تولد (نسخه V4 - حاکمیت فرعی و سهم سعادت)**",
         "------------------------------------",
         f"⬆️ **آسندانت (شخصیت ظاهری):** {ascendant_sign}",
         f"    *تفسیر کوتاه:* آسندانت در {asc_sign_persian}، تصویری است که شما به جهان ارائه می‌دهید و نشان‌دهنده ظاهر و اولین واکنش شماست.",
         "",
         f"👑 **حاکم چارت (Chart Ruler):** {trad_ruler} (سنتی)",
         f"    *حاکمیت:* {trad_ruler} سیاره حاکم بر برج {asc_sign_persian} است و نماینده هدف اصلی شخصیت شماست.",
-        f"    *موقعیت حاکم:* {trad_ruler} در {ruler_placement}",
-        f"    *تأثیر:* تمرکز انرژی و هویت شما در حوزه‌ی {ruler_house} قرار دارد، که بر تمامی شخصیت شما حاکم است.",
+        f"    *موقعیت حاکم:* {trad_ruler} در {ruler_placement_text}",
+        f"    *تأثیر:* تمرکز انرژی و هویت شما در حوزه‌ی {get_house_name(ruler_house)} قرار دارد، که بر تمامی شخصیت شما حاکم است.",
         "",
-        "--- **سیارات اصلی** ---",
-        f"🌟 **خورشید (هویت):** {get_sign_and_degree(planets['sun']['degree']).split()[0]} در {get_house_of_degree(planets['sun']['degree'], cusps)}",
-        f"🌙 **ماه (احساسات):** {get_sign_and_degree(planets['moon']['degree']).split()[0]} در {get_house_of_degree(planets['moon']['degree'], cusps)}",
-        f"🧠 **عطارد (تفکر):** {get_sign_and_degree(planets['mercury']['degree']).split()[0]} در {get_house_of_degree(planets['mercury']['degree'], cusps)}",
-        
-        "",
-        "--- **زوایای اصلی (Aspects)** ---",
+        "--- **تفسیر جامع سیارات اصلی (برج + خانه)** ---",
     ]
     
-    # 3. تفسیر زوایا
+    # 3. تفسیر جامع سیارات اصلی (Sign + House)
+    key_planets = ["sun", "moon", "mercury", "venus", "mars"]
+    for p_key in key_planets:
+        p_data = planets.get(p_key)
+        if p_data and 'degree' in p_data:
+            p_title = ""
+            if p_key == "sun": p_title = "🌟 خورشید (هویت):"
+            elif p_key == "moon": p_title = "🌙 ماه (احساسات):"
+            elif p_key == "mercury": p_title = "🧠 عطارد (تفکر):"
+            elif p_key == "venus": p_title = "💖 زهره (عشق و ارزش):"
+            elif p_key == "mars": p_title = "🔥 مریخ (انرژی و عمل):"
+
+            interpretation.append(f"{p_title} {interpret_planet_placement(p_key, p_data['degree'], cusps)}")
+    
+    interpretation.append("\n--- **حاکمیت فرعی خانه‌ها (Sub-Rulership)** ---")
+    
+    # 4. تفسیر حاکمیت فرعی خانه‌ها (خانه ۷ و ۱۰)
+    
+    # حاکم خانه ۷ (روابط)
+    h7_ruler, h7_ruler_house = get_house_ruler_placement(7, cusps, planets)
+    h7_ruler_house_name = get_house_name(h7_ruler_house)
+    h7_interp_key = f"h7_ruler_in_h{h7_ruler_house}"
+    h7_interp = RULER_IN_HOUSE_INTERPRETATIONS.get(h7_interp_key, f"حاکم روابط ({h7_ruler}) در {h7_ruler_house_name} است. تفسیر خاصی تعریف نشده است.")
+
+    interpretation.append(f"**حاکم خانه روابط (۷):** {h7_ruler} در {h7_ruler_house_name}")
+    interpretation.append(f"    *{h7_interp}*")
+
+
+    # حاکم خانه ۱۰ (شغل)
+    h10_ruler, h10_ruler_house = get_house_ruler_placement(10, cusps, planets)
+    h10_ruler_house_name = get_house_name(h10_ruler_house)
+    h10_interp_key = f"h10_ruler_in_h{h10_ruler_house}"
+    h10_interp = RULER_IN_HOUSE_INTERPRETATIONS.get(h10_interp_key, f"حاکم شغل ({h10_ruler}) در {h10_ruler_house_name} است. تفسیر خاصی تعریف نشده است.")
+
+    interpretation.append(f"**حاکم خانه شغل (۱۰):** {h10_ruler} در {h10_ruler_house_name}")
+    interpretation.append(f"    *{h10_interp}*")
+
+
+    interpretation.append("\n--- **نقاط عربی (Part of Fortune)** ---")
+    
+    # 5. تفسیر سهم سعادت (Part of Fortune)
+    pf_data = chart_data.get('arabic_parts', {}).get('part_of_fortune', {})
+    if pf_data:
+        interpretation.append(interpret_part_of_fortune(pf_data, cusps))
+    else:
+        interpretation.append("❌ سهم سعادت در چارت محاسبه یا یافت نشد.")
+
+
+    interpretation.append("\n--- **زوایای اصلی (Aspects)** ---")
+    # 6. زوایا
     aspects = chart_data.get('aspects', [])
     if aspects:
         interpretation.append("این بخش مهم‌ترین ترکیب‌های انرژی در چارت شما را نشان می‌دهد:")
@@ -167,7 +321,6 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
             aspect_name = asp['aspect']
             orb = asp['orb']
             
-            # پیدا کردن تفسیر مختصر
             interpretation_text = ASPECT_INTERPRETATIONS.get(aspect_name, "")
             
             interpretation.append(
