@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه نهایی و قطعی)
+# astrology_core.py - ماژول اصلی محاسبات آسترولوژی (نسخه تصحیح‌شده و نهایی)
 # ----------------------------------------------------------------------
 
 import swisseph as se
@@ -20,6 +20,7 @@ PLANETS_MAP = {
     'mercury': se.MERCURY, 'venus': se.VENUS, 'mars': se.MARS, 
     'jupiter': se.JUPITER, 'saturn': se.SATURN, 
     'uranus': se.URANUS, 'neptune': se.NEPTUNE, 'pluto': se.PLUTO,
+    # استفاده از MEAN_NODE برای True Node
     'true_node': se.MEAN_NODE, 
 }
 
@@ -61,7 +62,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         # محاسبه ساعت کلی UTC (ساعت + دقیقه/60 + ثانیه/3600)
         total_hours_utc = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
         
-        # 💥 اصلاح نهایی و حیاتی: استفاده از عدد 1 به جای ثابت SE_GREG_CAL 
+        # استفاده از عدد 1 برای تقویم گرگوری (که درست است)
         jd_utc = se.julday(dt_utc.year, dt_utc.month, dt_utc.day, total_hours_utc, 1)
         
         logging.info(f"زمان UTC تبدیل شده: {dt_utc.isoformat()}. Julian Day: {jd_utc:.6f}")
@@ -85,8 +86,9 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     # 2. محاسبه موقعیت سیارات
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
+            # 💥💥💥 اصلاح نهایی: تغییر SE_FLG_SWIEPH به SEFLG_SWIEPH
             # استفاده از پرچم Topocentric برای دقت بیشتر بر اساس مختصات
-            res = se.calc_ut(jd_utc, planet_code, se.SE_FLG_SWIEPH | se.SE_FLG_TOPOCTR) 
+            res = se.calc_ut(jd_utc, planet_code, se.SEFLG_SWIEPH | se.SEFLG_TOPOCTR) 
             
             lon_deg = res[0][0]
             speed_long = res[0][3]
