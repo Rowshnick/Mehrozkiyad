@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------
-# astrology_core.py - نسخه نهایی با Part of Fortune (سهم سعادت)
+# astrology_core.py - نسخه نهایی و اصلاح شده (FIXED: AttributeError)
 # ----------------------------------------------------------------------
 
 import swisseph as se
@@ -15,18 +15,19 @@ logging.basicConfig(level=logging.INFO)
 
 
 # --- [ثابت‌ها] ---
+# FIX: استفاده از ثابت‌های عددی (0 تا 10) به جای se.SE_X برای سازگاری با محیط استقرار
 PLANETS_MAP = {
-    "sun": se.SE_SUN,
-    "moon": se.SE_MOON,
-    "mercury": se.SE_MERCURY,
-    "venus": se.SE_VENUS,
-    "mars": se.SE_MARS,
-    "jupiter": se.SE_JUPITER,
-    "saturn": se.SE_SATURN,
-    "uranus": se.SE_URANUS,
-    "neptune": se.SE_NEPTUNE,
-    "pluto": se.SE_PLUTO,
-    "true_node": se.SE_TRUE_NODE # گره شمالی حقیقی
+    "sun": 0, # معادل se.SE_SUN
+    "moon": 1, # معادل se.SE_MOON
+    "mercury": 2, # معادل se.SE_MERCURY
+    "venus": 3, # معادل se.SE_VENUS
+    "mars": 4, # معادل se.SE_MARS
+    "jupiter": 5, # معادل se.SE_JUPITER
+    "saturn": 6, # معادل se.SE_SATURN
+    "uranus": 7, # معادل se.SE_URANUS
+    "neptune": 8, # معادل se.SE_NEPTUNE
+    "pluto": 9, # معادل se.SE_PLUTO
+    "true_node": 10 # معادل se.SE_TRUE_NODE (گره شمالی حقیقی)
 }
 
 ASPECT_DEGREES = {
@@ -59,8 +60,10 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
     aspects = []
     
     # لیست سیاراتی که باید زوایایشان بررسی شود (مثلاً سیارات شخصی و اجتماعی)
-    aspect_planets = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn"]
+    # اضافه شدن True Node به این لیست برای تفسیر زوایا
+    aspect_planets = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "true_node", "pluto", "neptune", "uranus"]
     
+    # فیلتر کردن برای اطمینان از وجود درجه و حذف سیارات مجهول
     planet_items = [(name, data['degree']) for name, data in planets.items() if name in aspect_planets and 'degree' in data]
     
     # از هر سیاره به سیارات بعدی (جلوگیری از تکرار و مقایسه با خود)
@@ -74,6 +77,11 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
                 degree_diff = get_degree_diff(p1_deg, p2_deg)
                 orb = abs(degree_diff - aspect_degree)
                 max_orb = ASPECT_ORBS.get(aspect_name, 1.0) # پیش‌فرض 1.0 برای احتیاط
+                
+                # برای گره‌ها و سیارات بیرونی Orb را کمی سخت‌گیرانه‌تر می‌کنیم
+                if p1_name in ["true_node", "pluto", "neptune", "uranus"] or p2_name in ["true_node", "pluto", "neptune", "uranus"]:
+                    if max_orb > 1.5:
+                        max_orb = 1.5
                 
                 if orb <= max_orb:
                     aspects.append({
@@ -98,7 +106,7 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: Union[float, int], longitude: Union[float, int], timezone_str: str) -> Dict[str, Any]:
     """
-    محاسبه چارت تولد نجومی شامل موقعیت سیارات و خانه‌ها بر اساس سیستم سوپرامریس.
+    محاسبه چارت تولد نجومی شامل موقعیت سیارات و خانه‌ها بر اساس سیستم پلاسی دوس.
     """
     
     # 1. تبدیل تاریخ شمسی به میلادی و محاسبه زمان جولیان (JD) UTC
@@ -136,14 +144,13 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
              'error': None 
         },
         "aspects": [],
-        "arabic_parts": {} # اضافه شدن کلید جدید برای نقاط عربی
+        "arabic_parts": {}
     }
 
     # 2. محاسبه موقعیت سیارات
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
-            # از se.calc_ut برای دقت بیشتر استفاده می‌کنیم
-            # flag 0 به معنای محاسبه استاندارد است که در محیط‌های بدون فایل اپمریس کار می‌کند
+            # از se.calc_ut برای دقت بیشتر استفاده می‌کنیم. Flag 0 برای عدم نیاز به فایل اپمریس
             res = se.calc_ut(jd_utc, planet_code, 0) 
             lon_deg = res[0][0]
             chart_data['planets'][planet_name] = {
@@ -168,11 +175,10 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         chart_data['houses']['ascendant'] = ascmc[0]
         chart_data['houses']['midheaven'] = ascmc[1]
         
-        # ایندکس گذاری امن برای cusps (swisseph از 1 شروع می‌کند، ولی خروجی ممکن است متفاوت باشد)
+        # ایندکس گذاری امن برای cusps
         cusps_dict = {}
         for i in range(1, 13):
-            # برای Placidus، کاپس‌ها از خانه 1 شروع می‌شوند
-            # به خاطر ناسازگاری اندک در خروجی swisseph در برخی محیط‌ها، بهتر است مطمئن شویم
+            # برای Placidus، کاپس‌ها از خانه 1 شروع می‌شوند. 
             index_to_use = i 
             if index_to_use >= 0 and index_to_use < len(cusps_raw):
                 cusps_dict[i] = cusps_raw[index_to_use]
@@ -202,22 +208,23 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         # اگر خورشید بالای افق (Asc-Desc) باشد (خانه‌های 7، 8، 9، 10، 11، 12)، تولد روز است.
         is_day_birth = False
         
-        # محاسبه خانه خورشید
         def get_house_of_degree_simple(degree: float, asc: float, desc: float) -> int:
-            if asc > desc:
-                # Asc در نیمکره پایین (جنوبی) است.
-                # از Asc تا Desc نیمکره پایین است.
-                if asc >= degree > desc:
-                    return 1 # خانه های 1 تا 6
+            """تعیین اینکه درجه در نیمکره بالا (7-12) یا پایین (1-6) است."""
+            # نرمال سازی
+            asc = asc % 360
+            desc = desc % 360
+            degree = degree % 360
+
+            if asc > desc: # محور افق در 360/0 قطع نشده است
+                 if asc >= degree > desc:
+                     return 1 # خانه های 1 تا 6 (زیر افق)
+                 else:
+                     return 7 # خانه های 7 تا 12 (بالای افق)
+            else: # محور افق از 360/0 عبور کرده است
+                if degree >= asc and degree < desc:
+                     return 7 # خانه های 7 تا 12 (بالای افق)
                 else:
-                    return 7 # خانه های 7 تا 12
-            else:
-                # Desc در نیمکره پایین است.
-                # از Desc تا Asc نیمکره پایین است.
-                if desc >= degree > asc:
-                    return 1 # خانه های 1 تا 6
-                else:
-                    return 7 # خانه های 7 تا 12
+                     return 1 # خانه های 1 تا 6 (زیر افق)
         
         sun_house_zone = get_house_of_degree_simple(sun_deg, asc_deg, desc_deg)
         
@@ -246,4 +253,3 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     
     
     return chart_data
-
