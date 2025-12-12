@@ -27,6 +27,7 @@ PLANETS_MAP = {
 # پرچم‌های مورد نیاز برای محاسبه:
 # SEFLG_SPEED: محاسبه سرعت سیاره
 # SEFLG_TOPOCTR: استفاده از مختصات (طول و عرض جغرافیایی)
+# 💡 توجه: پرچم SEFLG_SWIEPH حذف شد زیرا در محیط شما تعریف نشده بود.
 CALCULATION_FLAGS = se.SEFLG_SPEED | se.SEFLG_TOPOCTR
 
 # --- [تنظیمات اولیه] ---
@@ -91,7 +92,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     # 2. محاسبه موقعیت سیارات
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
-            # 💥 اصلاح پرچم: حذف SEFLG_SWIEPH برای سازگاری بیشتر و استفاده از پرچم‌های ضروری
+            # 💡 اصلاح خط ۹۱: استفاده از CALCULATION_FLAGS
             res = se.calc_ut(jd_utc, planet_code, CALCULATION_FLAGS) 
             
             lon_deg = res[0][0]
@@ -108,7 +109,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             }
             
         except Exception as e:
-            # این خطا اکنون نباید رخ دهد
+            # این خطا دیگر نباید با این پرچم‌ها رخ دهد
             logging.error(f"FATAL ERROR: خطا در محاسبه موقعیت سیاره {planet_name}: {e}", exc_info=True)
             chart_data['planets'][planet_name] = {"error": f"❌ خطا در محاسبه: {str(e)}"}
             
@@ -116,8 +117,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     try:
         house_system = b'P' # سیستم خانه Placidus 
         
-        # 💥 اصلاح تابع: استفاده از se.houses به جای se.house_ut برای سازگاری با نسخه‌های قدیمی‌تر
-        # توجه: se.houses از jd_utc استفاده می‌کند و نه jd_et، پس باید همچنان با UT کار کند.
+        # 💡 اصلاح خط ۱۱۵: استفاده از se.houses
         cusps, ascmc = se.houses(jd_utc, latitude, longitude, house_system)
         
         # آسندانت و میدهیون
@@ -128,7 +128,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         chart_data['houses']['cusps'] = {i: cusps[i] for i in range(1, 13)}
         
     except Exception as e:
-        # این خطا اکنون نباید رخ دهد
+        # این خطا دیگر نباید با تابع houses رخ دهد
         err_msg = f"FATAL ERROR: خطا در محاسبه خانه‌ها و آسندانت: {e}"
         logging.error(err_msg, exc_info=True)
         chart_data['houses']['error'] = f"❌ خطا در محاسبه خانه‌ها: {str(e)}"
