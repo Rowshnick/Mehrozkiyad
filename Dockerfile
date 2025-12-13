@@ -3,15 +3,29 @@
 # ----------------------------------------------------------------------
 
 # 1. تغییر تصویر پایه به پایتون 3.9 (پایدارتر برای Skyfield)
-FROM python:3.9-slim-bullseye
+FROM python:3.9-slim-bullseye 
 
-# 2. نصب فقط بسته های سیستمی ضروری
+# 💥💥💥 این بخش حیاتی است 💥💥💥
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    # وابستگی‌های مورد نیاز matplotlib
+    pkg-config \
+    libfreetype6-dev \
+    # وابستگی‌های عمومی لینوکس
     locales \
+    # در صورت نیاز به فونت فارسی برای نمایش دقیق
+    fonts-noto-extra \
+    # ... سایر پکیج‌های سیستمی شما
     && echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
     locale-gen en_US.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/app
+
+# نصب پکیج‌های پایتون
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # 3. تنظیم متغیرهای محیطی
 ENV LANG en_US.UTF-8
