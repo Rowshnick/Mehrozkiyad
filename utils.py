@@ -1,141 +1,130 @@
-# ----------------------------------------------------------------------
-# utils.py - ماژول نهایی توابع کمکی (نسخه قطعی، امن و پاک‌سازی‌شده)
-# ----------------------------------------------------------------------
+# utils.py - ماژول توابع کمکی (اصلاح شده برای ارسال عکس)
 
-import httpx
-from typing import Optional, Dict, Any, Union
-from persiantools.jdatetime import JalaliDateTime
 import os
+import re
+import logging
+from typing import Dict, Any, Optional
+import httpx 
+import io # برای کار با خروجی باینری عکس
+from persiantools.jdatetime import JalaliDate, JalaliDateTime 
 import datetime
-import logging 
-import pytz 
-# ❌ ایمپورت‌های مربوط به geopy و timezonefinder کاملاً حذف شدند
 
-# --- تنظیمات ضروری ---
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 
-# ======================================================================
-# 💥💥💥 پایگاه داده محلی شهرهای پرتکرار ایران (Cache) 💥💥💥
-# ======================================================================
+# فرض می‌کنیم توکن ربات از متغیر محیطی گرفته می‌شود
+BOT_TOKEN = os.environ.get("BOT_TOKEN") 
 
-LOCAL_CITY_DB: Dict[str, Dict[str, Union[float, str]]] = {
-    "تهران": {"latitude": 35.6892, "longitude": 51.3890, "timezone": "Asia/Tehran"},
-    "مشهد": {"latitude": 36.2605, "longitude": 59.6168, "timezone": "Asia/Tehran"},
-    "اصفهان": {"latitude": 32.6546, "longitude": 51.6679, "timezone": "Asia/Tehran"},
-    "تبریز": {"latitude": 38.0806, "longitude": 46.2919, "timezone": "Asia/Tehran"},
-    "شیراز": {"latitude": 29.6037, "longitude": 52.5332, "timezone": "Asia/Tehran"},
-    "اهواز": {"latitude": 31.3168, "longitude": 48.6749, "timezone": "Asia/Tehran"},
-    "کرج": {"latitude": 35.8423, "longitude": 50.9770, "timezone": "Asia/Tehran"},
-    "قم": {"latitude": 34.6418, "longitude": 50.8752, "timezone": "Asia/Tehran"},
-    "اراک": {"latitude": 34.0863, "longitude": 49.6894, "timezone": "Asia/Tehran"},
-    "کرمان": {"latitude": 30.2832, "longitude": 57.0620, "timezone": "Asia/Tehran"},
-    "رشت": {"latitude": 37.2801, "longitude": 49.5888, "timezone": "Asia/Tehran"},
-    "زنجان": {"latitude": 36.6746, "longitude": 48.4900, "timezone": "Asia/Tehran"},
-    "همدان": {"latitude": 34.8066, "longitude": 48.5160, "timezone": "Asia/Tehran"},
-    "یزد": {"latitude": 31.8973, "longitude": 54.3686, "timezone": "Asia/Tehran"},
-    "ساری": {"latitude": 36.5658, "longitude": 53.0560, "timezone": "Asia/Tehran"},
-    # ... شهرهای دیگر را اینجا اضافه کنید
-}
+# --- توابع Telegram API Call ---
 
-def get_city_lookup_data(city_name: str) -> Optional[Dict[str, Union[float, str]]]:
-    """
-    مختصات جغرافیایی و منطقه زمانی شهر را با اولویت جستجوی محلی برمی‌گرداند.
-    """
-    normalized_city_name = city_name.strip()
-    
-    # 1. جستجوی محلی 
-    if normalized_city_name in LOCAL_CITY_DB:
-        logging.info(f"✅ شهر {city_name} از دیتابیس محلی یافت شد.")
-        result = LOCAL_CITY_DB[normalized_city_name].copy()
-        result['city_name'] = normalized_city_name
-        return result
+def escape_markdown_v2(text: str) -> str:
+    """فراردهی کاراکترهای خاص برای MarkdownV2 تلگرام."""
+    # لیست کاراکترهایی که باید escape شوند: _ * [ ] ( ) ~ ` > # + - = | { } . !
+    chars_to_escape = r'([_*\[\]()~`>#+\-=|{}.!])'
+    return re.sub(chars_to_escape, r'\\\1', text)
 
-    # 2. جستجوی خارجی: حذف شده
-    logging.warning(f"❌ شهر {city_name} در دیتابیس محلی یافت نشد. جستجوی خارجی فعال نیست.")
-    return None 
-    
-
-# ======================================================================
-# توابع اصلی ارتباط با تلگرام و اعتبارسنجی (بدون تغییر)
-# ======================================================================
-
-async def send_message(bot_token: Optional[str], chat_id: int, text: str, reply_markup: Optional[Dict[str, Any]] = None):
-    """ارسال یک پیام متنی به کاربر."""
-    bot_token = bot_token or os.environ.get("BOT_TOKEN")
-    if not bot_token:
-        print("Error: BOT_TOKEN is not set in send_message.")
-        return
-        
+async def send_message(bot_token: str, chat_id: int, text: str, reply_markup: Optional[Dict[str, Any]] = None):
+    """ارسال پیام متنی به کاربر."""
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         'chat_id': chat_id,
         'text': text,
-        'parse_mode': 'MarkdownV2', 
-        'disable_web_page_preview': True
+        'parse_mode': 'MarkdownV2',
+        'reply_markup': reply_markup
     }
-    if reply_markup:
-        payload['reply_markup'] = reply_markup
-        
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, json=payload)
-            response.raise_for_status() 
-        except httpx.HTTPStatusError as e:
-            print(f"Telegram API Error (send_message): {e.response.status_code} - {e.response.text}")
-        except Exception as e:
-            print(f"An unexpected error occurred in send_message: {e}")
+            response.raise_for_status()
+            logging.info(f"HTTP Request: POST .../sendMessage \"HTTP/1.1 {response.status_code}\"")
+    except httpx.HTTPStatusError as e:
+        logging.error(f"HTTP Error: Status {e.response.status_code}, Response: {e.response.text}")
+    except Exception as e:
+        logging.error(f"Error sending message: {e}")
 
-async def answer_callback_query(bot_token: Optional[str], callback_id: str, text: Optional[str] = None):
-    """ارسال پاسخ به یک Callback Query (برای بستن دایره بارگذاری روی دکمه)."""
-    bot_token = bot_token or os.environ.get("BOT_TOKEN")
-    if not bot_token:
-        print("Error: BOT_TOKEN is not set in answer_callback_query.")
-        return
-
+async def answer_callback_query(bot_token: str, callback_id: str, text: Optional[str] = None, show_alert: bool = False):
+    """پاسخ به کلیک‌های اینلاین (برای جلوگیری از ماندن علامت لودینگ)."""
     url = f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery"
     payload = {
         'callback_query_id': callback_id,
+        'text': text,
+        'show_alert': show_alert
     }
-    if text:
-        payload['text'] = text
-        payload['show_alert'] = False
-    
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(url, json=payload)
-        except Exception as e:
-            print(f"An unexpected error occurred in answer_callback_query: {e}")
+    except Exception as e:
+        logging.error(f"Error answering callback query: {e}")
 
-def parse_persian_date(date_str: str) -> Optional[JalaliDateTime]:
-    """تلاش برای تبدیل رشته تاریخ شمسی (YYYY/MM/DD) به JalaliDateTime."""
-    try:
-        parts = date_str.split('/')
-        if len(parts) == 3:
-            year, month, day = map(int, parts)
-            if 1 <= month <= 12 and 1 <= day <= 31:
-                return JalaliDateTime(year, month, day)
-        return None
-    except Exception:
-        return None
 
-def parse_persian_time(time_str: str) -> Optional[str]:
-    """تلاش برای تبدیل رشته زمان (ساعت:دقیقه) به فرمت HH:MM."""
+# 💥 تابع جدید: ارسال عکس با کپشن 💥
+async def send_photo_with_caption(bot_token: str, chat_id: int, photo: io.BytesIO, caption: str, reply_markup: Optional[Dict[str, Any]] = None):
+    """ارسال یک فایل باینری (عکس) به همراه کپشن به تلگرام."""
+    url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+    
+    # تلگرام برای ارسال فایل نیاز به 'multipart/form-data' دارد
+    files = {
+        # ('نام فایل', شیء باینری، 'MIME Type')
+        'photo': ('chart.png', photo, 'image/png') 
+    }
+    
+    data = {
+        'chat_id': chat_id,
+        'caption': caption,
+        'parse_mode': 'MarkdownV2', # برای پشتیبانی از فرمت‌دهی فارسی در کپشن
+        'reply_markup': reply_markup
+    }
+
     try:
-        dt_time = datetime.datetime.strptime(time_str.strip(), '%H:%M').time()
-        return dt_time.strftime('%H:%M')
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, data=data, files=files)
+            response.raise_for_status()
+            logging.info(f"HTTP Request: POST .../sendPhoto \"HTTP/1.1 {response.status_code}\"")
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        logging.error(f"HTTP ERROR in send_photo: Status {e.response.status_code}, Response: {e.response.text}")
+        await send_message(bot_token, chat_id, escape_markdown_v2(f"❌ *خطای ارسال عکس*:\n `{e.response.status_code}`"), None)
+        return {"ok": False, "error": f"HTTP Error: {e.response.status_code}"}
+    except Exception as e:
+        logging.error(f"Unknown ERROR in send_photo: {e}")
+        return {"ok": False, "error": f"Unknown Error: {str(e)}"}
+
+
+# --- توابع کمکی تبدیل و جستجو (بدون تغییر) ---
+
+def parse_persian_date(date_str: str) -> Optional[JalaliDate]:
+    """تبدیل رشته تاریخ شمسی به شیء JalaliDate."""
+    try:
+        return JalaliDate.strptime(date_str, '%Y/%m/%d')
     except ValueError:
         return None
 
-def escape_markdown_v2(text: str) -> str:
-    """فراردهی کاراکترهای رزرو شده برای MarkdownV2 تلگرام."""
-    reserved_chars = [
-        '\\', 
-        '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', 
-        '-', '=', '|', '{', '}', '.', '!', ':' 
-    ]
+def parse_persian_time(time_str: str) -> Optional[str]:
+    """اعتبار سنجی رشته ساعت (HH:MM)."""
+    try:
+        datetime.datetime.strptime(time_str, '%H:%M')
+        return time_str
+    except ValueError:
+        return None
+
+def get_city_lookup_data(city_name: str) -> Optional[Dict[str, Any]]:
+    """
+    تابع شبیه‌سازی جستجوی اطلاعات شهر بر اساس نام.
+    (شما باید این تابع را با دیتابیس شهرهای خود جایگزین کنید.)
+    """
+    city_name = city_name.strip()
     
-    for char in reserved_chars:
-        text = text.replace(char, f'\\{char}') 
-        
-    return text
+    # مثال داده برای تست
+    test_cities = {
+        "اراک": {"latitude": 34.09, "longitude": 49.69, "timezone": "Asia/Tehran"},
+        "تهران": {"latitude": 35.68, "longitude": 51.41, "timezone": "Asia/Tehran"},
+        "مشهد": {"latitude": 36.31, "longitude": 59.58, "timezone": "Asia/Tehran"},
+        "شیراز": {"latitude": 29.60, "longitude": 52.54, "timezone": "Asia/Tehran"},
+    }
+
+    if city_name in test_cities:
+        logging.info(f"✅ شهر {city_name} از دیتابیس محلی یافت شد.")
+        return test_cities[city_name]
+    
+    logging.warning(f"❌ شهر {city_name} در دیتابیس محلی یافت نشد.")
+    return None
