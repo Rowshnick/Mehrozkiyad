@@ -1,3 +1,254 @@
+from typing import Dict, Any, List, Optional
+import math
+
+# ====================================================================
+# ثابت‌ها (CONSTANTS) - شامل تمامی نگاشت‌های فارسی برای تفسیر
+# ====================================================================
+
+# فهرست سیارات و نقاط مورد استفاده در چارت (کلیدهای انگلیسی)
+PLANETS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto', 'true_node', 'part_of_fortune']
+
+# نگاشت (Map) نام‌های انگلیسی به فارسی برای سیارات و نقاط
+PLANETS_MAP = {
+    'SUN': 'خورشید', 'MOON': 'ماه', 'MERCURY': 'عطارد', 'VENUS': 'زهره', 'MARS': 'مریخ',
+    'JUPITER': 'مشتری', 'SATURN': 'زحل', 'URANUS': 'اورانوس', 'NEPTUNE': 'نپتون', 'PLUTO': 'پلوتون',
+    'TRUE_NODE': 'گره شمالی', 'PART_OF_FORTUNE': 'سهم سعادت'
+}
+
+# نگاشت (Map) نام‌های انگلیسی به فارسی برای برج‌های فلکی
+SIGNS_MAP = {
+    'ARIES': 'حمل', 'TAURUS': 'ثور', 'GEMINI': 'جوزا', 'CANCER': 'سرطان', 'LEO': 'اسد', 
+    'VIRGO': 'سنبله', 'LIBRA': 'میزان', 'SCORPIO': 'عقرب', 'SAGITTARIUS': 'قوس', 
+    'CAPRICORN': 'جدی', 'AQUARIUS': 'دلو', 'PISCES': 'حوت'
+}
+
+# نگاشت (Map) نام‌های انگلیسی به فارسی برای زوایا (Aspects)
+ASPECTS_MAP = {
+    'CONJUNCTION': 'اتصال (0°)',
+    'SEXTILE': 'تثلیث کوچک (60°)',
+    'SQUARE': 'تربیع (90°)',
+    'TRINE': 'تثلیث (120°)',
+    'OPPOSITION': 'مقابله (180°)'
+}
+
+# نگاشت (Map) نام‌های انگلیسی به فارسی برای چهار عنصر و کیفیت
+ELEMENT_MAP = {'Fire': 'آتش', 'Earth': 'خاک', 'Air': 'هوا', 'Water': 'آب'}
+QUALITY_MAP = {'Cardinal': 'بنیادی', 'Fixed': 'ثابت', 'Mutable': 'متغیر'}
+
+# ====================================================================
+# توابع کمکی
+# ====================================================================
+
+def get_sign_name(degree: float) -> str:
+    """محاسبه برج فلکی بر اساس درجه (0-360) و بازگرداندن نام فارسی آن."""
+    sign_index = int(degree // 30)
+    sign_names_en = list(SIGNS_MAP.keys())
+    sign_name_en = sign_names_en[sign_index]
+    return SIGNS_MAP[sign_name_en]
+
+def get_degree_in_sign(degree: float) -> str:
+    """محاسبه درجه دقیق سیاره در برج (مثلاً '25° 30'' ')."""
+    deg_in_sign = degree % 30
+    minutes = (deg_in_sign - int(deg_in_sign)) * 60
+    return f"{int(deg_in_sign)}° {int(minutes)}'"
+
+# ====================================================================
+# بانک اطلاعاتی تفسیری (Interpretation Database) - این بخش نیاز به تکمیل محتوا دارد
+# ====================================================================
+
+# 1. تفسیر سیارات در برج‌ها (Planets in Signs)
+PLANET_IN_SIGN_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
+    # نمونه‌هایی از تفسیرهای فارسی
+    'sun': {
+        'ARIES': '♈ *خورشید در حمل:* انرژی، شجاعت و ابتکار بالا. تمایل به رهبری و استقلال. ممکن است عجول یا تکانشی باشد.',
+        'TAURUS': '♉ *خورشید در ثور:* ثبات، ارزش‌های مادی و نیاز به امنیت. آرام، صبور، اما گاهی لجباز.',
+        'GEMINI': '♊ *خورشید در جوزا:* کنجکاوی ذهنی، تنوع‌طلبی و مهارت در چند کار همزمان. نیاز به ارتباط و یادگیری مداوم.',
+        'CANCER': '♋ *خورشید در سرطان:* احساسات قوی، حمایتگر و وابستگی به خانواده و خانه. بسیار محافظه‌کار و حساس.',
+        'LEO': '♌ *خورشید در اسد:* اعتماد به نفس، کاریزما و نیاز به توجه. سخاوتمند و وفادار، اما ممکن است دیکتاتورمآب باشد.',
+        'VIRGO': '♍ *خورشید در سنبله:* عمل‌گرا، تحلیل‌گر و کمال‌گرا. توجه زیاد به جزئیات، سلامتی و خدمات‌رسانی.',
+        'LIBRA': '♎ *خورشید در میزان:* نیاز به تعادل، صلح و روابط. بسیار دیپلماتیک و هنردوست، اما در تصمیم‌گیری مشکل دارد.',
+        'SCORPIO': '♏ *خورشید در عقرب:* شدید، اسرارآمیز و متمرکز. قدرت بازسازی و شفای درونی، اما حسود و تملک‌گرا.',
+        'SAGITTARIUS': '♐ *خورشید در قوس:* خوش‌بین، جستجوگر و عاشق آزادی. علاقه به فلسفه، سفر و حقیقت.',
+        'CAPRICORN': '♑ *خورشید در جدی:* مسئولیت‌پذیر، جاه‌طلب و منضبط. نیاز به موفقیت اجتماعی و سخت‌کوشی.',
+        'AQUARIUS': '♒ *خورشید در دلو:* مستقل، روشنفکر و بشردوست. خارج از عرف و علاقه‌مند به گروه‌ها و ایده‌های جدید.',
+        'PISCES': '♓ *خورشید در حوت:* احساساتی، همدل، شهودی و هنری. گاهی اوقات غیرواقع‌بین و فرّار.',
+    },
+    'moon': {
+        'ARIES': '♈ *ماه در حمل:* نیاز شدید به استقلال عاطفی. واکنش‌های سریع، مستقیم و بچگانه.',
+        'TAURUS': '♉ *ماه در ثور:* نیاز عمیق به امنیت عاطفی و مالی. آرامش در ثبات و آسایش جسمی.',
+        # ... (سایر تفسیرها)
+    },
+    'mercury': {
+        'GEMINI': '♊ *عطارد در جوزا:* ذهن سریع، کنجکاو و تطبیق‌پذیر. مهارت‌های ارتباطی قوی و سطحی‌نگر.',
+        # ... (سایر تفسیرها)
+    }
+}
+
+# 2. تفسیر سیارات در خانه‌ها (Planets in Houses)
+PLANET_IN_HOUSE_INTERPRETATIONS: Dict[int, Dict[str, str]] = {
+    1: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه اول:* نشان می‌دهد که انرژی این سیاره چگونه در شخصیت، ظاهر و شیوه ابراز وجود شما نمود پیدا می‌کند.' for p in PLANETS},
+    2: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه دوم:* تأثیر این سیاره بر منابع مالی، درآمد، دارایی‌ها و سیستم ارزش‌های شخصی شماست.' for p in PLANETS},
+    3: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه سوم:* تأثیر بر نحوه ارتباط برقرار کردن، تفکر، یادگیری، و ارتباط با محیط نزدیک (خواهر، برادر، همسایگان).' for p in PLANETS},
+    4: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه چهارم:* تأثیر این سیاره بر ریشه‌ها، خانه، خانواده، امنیت عاطفی و گذشته.' for p in PLANETS},
+    5: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه پنجم:* تأثیر بر خلاقیت، عشق‌های رمانتیک، فرزندان، ریسک‌پذیری و سرگرمی.' for p in PLANETS},
+    6: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه ششم:* تأثیر بر سلامت، روتین‌های روزانه، کارمندان (زیردستان) و خدمات‌رسانی.' for p in PLANETS},
+    7: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه هفتم:* تأثیر بر ازدواج، روابط جدی یک به یک، قراردادها و دشمنان آشکار.' for p in PLANETS},
+    8: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه هشتم:* تأثیر بر امور مالی مشترک (ارث، شراکت)، دگردیسی، جنسیت و مرگ.' for p in PLANETS},
+    9: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه نهم:* تأثیر بر سفر طولانی، آموزش عالی، فلسفه، دین و باورهای گسترده.' for p in PLANETS},
+    10: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه دهم:* تأثیر بر مسیر شغلی، شهرت، اعتبار اجتماعی و جایگاه عمومی شما.' for p in PLANETS},
+    11: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه یازدهم:* تأثیر بر دوستان، گروه‌ها، امیدها، آرزوها و اهداف جمعی.' for p in PLANETS},
+    12: {p: f'*{PLANETS_MAP.get(p.upper(), p.title())} در خانه دوازدهم:* تأثیر بر زندگی درونی، انزوا، امور پنهان، ناخودآگاه و کارما.' for p in PLANETS},
+}
+
+# 3. تفسیر زوایای اصلی (Major Aspects)
+ASPECT_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
+    'Conjunction': {
+        'SUN_MOON': 'اتصال خورشید و ماه: اتحاد ناخودآگاه و خودآگاه. شخصیتی قوی و متمرکز، اما گاهی اوقات انعطاف‌ناپذیر.',
+        'MARS_VENUS': 'اتصال مریخ و زهره: تعادل بین میل (مریخ) و عشق (زهره). جاذبه قوی و انرژی خلاقانه.',
+        'SUN_MERCURY': 'اتصال خورشید و عطارد: تمرکز ذهن بر اراده و هویت شخصی. ارتباط قوی بین خودآگاه و منطق.',
+        # ... (سایر تفسیرهای اتصال)
+    },
+    'Square': {
+        'SUN_SATURN': 'تربیع خورشید و زحل: چالش‌های هویتی و خودباوری. نیاز به سخت‌کوشی برای رسیدن به اهداف و درس‌های کارمیک.',
+        'MARS_JUPITER': 'تربیع مریخ و مشتری: انرژی و خوش‌بینی بیش از حد. تمایل به زیاده‌روی و ریسک‌پذیری زیاد.',
+        # ... (سایر تفسیرهای تربیع)
+    },
+    'Trine': {
+        'JUPITER_VENUS': 'تثلیث مشتری و زهره: سعادت بزرگ. شانس، جذابیت اجتماعی و مالی، و نگرش خوش‌بینانه.',
+        'MOON_NEPTUNE': 'تثلیث ماه و نپتون: شهود قوی، حساسیت هنری و روانی. همدلی و تخیل غنی.',
+        # ... (سایر تفسیرهای تثلیث)
+    },
+    'Opposition': {
+        'SUN_MOON': 'مقابله خورشید و ماه: درگیری درونی بین نیازهای عاطفی (ماه) و خواسته‌های هویتی (خورشید).',
+        'SATURN_MARS': 'مقابله زحل و مریخ: کشمکش بین عمل (مریخ) و محدودیت (زحل). نیاز به تعادل بین شتاب و احتیاط.',
+        # ... (سایر تفسیرهای مقابله)
+    }
+    # ... سایر زوایا
+}
+
+# ====================================================================
+# تابع اصلی تولید تفسیر
+# ====================================================================
+
+def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
+    """
+    داده‌های چارت تولد را گرفته و یک تفسیر جامع فارسی تولید می‌کند.
+    """
+    
+    interpretations = []
+
+    # 1. تفسیر خورشید (هسته شخصیت)
+    sun_data = chart_data['planets']['sun']
+    sun_sign = sun_data['sign'].upper()
+    sun_house = sun_data['house']
+    
+    interpretations.append("\n*--- خورشید و ماه (خودآگاه و ناخودآگاه) ---*")
+    
+    # تفسیر خورشید در برج
+    sun_sign_interp = PLANET_IN_SIGN_INTERPRETATIONS.get('sun', {}).get(sun_sign, f"**☉ خورشید در {SIGNS_MAP.get(sun_sign, sun_sign)}:* تفسیر موجود نیست.")
+    interpretations.append(sun_sign_interp)
+
+    # تفسیر خورشید در خانه
+    sun_house_interp = PLANET_IN_HOUSE_INTERPRETATIONS.get(sun_house, {}).get('sun', f"**☉ خورشید در خانه {sun_house}:* تمرکز انرژی حیاتی شما در این حوزه زندگی است.")
+    interpretations.append(sun_house_interp)
+
+    # 2. تفسیر ماه (عواطف و نیازهای ناخودآگاه)
+    moon_data = chart_data['planets']['moon']
+    moon_sign = moon_data['sign'].upper()
+    moon_house = moon_data['house']
+    
+    # تفسیر ماه در برج
+    moon_sign_interp = PLANET_IN_SIGN_INTERPRETATIONS.get('moon', {}).get(moon_sign, f"**☽ ماه در {SIGNS_MAP.get(moon_sign, moon_sign)}:* تفسیر موجود نیست.")
+    interpretations.append(moon_sign_interp)
+
+    # تفسیر ماه در خانه
+    moon_house_interp = PLANET_IN_HOUSE_INTERPRETATIONS.get(moon_house, {}).get('moon', f"**☽ ماه در خانه {moon_house}:* نیازهای عاطفی و احساس امنیت شما از این حوزه تامین می‌شود.")
+    interpretations.append(moon_house_interp)
+
+    # 3. تفسیر Ascendant (طالع)
+    interpretations.append("\n*--- طالع و خانه‌های اصلی ---*")
+    
+    asc_sign = chart_data['houses']['asc_sign'].upper()
+    asc_interp = f"**طالع (Ascendant) در {SIGNS_MAP.get(asc_sign, asc_sign)}:* این برج فیلتر شخصیت شماست و نحوه برخورد اولیه شما با جهان را نشان می‌دهد."
+    interpretations.append(asc_interp)
+    
+    # 4. تفسیر سیارات شخصی (عطارد، زهره، مریخ)
+    
+    for planet_name in ['mercury', 'venus', 'mars']:
+        if planet_name in chart_data['planets']:
+            data = chart_data['planets'][planet_name]
+            p_sign = data['sign'].upper()
+            p_house = data['house']
+            p_fa = PLANETS_MAP.get(planet_name.upper(), planet_name.title())
+            
+            # تفسیر در برج
+            sign_interp = PLANET_IN_SIGN_INTERPRETATIONS.get(planet_name, {}).get(p_sign, f"*{p_fa} در {SIGNS_MAP.get(p_sign, p_sign)}:* تفسیر موجود نیست.")
+            interpretations.append(sign_interp)
+            
+            # تفسیر در خانه
+            house_interp = PLANET_IN_HOUSE_INTERPRETATIONS.get(p_house, {}).get(planet_name, f"*{p_fa} در خانه {p_house}:* فعالیت این سیاره در این حوزه زندگی متمرکز است.")
+            interpretations.append(house_interp)
+
+
+    # 5. تفسیر زوایا (Aspects)
+    aspects_list = chart_data.get('aspects', [])
+    if aspects_list:
+        aspects_interp = ["\n*--- زوایای اصلی (Aspects) ---*"]
+        
+        for aspect in aspects_list:
+            p1 = aspect['p1'].upper().replace(" ", "_")
+            p2 = aspect['p2'].upper().replace(" ", "_")
+            aspect_name = aspect['aspect']
+            
+            key1 = f"{p1}_{p2}"
+            key2 = f"{p2}_{p1}"
+            
+            # جستجو در بانک اطلاعاتی
+            interp = ASPECT_INTERPRETATIONS.get(aspect_name, {}).get(key1)
+            if not interp:
+                interp = ASPECT_INTERPRETATIONS.get(aspect_name, {}).get(key2)
+                
+            if interp:
+                aspects_interp.append(f"  • {interp} (اُرب: {aspect['orb']:.2f}°)")
+            else:
+                # توصیف عمومی از زاویه
+                aspect_fa = ASPECTS_MAP.get(aspect_name.upper(), aspect_name)
+                p1_fa = PLANETS_MAP.get(p1, p1.title())
+                p2_fa = PLANETS_MAP.get(p2, p2.title())
+                aspects_interp.append(f"  • {aspect_fa} بین {p1_fa} و {p2_fa} (اُرب: {aspect['orb']:.2f}°): این دو نیرو در حال تعامل هستند.")
+                
+        interpretations.extend(aspects_interp)
+        
+    # 6. خلاصه‌ای از توزیع عناصر و کیفیت‌ها
+    element_summary = chart_data.get('summary', {}).get('elements', {})
+    quality_summary = chart_data.get('summary', {}).get('qualities', {})
+    
+    summary_text = ["\n*--- توزیع عناصر و کیفیت‌ها ---*"]
+    
+    # Elements Summary
+    elements_fa = [f"{ELEMENT_MAP.get(e, e)}: {c:.2f} سیاره" for e, c in element_summary.items()]
+    summary_text.append(f"  • عناصر: {'، '.join(elements_fa)}")
+    
+    # Qualities Summary
+    qualities_fa = [f"{QUALITY_MAP.get(q, q)}: {c:.2f} سیاره" for q, c in quality_summary.items()]
+    summary_text.append(f"  • کیفیت‌ها: {'، '.join(qualities_fa)}")
+
+    interpretations.extend(summary_text)
+
+    # 7. ترکیب و قالب‌بندی نهایی
+    final_output = "\n".join(interpretations)
+    
+    city_name = chart_data.get('city_name', 'نامشخص')
+    date_str_fa = chart_data.get('birth_date_jalali', 'تاریخ نامشخص')
+    time_str_fa = chart_data.get('birth_time_str', 'زمان نامشخص')
+    
+    header = f"⭐️ **تفسیر چارت تولد** ⭐️\n"
+    header += f"**محل تولد:** {city_name} | **تاریخ:** {date_str_fa} | **زمان:** {time_str_fa}\n\n"
+    
+    return header + final_output
+
+
+
 # ----------------------------------------------------------------------
 # astrology_interpretation.py - دیکشنری‌های کامل و عمیق برای تفسیر چارت
 # ----------------------------------------------------------------------
