@@ -5,7 +5,7 @@ import re
 import logging
 from typing import Dict, Any, Optional
 import httpx 
-import io # برای کار با خروجی باینری عکس
+import io 
 from persiantools.jdatetime import JalaliDate, JalaliDateTime 
 import datetime
 
@@ -18,7 +18,6 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 def escape_markdown_v2(text: str) -> str:
     """فراردهی کاراکترهای خاص برای MarkdownV2 تلگرام."""
-    # لیست کاراکترهایی که باید escape شوند: _ * [ ] ( ) ~ ` > # + - = | { } . !
     chars_to_escape = r'([_*\[\]()~`>#+\-=|{}.!])'
     return re.sub(chars_to_escape, r'\\\1', text)
 
@@ -62,16 +61,14 @@ async def send_photo_with_caption(bot_token: str, chat_id: int, photo: io.BytesI
     """ارسال یک فایل باینری (عکس) به همراه کپشن به تلگرام."""
     url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
     
-    # تلگرام برای ارسال فایل نیاز به 'multipart/form-data' دارد
     files = {
-        # ('نام فایل', شیء باینری، 'MIME Type')
         'photo': ('chart.png', photo, 'image/png') 
     }
     
     data = {
         'chat_id': chat_id,
         'caption': caption,
-        'parse_mode': 'MarkdownV2', # برای پشتیبانی از فرمت‌دهی فارسی در کپشن
+        'parse_mode': 'MarkdownV2', 
         'reply_markup': reply_markup
     }
 
@@ -90,7 +87,7 @@ async def send_photo_with_caption(bot_token: str, chat_id: int, photo: io.BytesI
         return {"ok": False, "error": f"Unknown Error: {str(e)}"}
 
 
-# --- توابع کمکی تبدیل و جستجو (بدون تغییر) ---
+# --- توابع کمکی تبدیل و جستجو ---
 
 def parse_persian_date(date_str: str) -> Optional[JalaliDate]:
     """تبدیل رشته تاریخ شمسی به شیء JalaliDate."""
@@ -114,7 +111,6 @@ def get_city_lookup_data(city_name: str) -> Optional[Dict[str, Any]]:
     """
     city_name = city_name.strip()
     
-    # مثال داده برای تست
     test_cities = {
         "اراک": {"latitude": 34.09, "longitude": 49.69, "timezone": "Asia/Tehran"},
         "تهران": {"latitude": 35.68, "longitude": 51.41, "timezone": "Asia/Tehran"},
