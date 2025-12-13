@@ -1,4 +1,4 @@
-# utils.py - ماژول توابع کمکی (اصلاح شده برای ارسال عکس)
+# utils.py - ماژول توابع کمکی (اصلاح شده برای رفع خطای 400 تلگرام)
 
 import os
 import re
@@ -22,14 +22,21 @@ def escape_markdown_v2(text: str) -> str:
     return re.sub(chars_to_escape, r'\\\1', text)
 
 async def send_message(bot_token: str, chat_id: int, text: str, reply_markup: Optional[Dict[str, Any]] = None):
-    """ارسال پیام متنی به کاربر."""
+    """
+    ارسال پیام متنی به کاربر.
+    اصلاح: کلید 'reply_markup' در صورت None بودن حذف می‌شود تا خطای 400 تلگرام رفع شود.
+    """
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    
     payload = {
         'chat_id': chat_id,
         'text': text,
-        'parse_mode': 'MarkdownV2',
-        'reply_markup': reply_markup
+        'parse_mode': 'MarkdownV2'
     }
+    
+    # 💥💥💥 اصلاح حیاتی برای رفع خطای Bad Request 💥💥💥
+    if reply_markup is not None:
+        payload['reply_markup'] = reply_markup
     
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -56,7 +63,7 @@ async def answer_callback_query(bot_token: str, callback_id: str, text: Optional
         logging.error(f"Error answering callback query: {e}")
 
 
-# 💥 تابع جدید: ارسال عکس با کپشن 💥
+# 💥 تابع ارسال عکس با کپشن 💥
 async def send_photo_with_caption(bot_token: str, chat_id: int, photo: io.BytesIO, caption: str, reply_markup: Optional[Dict[str, Any]] = None):
     """ارسال یک فایل باینری (عکس) به همراه کپشن به تلگرام."""
     url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
@@ -69,8 +76,17 @@ async def send_photo_with_caption(bot_token: str, chat_id: int, photo: io.BytesI
         'chat_id': chat_id,
         'caption': caption,
         'parse_mode': 'MarkdownV2', 
-        'reply_markup': reply_markup
+        # نکته: reply_markup باید برای متد sendPhoto هم به صورت شرطی استفاده شود، اما در این ساختار
+        # چون از data و files استفاده می‌شود، معمولاً خطا کمتر رخ می‌دهد.
+        # برای اطمینان بیشتر، آن را در دیکشنری data قرار می‌دهیم.
     }
+    
+    # اضافه کردن شرطی reply_markup
+    if reply_markup is not None:
+        # برای sendPhoto، reply_markup باید در بخش data (و نه files) به صورت JSON string ارسال شود
+        import json
+        data['reply_markup'] = json.dumps(reply_markup)
+
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
