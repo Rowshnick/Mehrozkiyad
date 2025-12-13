@@ -1,7 +1,3 @@
-# ----------------------------------------------------------------------
-# astrology_interpretation.py - ماژول تولید تفسیر چارت تولد (اصلاح شده)
-# ----------------------------------------------------------------------
-
 from typing import Dict, Any, List, Optional
 import math
 
@@ -48,7 +44,8 @@ def get_sign_name(degree: float) -> str:
     sign_index = int(degree // 30)
     sign_names_en = list(SIGNS_MAP.keys())
     sign_name_en = sign_names_en[sign_index]
-    return SIGNS_MAP[sign_name_en]
+    # SIGNS_MAP[sign_name_en] نام فارسی را برمی‌گرداند (مثلاً 'حمل')
+    return SIGNS_MAP[sign_name_en] 
 
 def get_degree_in_sign(degree: float) -> str:
     """محاسبه درجه دقیق سیاره در برج (مثلاً '25° 30'' ')."""
@@ -58,8 +55,7 @@ def get_degree_in_sign(degree: float) -> str:
 
 # ====================================================================
 # بانک اطلاعاتی تفسیری کامل (Fully Populated Interpretation Database)
-# **این بخش شامل همان دیکشنری‌های عمیق درخواستی شماست.**
-# (بدون تغییر)
+# نکته: کلیدهای ASCENDANT_INTERPRETATIONS برای مطابقت با خروجی get_sign_name به فارسی تغییر داده شدند.
 # ====================================================================
 
 # 1. تفسیر آسندانت (شخصیت ظاهری)
@@ -79,8 +75,7 @@ ASCENDANT_INTERPRETATIONS: Dict[str, str] = {
 }
 
 # 2. تفسیر سیارات در برج‌ها (Planets in Signs)
-# (بدون تغییر)
-
+# (با کلیدهای انگلیسی)
 PLANET_IN_SIGN_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
     # --- خورشید (هویت، اراده) ---
     'sun': {
@@ -196,7 +191,6 @@ PLANET_IN_HOUSE_INTERPRETATIONS: Dict[int, Dict[str, str]] = {
 }
 
 # 4. تفسیر زوایا (Aspects)
-# (بدون تغییر)
 ASPECT_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
     'Conjunction': {
         'SUN_MOON': 'اتصال خورشید و ماه: اتحاد ناخودآگاه و خودآگاه. شخصیتی قوی و متمرکز، اما گاهی اوقات انعطاف‌ناپذیر.',
@@ -261,19 +255,17 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
     # 2. تفسیر Ascendant (طالع - شخصیت ظاهری)
     interpretations.append("\n*--- طالع (Ascendant) و هویت ظاهری ---*")
     
-    # 💥💥💥 اصلاح برای رفع خطای 'asc_sign' 💥💥💥
-    # از تابع get_sign_name برای تبدیل درجه طالع به نام برج استفاده می‌کنیم.
+    # 💥💥💥 رفع خطای 'asc_sign' با دسترسی ایمن به درجه (درجه طالع) 💥💥💥
     asc_degree = chart_data.get('houses', {}).get('asc') 
     
     if asc_degree is None:
-        # اگر کلید 'asc' پیدا نشد، کلیدهای محتمل دیگر را چک می‌کنیم.
+        # کلیدهای محتمل دیگر را چک می‌کنیم.
         asc_degree = chart_data.get('houses', {}).get('Ascendant') 
         if asc_degree is None:
              asc_degree = chart_data.get('houses', {}).get('ASC')
         
     if asc_degree is not None:
-        # درجه پیدا شد، نام برج را محاسبه می‌کنیم.
-        # توجه: get_sign_name نام فارسی (مثل 'حمل') را برمی‌گرداند.
+        # درجه پیدا شد، نام برج (به فارسی) را محاسبه می‌کنیم.
         asc_sign_fa = get_sign_name(asc_degree) 
         # از نام فارسی برای جستجو در ASCENDANT_INTERPRETATIONS استفاده می‌کنیم.
         asc_interp = ASCENDANT_INTERPRETATIONS.get(asc_sign_fa, f"**طالع در {asc_sign_fa}:** تفسیر موجود نیست.")
@@ -290,7 +282,8 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
     for planet_name in ['sun', 'moon', 'mercury', 'venus', 'mars']:
         if planet_name in chart_data['planets']:
             data = chart_data['planets'][planet_name]
-            p_sign = data['sign'].upper()
+            # 💥💥💥 رفع خطای 'sign' با استفاده از .get() 💥💥💥
+            p_sign = data.get('sign', 'UNKNOWN').upper()
             p_house = data['house']
             p_fa = PLANETS_MAP.get(planet_name.upper(), planet_name.title())
             
@@ -313,7 +306,8 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
 
             # تفسیر در خانه (یا گره در برج برای گره‌ها)
             if planet_name == 'true_node':
-                 p_sign = data['sign'].upper()
+                 # 💥💥💥 رفع خطای 'sign' با استفاده از .get() 💥💥💥
+                 p_sign = data.get('sign', 'UNKNOWN').upper()
                  node_interp = PLANET_IN_SIGN_INTERPRETATIONS.get('true_node', {}).get(p_sign, f"*{p_fa} در {SIGNS_MAP.get(p_sign, p_sign)}:* مسیر تکاملی روح شما در این حوزه است.")
                  interpretations.append(f"\n{node_interp}")
             else:
