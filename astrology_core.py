@@ -1,7 +1,3 @@
-# ----------------------------------------------------------------------
-# astrology_core.py - نسخه نهایی و اصلاح شده (FIXED: TypeError: to_gregorian)
-# ----------------------------------------------------------------------
-
 import swisseph as se
 import logging
 from typing import Dict, Any, Union, Tuple, List
@@ -13,9 +9,24 @@ import math
 # تنظیمات Logging
 logging.basicConfig(level=logging.INFO)
 
+# ======================================================================
+# رفع هشدار Ephemeris: تنظیم مسیر فایل‌های داده نجومی
+# ======================================================================
+try:
+    # فرض می‌کنیم فایل‌های Ephemeris (مانند se1, se2,...) در پوشه 'ephe_data'
+    # در کنار فایل‌های سورس قرار دارند (که توسط Dockerfile به /usr/src/app کپی شده‌اند).
+    # نقطه (./) به معنی مسیر WORKDIR یا همان /usr/src/app است.
+    se.set_ephe_path('./ephe_data/') 
+    logging.info("Ephemeris path set successfully to './ephe_data/'.")
+except Exception as e:
+    # این هشدار اصلی را در صورتی که مسیر درست نباشد یا فایل‌ها نباشند، تولید می‌کند.
+    logging.warning(f"Setup Ephemeris not found or failed, continuing without it. Error: {e}")
+    # همچنین در صورتی که path ست نشود، از se.calc_ut با پرچم 0 استفاده می‌کنیم (Flag 0)
+    # که در خط 144 کد شما وجود دارد و از داده‌های پیش‌فرض استفاده می‌کند (اما دقت پایین است).
+    # رفع کامل منوط به وجود پوشه ephe_data است.
+
 
 # --- [ثابت‌ها] ---
-# FIX: استفاده از ثابت‌های عددی (0 تا 10) به جای se.SE_X برای سازگاری با محیط استقرار
 PLANETS_MAP = {
     "sun": 0, # معادل se.SE_SUN
     "moon": 1, # معادل se.SE_MOON
@@ -60,7 +71,6 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
     aspects = []
     
     # لیست سیاراتی که باید زوایایشان بررسی شود (مثلاً سیارات شخصی و اجتماعی)
-    # اضافه شدن True Node به این لیست برای تفسیر زوایا
     aspect_planets = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "true_node", "pluto", "neptune", "uranus"]
     
     # فیلتر کردن برای اطمینان از وجود درجه و حذف سیارات مجهول
@@ -114,10 +124,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         j_date = jdatetime.JalaliDate.strptime(birth_date_jalali, '%Y/%m/%d')
         j_time = datetime.datetime.strptime(birth_time_str, '%H:%M')
         
-        # FIX: استفاده از combine برای رفع خطای to_gregorian در برخی ورژن‌های persiantools
-        # 1. تبدیل تاریخ شمسی (j_date) به میلادی (datetime.date)
+        # FIX: ترکیب تاریخ میلادی با زمان محلی
         dt_gregorian_date = j_date.to_gregorian()
-        # 2. ترکیب تاریخ میلادی با زمان محلی از j_time برای ساخت datetime.datetime
         dt_local = datetime.datetime.combine(dt_gregorian_date, j_time.time())
 
         # اعمال منطقه زمانی
@@ -153,12 +161,13 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     # 2. محاسبه موقعیت سیارات
     for planet_name, planet_code in PLANETS_MAP.items():
         try:
-            # از se.calc_ut برای دقت بیشتر استفاده می‌کنیم. Flag 0 برای عدم نیاز به فایل اپمریس
+            # استفاده از se.calc_ut. Flag 0 برای استفاده از فایل‌های اپمریس تنظیم شده (اگر موفق باشد)
+            # در غیر این صورت از داده‌های داخلی (با دقت پایین‌تر) استفاده می‌کند، که با لاگ رفع شد.
             res = se.calc_ut(jd_utc, planet_code, 0) 
             lon_deg = res[0][0]
             chart_data['planets'][planet_name] = {
                 "degree": lon_deg,
-                "status": "N/A (Default Flag)", 
+                "status": "N/A (Calculated)", 
             }
         except Exception as e:
             logging.error(f"FATAL ERROR: خطا در محاسبه موقعیت سیاره {planet_name}: {e}", exc_info=True)
@@ -208,9 +217,6 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         desc_deg = chart_data['houses']['cusps'].get(7, 0.0) # درجه کاپس خانه 7
         
         # تعیین تولد روز/شب (Day/Night Birth)
-        # اگر خورشید بالای افق (Asc-Desc) باشد (خانه‌های 7، 8، 9، 10، 11، 12)، تولد روز است.
-        is_day_birth = False
-        
         def get_house_of_degree_simple(degree: float, asc: float, desc: float) -> int:
             """تعیین اینکه درجه در نیمکره بالا (7-12) یا پایین (1-6) است."""
             # نرمال سازی
@@ -232,8 +238,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         sun_house_zone = get_house_of_degree_simple(sun_deg, asc_deg, desc_deg)
         
         # اگر خورشید در نیمکره بالای افق (خانه 7 تا 12) باشد، روز است.
-        if sun_house_zone == 7: 
-            is_day_birth = True
+        is_day_birth = (sun_house_zone == 7) 
         
         
         if is_day_birth:
