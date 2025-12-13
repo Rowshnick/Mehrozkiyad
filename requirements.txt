@@ -13,3 +13,4 @@ jplephem
 python-dotenv
 timezonefinder[database] 
 aiosqlite
+matplotlib
