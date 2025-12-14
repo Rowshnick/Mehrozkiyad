@@ -168,14 +168,20 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
 
     # 2. محاسبه خانه ها (Houses) - باید قبل از سیارات انجام شود
     try:
-        # اطمینان از اینکه ورودی‌های se.houses حتماً float باشند.
-        cusps_raw, ascmc = se.houses(jd_utc, float(latitude), float(longitude), house_system)
+        # NOTE: se.houses returns a list for cusps (index 0 is a placeholder, 1-12 are the cusps) 
+        # and a tuple for ascmc (index 0 is Asc, 1 is MC)
+        raw_cusps, raw_ascmc = se.houses(jd_utc, float(latitude), float(longitude), house_system)
         
-        if len(cusps_raw) < 13 or len(ascmc) < 2:
-             # اگر خروجی ناقص است، یک خطای مشخص ایجاد می‌کنیم.
-             raise IndexError(f"خروجی se.houses ناقص است. طول cusps: {len(cusps_raw)}. آسندانت: {ascmc}")
+        # 1. Validation Check:
+        # Check for expected lengths: cusps (13 elements: 0-12), ascmc (at least 2: Asc, MC)
+        if len(raw_cusps) < 13 or len(raw_ascmc) < 2:
+             raise IndexError(f"خروجی se.houses ناقص است. طول cusps: {len(raw_cusps)}, آسندانت: {raw_ascmc}")
 
-        # اگر Ascendant صفر باشد (که در برخی خطاها رخ می‌دهد)، آن را خطا در نظر می‌گیریم.
+        # 2. Assign and Final Check:
+        cusps_raw = list(raw_cusps)
+        ascmc = list(raw_ascmc) 
+        
+        # If Ascendant is 0.0, calculation likely failed.
         if ascmc[0] == 0.0 or ascmc[0] >= 360.0:
             raise ValueError(f"مقدار آسندانت غیرمعتبر: {ascmc[0]}")
 
@@ -199,7 +205,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         # تنظیم Ascendant و Midheaven برای جلوگیری از خطای Key در مراحل بعدی
         chart_data['houses']['ascendant'] = 0.0
         chart_data['houses']['midheaven'] = 0.0
-        # تنظیم cusps_raw به لیست خالی برای جلوگیری از اجرای se.house_pos در مرحله بعد
+        # تنظیم cusps_raw و ascmc به لیست خالی برای جلوگیری از اجرای se.house_pos در مرحله بعد
         cusps_raw = []
         ascmc = []
 
@@ -221,11 +227,11 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             
             # --- محاسبه Sign و House ---
             planet_sign_en = get_sign_name_en(lon_deg)
+            # تنها زمانی se.house_pos را فراخوانی می‌کنیم که cusps_raw و ascmc معتبر باشند.
             if cusps_raw and ascmc:
                  # فراخوانی صحیح se.house_pos (با Lon و Lat)
                  # planet_house_pos: (degree, house_number)
                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system)
-                # se.house_pos همیشه یک tuple برمی‌گرداند.
                 planet_house = int(planet_house_pos[1])
             
         except Exception as e:
@@ -252,8 +258,9 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         asc_deg = chart_data['houses'].get('ascendant', 0.0)
         desc_deg = chart_data['houses']['cusps'].get(7, 0.0) 
 
-        if asc_deg == 0.0:
-            raise ValueError("آسندانت نامعتبر است.")
+        # اگر آسندانت صفر بود یا خورشید/ماه خطا داشت، محاسبه را متوقف می‌کنیم.
+        if asc_deg == 0.0 or chart_data['planets'].get('sun', {}).get('error') or chart_data['planets'].get('moon', {}).get('error'):
+            raise ValueError("اطلاعات آسندانت، خورشید یا ماه نامعتبر است.")
         
         # تعیین تولد روز/شب (Day/Night Birth)
         def get_house_of_degree_simple(degree: float, asc: float, desc: float) -> int:
