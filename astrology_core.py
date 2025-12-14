@@ -104,7 +104,7 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 # ----------------------------------------------------------------------
-# تابع اصلی: محاسبه چارت تولد (به روز شده با گزارش لاگ دقیق)
+# تابع اصلی: محاسبه چارت تولد (اصلاح خطا در پردازش خانه ها)
 # ----------------------------------------------------------------------
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: Union[float, int], longitude: Union[float, int], timezone_str: str) -> Dict[str, Any]:
@@ -156,7 +156,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         "aspects": [],
     }
 
-    # 2. محاسبه خانه ها (Houses) - با گزارش لاگ دقیق
+    # 2. محاسبه خانه ها (Houses) - با اصلاحات نهایی
     try:
         # **لاگ عیب‌یابی: ورودی‌های تابع se.houses**
         logging.info(f"DEBUG: Calling se.houses with JD: {jd_utc}, Lat: {float(latitude)}, Lon: {float(longitude)}, System: {house_system.decode('utf-8')}")
@@ -170,7 +170,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         if not isinstance(raw_ascmc, (list, tuple)) or len(raw_ascmc) < 2 or not isinstance(raw_ascmc[0], (int, float)):
              raise ValueError(f"خروجی Asc/MC نامعتبر است. مقدار: {raw_ascmc}")
         
-        if len(raw_cusps) < 13:
+        # FIX: بررسی طول را به حداقل 12 عنصر کاهش می‌دهیم.
+        if len(raw_cusps) < 12:
              raise IndexError(f"خروجی cusps ناقص است. طول cusps: {len(raw_cusps)}")
 
         # گام 2: تخصیص و بررسی نهایی اعتبار (مقدار صفر یا خارج از محدوده)
@@ -185,8 +186,16 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         chart_data['houses']['midheaven'] = ascmc[1]
         
         cusps_dict = {}
+        # FIX: منطق جدید برای تطابق ایندکس‌های خانه (1 تا 12) با آرایه خام (با طول 12 یا 13)
+        # اگر طول 12 باشد (اندیس 0 تا 11)، برای خانه 1 از اندیس 0 استفاده می‌شود (i-1).
+        # اگر طول 13 باشد (اندیس 0 تا 12، که اندیس 0 رها شده)، برای خانه 1 از اندیس 1 استفاده می‌شود (i).
+        is_12_element_array = len(cusps_raw) == 12
         for i in range(1, 13):
-            index_to_use = i 
+            index_to_use = i - 1 if is_12_element_array else i 
+            # بررسی ایمنی: اگر با وجود طول 12 یا 13، باز هم اندیس خارج از محدوده بود.
+            if index_to_use >= len(cusps_raw):
+                 raise IndexError(f"خطای ایندکس پس از تطبیق: Index {index_to_use} out of bounds for size {len(cusps_raw)}")
+                 
             cusps_dict[i] = cusps_raw[index_to_use]
 
         chart_data['houses']['cusps'] = cusps_dict
@@ -220,6 +229,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             # --- محاسبه Sign و House ---
             planet_sign_en = get_sign_name_en(lon_deg)
             if cusps_raw and ascmc:
+                # محاسبه خانه سیاره با استفاده از خروجی خام و سیستم خانه Koch
                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system)
                 planet_house = int(planet_house_pos[1])
             
@@ -244,6 +254,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         asc_deg = chart_data['houses'].get('ascendant', 0.0)
         desc_deg = chart_data['houses']['cusps'].get(7, 0.0) 
 
+        # اگر آسندانت محاسبه شده 0.0 باشد، نشان‌دهنده شکست است.
         if asc_deg == 0.0 or chart_data['planets'].get('sun', {}).get('error') or chart_data['planets'].get('moon', {}).get('error'):
             raise ValueError("اطلاعات آسندانت، خورشید یا ماه نامعتبر است.")
         
