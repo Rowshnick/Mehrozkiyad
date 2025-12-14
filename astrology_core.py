@@ -21,9 +21,7 @@ try:
 except Exception as e:
     # این هشدار اصلی را در صورتی که مسیر درست نباشد یا فایل‌ها نباشند، تولید می‌کند.
     logging.warning(f"Setup Ephemeris not found or failed, continuing without it. Error: {e}")
-    # همچنین در صورتی که path ست نشود، از se.calc_ut با پرچم 0 استفاده می‌کنیم (Flag 0)
-    # که در خط 144 کد شما وجود دارد و از داده‌های پیش‌فرض استفاده می‌کند (اما دقت پایین است).
-    # رفع کامل منوط به وجود پوشه ephe_data است.
+    # همچنین در صورتی که path ست نشود، از se.calc_ut با پرچم 0 استفاده می‌کنیم.
 
 
 # --- [ثابت‌ها] ---
@@ -68,7 +66,6 @@ def get_degree_diff(deg1: float, deg2: float) -> float:
 
 def get_sign_name_en(degree: float) -> str:
     """محاسبه برج فلکی بر اساس درجه (0-360) و بازگرداندن نام انگلیسی آن (Uppercase)."""
-    # The order corresponds to 0-29.99 = ARIES, 30-59.99 = TAURUS, etc.
     sign_names_en = ['ARIES', 'TAURUS', 'GEMINI', 'CANCER', 'LEO', 'VIRGO', 'LIBRA', 'SCORPIO', 'SAGITTARIUS', 'CAPRICORN', 'AQUARIUS', 'PISCES']
     sign_index = int(degree // 30) % 12
     return sign_names_en[sign_index]
@@ -149,12 +146,15 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
 
     
     # متغیرهایی برای نگهداری خروجی خام swisseph مورد نیاز در سراسر محاسبه
-    # تعریف متغیرها پیش از بلوک try/except برای در دسترس بودن در بخش‌های بعدی
     cusps_raw = []
     ascmc = []
     house_system = b'P' # Placidus
     
     chart_data = {
+        # FIX: اضافه کردن تاریخ شمسی و زمان برای نمایش در هدر تفسیر
+        "birth_date_jalali": birth_date_jalali,
+        "birth_time_str": birth_time_str,
+        
         "datetime_utc": dt_utc.isoformat(),
         "jd_utc": jd_utc,
         "city_name": city_name,
@@ -168,7 +168,6 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
              'error': None 
         },
         "aspects": [],
-        # "arabic_parts": {} # حذف شد: Part of Fortune به planets اضافه می‌شود
     }
 
     # 2. محاسبه خانه ها (Houses) - باید قبل از سیارات انجام شود
@@ -207,14 +206,15 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             # استفاده از se.calc_ut. Flag 0 برای استفاده از فایل‌های اپمریس تنظیم شده
             res = se.calc_ut(jd_utc, planet_code, 0) 
             lon_deg = res[0][0]
+            # FIX: استخراج عرض جغرافیایی (Latitude) به عنوان آرگومان دوم برای se.house_pos
+            lat_deg = res[0][1] 
             
             # --- محاسبه Sign و House ---
             planet_sign_en = get_sign_name_en(lon_deg)
             planet_house = 0
             if cusps_raw and ascmc:
-                 # استفاده از swisseph.house_pos برای تعیین خانه دقیق
-                 # house_pos عنصر دومش شماره خانه (House number) است.
-                planet_house_pos = se.house_pos(lon_deg, cusps_raw, ascmc, house_system)
+                 # FIX: فراخوانی صحیح se.house_pos (با Lon و Lat)
+                planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system)
                 planet_house = int(planet_house_pos[1])
             # --------------------------
             
@@ -239,7 +239,6 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         # تعیین تولد روز/شب (Day/Night Birth)
         def get_house_of_degree_simple(degree: float, asc: float, desc: float) -> int:
             """تعیین اینکه درجه در نیمکره بالا (7-12) یا پایین (1-6) است."""
-            # نرمال سازی
             asc = asc % 360
             desc = desc % 360
             degree = degree % 360
@@ -275,7 +274,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         pf_sign_en = get_sign_name_en(pf_degree)
         pf_house = 0
         if cusps_raw and ascmc:
-            pf_house_pos = se.house_pos(pf_degree, cusps_raw, ascmc, house_system)
+            # FIX: فراخوانی صحیح se.house_pos (استفاده از 0.0 برای عرض جغرافیایی نقطه عربی)
+            pf_house_pos = se.house_pos(pf_degree, 0.0, cusps_raw, ascmc, house_system)
             pf_house = int(pf_house_pos[1])
 
         # اضافه کردن Part of Fortune به دیکشنری planets
