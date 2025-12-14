@@ -55,7 +55,6 @@ def get_degree_in_sign(degree: float) -> str:
 
 # ====================================================================
 # بانک اطلاعاتی تفسیری کامل (Fully Populated Interpretation Database)
-# نکته: کلیدهای ASCENDANT_INTERPRETATIONS برای مطابقت با خروجی get_sign_name به فارسی تغییر داده شدند.
 # ====================================================================
 
 # 1. تفسیر آسندانت (شخصیت ظاهری)
@@ -75,7 +74,6 @@ ASCENDANT_INTERPRETATIONS: Dict[str, str] = {
 }
 
 # 2. تفسیر سیارات در برج‌ها (Planets in Signs)
-# (با کلیدهای انگلیسی)
 PLANET_IN_SIGN_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
     # --- خورشید (هویت، اراده) ---
     'sun': {
@@ -83,7 +81,7 @@ PLANET_IN_SIGN_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
         'TAURUS': '♉ *خورشید در ثور:* هویت شما بر اساس ثبات، امنیت مالی و ارزش‌های محسوس بنا شده است. آرام و متمرکز به دنبال لذت‌های حسی هستید.',
         'GEMINI': '♊ *خورشید در جوزا:* هویت شما در تنوع، برقراری ارتباط و یادگیری پیوسته است. ذهنی کنجکاو و هویتی انعطاف‌پذیر دارید.',
         'CANCER': '♋ *خورشید در سرطان:* هویت شما به ریشه‌ها، خانواده و امنیت عاطفی گره خورده است. فردی دلسوز و محافظه‌کار هستید.',
-        'LEO': '♌ *خورشید در اسد:* هویت شما با غرور، رهبری و نیاز به توجه گره خورده است. بسیار خلاق و مرکزگرا هستید.',
+        'LEO': '♌ *خورشید در اسد:* هویت شما با غرور، رهبری و نیاز به توجه گره خورده است. فردی بسیار خلاق و مرکزگرا هستید.',
         'VIRGO': '♍ *خورشید در سنبله:* هویت شما در خدمت، کارایی و توجه به جزئیات است. فردی متواضع، تحلیل‌گر و کمال‌گرا هستید.',
         'LIBRA': '♎ *خورشید در میزان:* هویت شما در تعادل، روابط یک به یک و جستجوی عدالت تعریف می‌شود. فردی اجتماعی و صلح‌جو هستید.',
         'SCORPIO': '♏ *خورشید در عقرب:* هویت شما در عمق، تحول و قدرت درونی ریشه دارد. مرموز، شدید و قادر به بازسازی خود هستید.',
@@ -158,6 +156,7 @@ PLANET_IN_SIGN_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
     'uranus': {p.upper(): f'*{PLANETS_MAP["URANUS"]} در {SIGNS_MAP[p.upper()]}:* نوآوری و تغییرات ناگهانی نسل شما به شیوه این برج است.' for p in SIGNS_MAP},
     'neptune': {p.upper(): f'*{PLANETS_MAP["NEPTUNE"]} در {SIGNS_MAP[p.upper()]}:* آرمان‌ها، شهود و ابهام نسل شما به شیوه این برج است.' for p in SIGNS_MAP},
     'pluto': {p.upper(): f'*{PLANETS_MAP["PLUTO"]} در {SIGNS_MAP[p.upper()]}:* تحول، قدرت و مرگ/تولد دوباره نسل شما به شیوه این برج است.' for p in SIGNS_MAP},
+    # --- گره شمالی (True Node) ---
     'true_node': {
         'ARIES': '*مسیر تکاملی شما متمرکز بر ایجاد یک هویت مستقل و قاطع است. باید خود را بدون وابستگی ابراز کنید.*',
         'LIBRA': '*مسیر تکاملی شما در روابط یک به یک و شراکت‌ها تعریف می‌شود. باید بیاموزید که چگونه در روابط، برابر و هماهنگ باشید.*',
@@ -176,18 +175,18 @@ PLANET_IN_SIGN_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
 
 # 3. تفسیر سیارات در خانه‌ها (Planets in Houses)
 PLANET_IN_HOUSE_INTERPRETATIONS: Dict[int, Dict[str, str]] = {
-    1: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه اول (شخصیت):* نشان می‌دهد که انرژی این سیاره چگونه در شخصیت، ظاهر و شیوه ابراز وجود شما نمود پیدا می‌کند.' for p in PLANETS_MAP},
-    2: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه دوم (مالکیت):* تأثیر این سیاره بر منابع مالی، درآمد و سیستم ارزش‌های شخصی شماست.' for p in PLANETS_MAP},
-    3: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه سوم (ارتباطات):* تأثیر بر نحوه ارتباط برقرار کردن، تفکر، یادگیری، و ارتباط با محیط نزدیک.' for p in PLANETS_MAP},
-    4: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه چهارم (خانواده و ریشه‌ها):* تأثیر این سیاره بر ریشه‌ها، خانه، خانواده، امنیت عاطفی و گذشته.' for p in PLANETS_MAP},
-    5: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه پنجم (خلاقیت و عشق):* تأثیر بر خلاقیت، عشق‌های رمانتیک، فرزندان، ریسک‌پذیری و سرگرمی.' for p in PLANETS_MAP},
-    6: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه ششم (کار و سلامت):* تأثیر بر سلامت، روتین‌های روزانه، کارمندان (زیردستان) و خدمات‌رسانی.' for p in PLANETS_MAP},
-    7: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه هفتم (روابط جدی):* تأثیر بر ازدواج، روابط جدی یک به یک، قراردادها و دشمنان آشکار.' for p in PLANETS_MAP},
-    8: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه هشتم (تغییر و منابع مشترک):* تأثیر بر امور مالی مشترک (ارث، شراکت)، دگردیسی، جنسیت و مرگ.' for p in PLANETS_MAP},
-    9: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه نهم (فلسفه و سفر):* تأثیر بر سفر طولانی، آموزش عالی، فلسفه، دین و باورهای گسترده.' for p in PLANETS_MAP},
-    10: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه دهم (شغل و شهرت):* تأثیر بر مسیر شغلی، شهرت و نقش عمومی شما.' for p in PLANETS_MAP},
-    11: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه یازدهم (گروه‌ها و آرزوها):* تأثیر بر دوستان، گروه‌ها، امیدها، آرزوها و اهداف جمعی.' for p in PLANETS_MAP},
-    12: {p.lower(): f'*{PLANETS_MAP.get(p, p)} در خانه دوازدهم (ناخودآگاه و خلوت):* تأثیر بر زندگی درونی، انزوا، امور پنهان و کارما.' for p in PLANETS_MAP},
+    1: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه اول (شخصیت):* نشان می‌دهد که انرژی این سیاره چگونه در شخصیت، ظاهر و شیوه ابراز وجود شما نمود پیدا می‌کند.' for p in PLANETS_MAP},
+    2: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه دوم (مالکیت):* تأثیر این سیاره بر منابع مالی، درآمد و سیستم ارزش‌های شخصی شماست.' for p in PLANETS_MAP},
+    3: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه سوم (ارتباطات):* تأثیر بر نحوه ارتباط برقرار کردن، تفکر، یادگیری، و ارتباط با محیط نزدیک.' for p in PLANETS_MAP},
+    4: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه چهارم (خانواده و ریشه‌ها):* تأثیر این سیاره بر ریشه‌ها، خانه، خانواده، امنیت عاطفی و گذشته.' for p in PLANETS_MAP},
+    5: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه پنجم (خلاقیت و عشق):* تأثیر بر خلاقیت، عشق‌های رمانتیک، فرزندان، ریسک‌پذیری و سرگرمی.' for p in PLANETS_MAP},
+    6: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه ششم (کار و سلامت):* تأثیر بر سلامت، روتین‌های روزانه، کارمندان (زیردستان) و خدمات‌رسانی.' for p in PLANETS_MAP},
+    7: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه هفتم (روابط جدی):* تأثیر بر ازدواج، روابط جدی یک به یک، قراردادها و دشمنان آشکار.' for p in PLANETS_MAP},
+    8: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه هشتم (تغییر و منابع مشترک):* تأثیر بر امور مالی مشترک (ارث، شراکت)، دگردیسی، جنسیت و مرگ.' for p in PLANETS_MAP},
+    9: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه نهم (فلسفه و سفر):* تأثیر بر سفر طولانی، آموزش عالی، فلسفه، دین و باورهای گسترده.' for p in PLANETS_MAP},
+    10: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه دهم (شغل و شهرت):* تأثیر بر مسیر شغلی، شهرت و نقش عمومی شما.' for p in PLANETS_MAP},
+    11: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه یازدهم (گروه‌ها و آرزوها):* تأثیر بر دوستان، گروه‌ها، امیدها، آرزوها و اهداف جمعی.' for p in PLANETS_MAP},
+    12: {p.lower(): f'*{PLANETS_MAP.get(p.upper(), p)} در خانه دوازدهم (ناخودآگاه و خلوت):* تأثیر بر زندگی درونی، انزوا، امور پنهان و کارما.' for p in PLANETS_MAP},
 }
 
 # 4. تفسیر زوایا (Aspects)
@@ -198,25 +197,21 @@ ASPECT_INTERPRETATIONS: Dict[str, Dict[str, str]] = {
         'SUN_SATURN': 'اتصال خورشید و زحل: نیاز به نظم، انضباط و سخت‌کوشی در زندگی. تأخیر در موفقیت اما پایداری.',
         'MOON_NEPTUNE': 'اتصال ماه و نپتون: شهود قوی، حساسیت زیاد و تمایل به رؤیاپردازی. درگیری با ابهام عاطفی.',
         'SUN_MERCURY': 'اتصال خورشید و عطارد: تمرکز ذهن بر اراده و هویت شخصی. ارتباط قوی بین خودآگاه و منطق.',
-        # ... سایر زوایا
     },
     'Square': {
         'SUN_SATURN': 'تربیع خورشید و زحل: چالش‌های هویتی و خودباوری. نیاز به سخت‌کوشی برای رسیدن به اهداف.',
         'MARS_JUPITER': 'تربیع مریخ و مشتری: انرژی و خوش‌بینی بیش از حد. تمایل به زیاده‌روی و ریسک‌پذیری زیاد.',
         'MARS_PLUTO': 'تربیع مریخ و پلوتو: کشمکش شدید بر سر کنترل و قدرت. انرژی بسیار قوی برای عمل و تحول.',
-        # ... سایر زوایا
     },
     'Trine': {
         'JUPITER_VENUS': 'تثلیث مشتری و زهره: سعادت بزرگ. شانس، جذابیت اجتماعی و مالی، و نگرش خوش‌بینانه.',
         'MOON_NEPTUNE': 'تثلیث ماه و نپتون: شهود قوی، حساسیت هنری و روانی. همدلی و تخیل غنی.',
         'SUN_MARS': 'تثلیث خورشید و مریخ: انرژی حیاتی بالا، اعتماد به نفس و توانایی عملی کردن اهداف.',
-        # ... سایر زوایا
     },
     'Opposition': {
         'SUN_MOON': 'مقابله خورشید و ماه: درگیری درونی بین نیازهای عاطفی (ماه) و خواسته‌های هویتی (خورشید).',
         'SATURN_MARS': 'مقابله زحل و مریخ: کشمکش بین عمل (مریخ) و محدودیت (زحل). نیاز به تعادل بین شتاب و احتیاط.',
         'JUPITER_URANUS': 'مقابله مشتری و اورانوس: تنش بین سنت و نوآوری. هیجانات ناگهانی و غیرقابل پیش‌بینی در امور مالی و فکری.',
-        # ... سایر زوایا
     }
 }
 
@@ -227,7 +222,6 @@ RULER_IN_HOUSE_INTERPRETATIONS: Dict[int, Dict[int, str]] = {
         2: '*حاکم چارت در خانه دوم: انرژی و هویت اصلی شما متمرکز بر منابع مالی، درآمد و سیستم ارزش‌های شخصی شماست. امنیت مالی برای شما تعیین‌کننده است.*',
         7: '*حاکم چارت در خانه هفتم: تمرکز انرژی و هویت شما در حوزه‌ی خانه هفتم (روابط و ازدواج) قرار دارد، که بر تمامی شخصیت شما حاکم است. شما هویت خود را از طریق دیگران پیدا می‌کنید.*',
         10: '*حاکم چارت در خانه دهم: هویت و هدف اصلی شما در جاه‌طلبی، شغل، جایگاه اجتماعی و موفقیت عمومی است. شما فردی هدفمند و متمرکز بر دستاوردها هستید.*',
-        # ... سایر خانه‌ها (باید بر اساس حاکم آسندانت و خانه محاسبه و تفسیر شوند)
     },
 }
 
@@ -255,25 +249,20 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
     # 2. تفسیر Ascendant (طالع - شخصیت ظاهری)
     interpretations.append("\n*--- طالع (Ascendant) و هویت ظاهری ---*")
     
-    # 💥💥💥 رفع خطای 'asc_sign' با دسترسی ایمن به درجه (درجه طالع) 💥💥💥
+    # FIX: دسترسی ایمن به درجه طالع (Ascendant)
     asc_degree = chart_data.get('houses', {}).get('asc') 
     
     if asc_degree is None:
-        # کلیدهای محتمل دیگر را چک می‌کنیم.
         asc_degree = chart_data.get('houses', {}).get('Ascendant') 
         if asc_degree is None:
              asc_degree = chart_data.get('houses', {}).get('ASC')
         
     if asc_degree is not None:
-        # درجه پیدا شد، نام برج (به فارسی) را محاسبه می‌کنیم.
         asc_sign_fa = get_sign_name(asc_degree) 
-        # از نام فارسی برای جستجو در ASCENDANT_INTERPRETATIONS استفاده می‌کنیم.
         asc_interp = ASCENDANT_INTERPRETATIONS.get(asc_sign_fa, f"**طالع در {asc_sign_fa}:** تفسیر موجود نیست.")
     else:
-        # اگر هیچ کلیدی پیدا نشد.
         asc_interp = "**طالع نامشخص:** داده‌های چارت، درجه طالع (Ascendant) را شامل نمی‌شوند."
         
-    # افزودن تفسیر طالع
     interpretations.append(f"**طالع:** {asc_interp}")
 
     # 3. تفسیر سیارات اصلی در برج و خانه
@@ -282,9 +271,12 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
     for planet_name in ['sun', 'moon', 'mercury', 'venus', 'mars']:
         if planet_name in chart_data['planets']:
             data = chart_data['planets'][planet_name]
-            # 💥💥💥 رفع خطای 'sign' با استفاده از .get() 💥💥💥
+            
+            # FIX: رفع خطای 'sign' با استفاده از .get()
             p_sign = data.get('sign', 'UNKNOWN').upper()
-            p_house = data['house']
+            # FIX: رفع خطای 'house' با استفاده از .get()
+            p_house = data.get('house', 'UNKNOWN_HOUSE') 
+            
             p_fa = PLANETS_MAP.get(planet_name.upper(), planet_name.title())
             
             # تفسیر در برج
@@ -301,12 +293,15 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
     for planet_name in ['jupiter', 'saturn', 'uranus', 'neptune', 'pluto', 'true_node']:
         if planet_name in chart_data['planets']:
             data = chart_data['planets'][planet_name]
-            p_house = data['house']
+            
+            # FIX: رفع خطای 'house' با استفاده از .get()
+            p_house = data.get('house', 'UNKNOWN_HOUSE')
+            
             p_fa = PLANETS_MAP.get(planet_name.upper(), planet_name.title())
 
             # تفسیر در خانه (یا گره در برج برای گره‌ها)
             if planet_name == 'true_node':
-                 # 💥💥💥 رفع خطای 'sign' با استفاده از .get() 💥💥💥
+                 # FIX: رفع خطای 'sign' با استفاده از .get()
                  p_sign = data.get('sign', 'UNKNOWN').upper()
                  node_interp = PLANET_IN_SIGN_INTERPRETATIONS.get('true_node', {}).get(p_sign, f"*{p_fa} در {SIGNS_MAP.get(p_sign, p_sign)}:* مسیر تکاملی روح شما در این حوزه است.")
                  interpretations.append(f"\n{node_interp}")
