@@ -115,7 +115,7 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 # ----------------------------------------------------------------------
-# تابع اصلی: محاسبه چارت تولد (به روز شده با Part of Fortune و Sign/House)
+# تابع اصلی: محاسبه چارت تولد (به روز شده با تحمل خطای بالا)
 # ----------------------------------------------------------------------
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: Union[float, int], longitude: Union[float, int], timezone_str: str) -> Dict[str, Any]:
@@ -148,7 +148,6 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     house_system = b'P' # Placidus
     
     chart_data = {
-        # FIX: اطمینان از وجود این فیلدها در سطح اصلی دیکشنری
         "birth_date_jalali": birth_date_jalali,
         "birth_time_str": birth_time_str,
         
@@ -169,22 +168,26 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
 
     # 2. محاسبه خانه ها (Houses) - باید قبل از سیارات انجام شود
     try:
-        cusps_raw, ascmc = se.houses(jd_utc, latitude, longitude, house_system)
+        # اطمینان از اینکه ورودی‌های se.houses حتماً float باشند.
+        cusps_raw, ascmc = se.houses(jd_utc, float(latitude), float(longitude), house_system)
         
-        if len(cusps_raw) < 12 or len(ascmc) < 2:
-             raise IndexError(f"خروجی se.houses ناقص است. طول cusps: {len(cusps_raw)}")
+        if len(cusps_raw) < 13 or len(ascmc) < 2:
+             # اگر خروجی ناقص است، یک خطای مشخص ایجاد می‌کنیم.
+             raise IndexError(f"خروجی se.houses ناقص است. طول cusps: {len(cusps_raw)}. آسندانت: {ascmc}")
+
+        # اگر Ascendant صفر باشد (که در برخی خطاها رخ می‌دهد)، آن را خطا در نظر می‌گیریم.
+        if ascmc[0] == 0.0 or ascmc[0] >= 360.0:
+            raise ValueError(f"مقدار آسندانت غیرمعتبر: {ascmc[0]}")
+
 
         chart_data['houses']['ascendant'] = ascmc[0]
         chart_data['houses']['midheaven'] = ascmc[1]
         
         cusps_dict = {}
+        # cusps_raw[1] تا cusps_raw[12] کاپس‌های خانه‌های ۱ تا ۱۲ هستند.
         for i in range(1, 13):
-            # برای Placidus، کاپس‌ها از خانه 1 شروع می‌شوند و از عنصر cusps_raw[1] استفاده می‌کنند
             index_to_use = i 
-            if index_to_use >= 0 and index_to_use < len(cusps_raw):
-                cusps_dict[i] = cusps_raw[index_to_use]
-            else:
-                cusps_dict[i] = 0.0 
+            cusps_dict[i] = cusps_raw[index_to_use]
 
         chart_data['houses']['cusps'] = cusps_dict
         chart_data['houses']['error'] = None 
@@ -193,9 +196,15 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         err_msg = f"FATAL ERROR: خطا در محاسبه خانه‌ها و آسندانت: {e}"
         logging.error(err_msg, exc_info=True)
         chart_data['houses']['error'] = f"❌ خطای محاسبه خانه‌ها: {str(e)}"
+        # تنظیم Ascendant و Midheaven برای جلوگیری از خطای Key در مراحل بعدی
+        chart_data['houses']['ascendant'] = 0.0
+        chart_data['houses']['midheaven'] = 0.0
+        # تنظیم cusps_raw به لیست خالی برای جلوگیری از اجرای se.house_pos در مرحله بعد
+        cusps_raw = []
+        ascmc = []
+
 
     # 3. محاسبه موقعیت سیارات و تعیین خانه و برج (با تحمل خطا)
-    # اگر محاسبه خانه‌ها شکست بخورد، این بخش با house=0 ادامه می‌دهد.
     for planet_name, planet_code in PLANETS_MAP.items():
         lon_deg = 0.0
         lat_deg = 0.0
@@ -205,15 +214,18 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
 
         try:
             # استفاده از se.calc_ut. Flag 0 برای استفاده از فایل‌های اپمریس تنظیم شده
+            # خروجی: (lon, lat, vel_lon, vel_lat, vel_dist)
             res = se.calc_ut(jd_utc, planet_code, 0) 
-            lon_deg = res[0][0]
-            lat_deg = res[0][1] 
+            lon_deg = res[0][0] # طول جغرافیایی
+            lat_deg = res[0][1] # عرض جغرافیایی 
             
             # --- محاسبه Sign و House ---
             planet_sign_en = get_sign_name_en(lon_deg)
             if cusps_raw and ascmc:
-                 # FIX: فراخوانی صحیح se.house_pos (با Lon و Lat)
+                 # فراخوانی صحیح se.house_pos (با Lon و Lat)
+                 # planet_house_pos: (degree, house_number)
                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system)
+                # se.house_pos همیشه یک tuple برمی‌گرداند.
                 planet_house = int(planet_house_pos[1])
             
         except Exception as e:
@@ -226,7 +238,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             "degree": lon_deg,
             "sign": planet_sign_en,
             "house": planet_house,
-            "status": "N/A (Calculated)",
+            "status": "N/A (Calculated)" if not error_flag else "Error",
         }
         if error_flag:
             chart_data['planets'][planet_name]['error'] = error_flag
@@ -234,17 +246,14 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     
     # 4. محاسبه نقاط عربی (Part of Fortune) و اضافه کردن آن به سیارات (با تحمل خطا)
     try:
-        sun_data = chart_data['planets'].get('sun', {})
-        moon_data = chart_data['planets'].get('moon', {})
+        # استفاده از get() برای دسترسی امن به داده‌های سیارات
+        sun_deg = chart_data['planets'].get('sun', {}).get('degree', 0.0)
+        moon_deg = chart_data['planets'].get('moon', {}).get('degree', 0.0)
         asc_deg = chart_data['houses'].get('ascendant', 0.0)
-
-        # اگر خورشید یا ماه خطا داشته باشند، محاسبه PF بی‌معناست.
-        if sun_data.get('error') or moon_data.get('error'):
-             raise ValueError("اطلاعات خورشید یا ماه موجود نیست.")
-
-        sun_deg = sun_data.get('degree', 0.0)
-        moon_deg = moon_data.get('degree', 0.0)
         desc_deg = chart_data['houses']['cusps'].get(7, 0.0) 
+
+        if asc_deg == 0.0:
+            raise ValueError("آسندانت نامعتبر است.")
         
         # تعیین تولد روز/شب (Day/Night Birth)
         def get_house_of_degree_simple(degree: float, asc: float, desc: float) -> int:
@@ -253,19 +262,12 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             desc = desc % 360
             degree = degree % 360
 
-            if asc > desc: # محور افق در 360/0 قطع نشده است
-                 if asc >= degree > desc:
-                     return 1 # خانه های 1 تا 6 (زیر افق)
-                 else:
-                     return 7 # خانه های 7 تا 12 (بالای افق)
-            else: # محور افق از 360/0 عبور کرده است
-                if degree >= asc and degree < desc:
-                     return 7 # خانه های 7 تا 12 (بالای افق)
-                else:
-                     return 1 # خانه های 1 تا 6 (زیر افق)
+            if asc > desc: 
+                 return 1 if asc >= degree > desc else 7
+            else: 
+                 return 7 if degree >= asc and degree < desc else 1
         
         sun_house_zone = get_house_of_degree_simple(sun_deg, asc_deg, desc_deg)
-        
         is_day_birth = (sun_house_zone == 7) 
         
         
@@ -283,7 +285,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         pf_sign_en = get_sign_name_en(pf_degree)
         pf_house = 0
         if cusps_raw and ascmc:
-            # FIX: فراخوانی صحیح se.house_pos (استفاده از 0.0 برای عرض جغرافیایی نقطه عربی)
+            # فراخوانی صحیح se.house_pos (استفاده از 0.0 برای عرض جغرافیایی نقطه عربی)
             pf_house_pos = se.house_pos(pf_degree, 0.0, cusps_raw, ascmc, house_system)
             pf_house = int(pf_house_pos[1])
 
@@ -298,7 +300,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
 
     except Exception as e:
          logging.error(f"خطا در محاسبه Part of Fortune: {e}")
-         # FIX: در صورت خطا، کلیدهای لازم برای تفسیر را با مقادیر امن پر می‌کنیم
+         # در صورت خطا، کلیدهای لازم برای تفسیر را با مقادیر امن پر می‌کنیم
          chart_data['planets']['part_of_fortune'] = {
             "error": "❌ خطا در محاسبه سهم سعادت", 
             "degree": 0.0,
