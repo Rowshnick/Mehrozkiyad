@@ -111,6 +111,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     """
     محاسبه چارت تولد نجومی شامل موقعیت سیارات و خانه‌ها بر اساس سیستم کوخ (Koch).
     """
+    # **تأییدیه نسخه کد**
+    logging.info("CODE_VERSION: 2025-12-14-FinalFix-V2")
     
     # 1. تبدیل تاریخ شمسی به میلادی و محاسبه زمان جولیان (JD) UTC
     try:
@@ -172,7 +174,10 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         
         # FIX: بررسی طول را به حداقل 12 عنصر کاهش می‌دهیم.
         if len(raw_cusps) < 12:
-             raise IndexError(f"خروجی cusps ناقص است. طول cusps: {len(raw_cusps)}")
+             # تغییر پیام خطا برای تأیید اجرای این نسخه از کد
+             raise IndexError(f"**V2 Error**: خروجی cusps کمتر از ۱۲ عنصر است. طول cusps: {len(raw_cusps)}")
+        
+        # اگر طول دقیقاً ۱۲ یا ۱۳ باشد، ادامه می‌دهیم. (این کد برای طول ۱۲ باید کار کند)
 
         # گام 2: تخصیص و بررسی نهایی اعتبار (مقدار صفر یا خارج از محدوده)
         cusps_raw = list(raw_cusps)
@@ -228,10 +233,15 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             
             # --- محاسبه Sign و House ---
             planet_sign_en = get_sign_name_en(lon_deg)
-            if cusps_raw and ascmc:
+            # بررسی کنیم که آیا محاسبات خانه با خطا مواجه شده است
+            # از ascendant != 0.0 برای تأیید موفقیت‌آمیز بودن محاسبه خانه استفاده می‌کنیم
+            if cusps_raw and ascmc and chart_data['houses']['ascendant'] != 0.0: 
                 # محاسبه خانه سیاره با استفاده از خروجی خام و سیستم خانه Koch
                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system)
                 planet_house = int(planet_house_pos[1])
+            elif chart_data['houses']['error']:
+                # اگر خطایی در محاسبه خانه وجود داشته است، خانه را 0 قرار می‌دهیم
+                planet_house = 0
             
         except Exception as e:
             error_flag = f"❌ خطا در محاسبه: {str(e)}"
@@ -252,36 +262,45 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         sun_deg = chart_data['planets'].get('sun', {}).get('degree', 0.0)
         moon_deg = chart_data['planets'].get('moon', {}).get('degree', 0.0)
         asc_deg = chart_data['houses'].get('ascendant', 0.0)
+        
+        # بررسی کنیم که آیا آسندانت واقعاً محاسبه شده است
+        if asc_deg == 0.0 or chart_data['houses'].get('error'):
+            raise ValueError("اطلاعات آسندانت نامعتبر است یا محاسبه خانه شکست خورده است.")
+
+        # Descendant برای محاسبات نقطه سعادت استفاده می‌شود
         desc_deg = chart_data['houses']['cusps'].get(7, 0.0) 
-
-        # اگر آسندانت محاسبه شده 0.0 باشد، نشان‌دهنده شکست است.
-        if asc_deg == 0.0 or chart_data['planets'].get('sun', {}).get('error') or chart_data['planets'].get('moon', {}).get('error'):
-            raise ValueError("اطلاعات آسندانت، خورشید یا ماه نامعتبر است.")
         
-        # تعیین تولد روز/شب 
-        def get_house_of_degree_simple(degree: float, asc: float, desc: float) -> int:
-            asc = asc % 360
-            desc = desc % 360
-            degree = degree % 360
-
-            if asc > desc: 
-                 return 1 if asc >= degree > desc else 7
-            else: 
-                 return 7 if degree >= asc and degree < desc else 1
+        # بررسی خورشید و ماه
+        if sun_deg == 0.0 or moon_deg == 0.0 or chart_data['planets'].get('sun', {}).get('error') or chart_data['planets'].get('moon', {}).get('error'):
+            raise ValueError("اطلاعات خورشید یا ماه نامعتبر است.")
         
-        sun_house_zone = get_house_of_degree_simple(sun_deg, asc_deg, desc_deg)
-        is_day_birth = (sun_house_zone == 7) 
+        # تعیین تولد روز/شب (Day/Night)
+        # اگر خورشید بالای افق باشد (خانه‌های 7 تا 12) تولد روز است.
+        # ما از منطق ساده افق استفاده می‌کنیم: از آسندانت تا دِسندانت (خ 1 تا 6) زیر افق است.
+        
+        def is_sun_above_horizon(sun_deg: float, asc_deg: float) -> bool:
+            """تعیین می‌کند که آیا خورشید بالای افق است (تولد روز)؟"""
+            # تبدیل درجه خورشید نسبت به آسندانت (آسندانت=0)
+            rel_sun = (sun_deg - asc_deg) % 360
+            # زیر افق (Houses 1-6) = 0 تا 180 درجه بعد از Asc
+            # بالای افق (Houses 7-12) = 180 تا 360 درجه بعد از Asc
+            return rel_sun >= 180 # Day Birth
+        
+        is_day_birth = is_sun_above_horizon(sun_deg, asc_deg)
         
         
         if is_day_birth:
+            # فرمول روز: Asc + Moon - Sun
             pf_degree = asc_deg + moon_deg - sun_deg
         else:
+            # فرمول شب: Asc + Sun - Moon
             pf_degree = asc_deg + sun_deg - moon_deg
 
         pf_degree = pf_degree % 360
 
         pf_sign_en = get_sign_name_en(pf_degree)
         pf_house = 0
+        # محاسبه خانه نقطه سعادت
         if cusps_raw and ascmc:
             pf_house_pos = se.house_pos(pf_degree, 0.0, cusps_raw, ascmc, house_system)
             pf_house = int(pf_house_pos[1])
