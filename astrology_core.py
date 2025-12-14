@@ -14,29 +14,26 @@ logging.basicConfig(level=logging.INFO)
 # ======================================================================
 try:
     # فرض می‌کنیم فایل‌های Ephemeris (مانند se1, se2,...) در پوشه 'ephe_data'
-    # در کنار فایل‌های سورس قرار دارند (که توسط Dockerfile به /usr/src/app کپی شده‌اند).
-    # نقطه (./) به معنی مسیر WORKDIR یا همان /usr/src/app است.
     se.set_ephe_path('./ephe_data/') 
     logging.info("Ephemeris path set successfully to './ephe_data/'.")
 except Exception as e:
-    # این هشدار اصلی را در صورتی که مسیر درست نباشد یا فایل‌ها نباشند، تولید می‌کند.
     logging.warning(f"Setup Ephemeris not found or failed, continuing without it. Error: {e}")
-    # همچنین در صورتی که path ست نشود، از se.calc_ut با پرچم 0 استفاده می‌کنیم.
+    # اگر راه اندازی اپمریس شکست خورد، همچنان ادامه می‌دهیم.
 
 
 # --- [ثابت‌ها] ---
 PLANETS_MAP = {
-    "sun": 0, # معادل se.SE_SUN
-    "moon": 1, # معادل se.SE_MOON
-    "mercury": 2, # معادل se.SE_MERCURY
-    "venus": 3, # معادل se.SE_VENUS
-    "mars": 4, # معادل se.SE_MARS
-    "jupiter": 5, # معادل se.SE_JUPITER
-    "saturn": 6, # معادل se.SE_SATURN
-    "uranus": 7, # معادل se.SE_URANUS
-    "neptune": 8, # معادل se.SE_NEPTUNE
-    "pluto": 9, # معادل se.SE_PLUTO
-    "true_node": 10 # معادل se.SE_TRUE_NODE (گره شمالی حقیقی)
+    "sun": 0, 
+    "moon": 1, 
+    "mercury": 2, 
+    "venus": 3, 
+    "mars": 4, 
+    "jupiter": 5, 
+    "saturn": 6, 
+    "uranus": 7, 
+    "neptune": 8, 
+    "pluto": 9, 
+    "true_node": 10 
 }
 
 ASPECT_DEGREES = {
@@ -47,7 +44,6 @@ ASPECT_DEGREES = {
     "Opposition": 180.0,
 }
 
-# Orb های نسبتاً تنگ برای نمایش مهم‌ترین زوایا
 ASPECT_ORBS = {
     "Conjunction": 3.0,
     "Sextile": 1.5,
@@ -74,13 +70,9 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
     """محاسبه زوایای اصلی بین سیارات با Orb مشخص."""
     aspects = []
     
-    # لیست سیاراتی که باید زوایایشان بررسی شود (شامل Part of Fortune)
     aspect_planets = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "true_node", "pluto", "neptune", "uranus", "part_of_fortune"]
-    
-    # فیلتر کردن برای اطمینان از وجود درجه و حذف سیارات مجهول یا خطا دار
     planet_items = [(name, data['degree']) for name, data in planets.items() if name in aspect_planets and 'degree' in data and not data.get('error')]
     
-    # از هر سیاره به سیارات بعدی (جلوگیری از تکرار و مقایسه با خود)
     for i in range(len(planet_items)):
         p1_name, p1_deg = planet_items[i]
         for j in range(i + 1, len(planet_items)):
@@ -90,9 +82,8 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
                 
                 degree_diff = get_degree_diff(p1_deg, p2_deg)
                 orb = abs(degree_diff - aspect_degree)
-                max_orb = ASPECT_ORBS.get(aspect_name, 1.0) # پیش‌فرض 1.0 برای احتیاط
+                max_orb = ASPECT_ORBS.get(aspect_name, 1.0) 
                 
-                # برای گره‌ها، Part of Fortune و سیارات بیرونی Orb را کمی سخت‌گیرانه‌تر می‌کنیم
                 if p1_name in ["true_node", "pluto", "neptune", "uranus", "part_of_fortune"] or p2_name in ["true_node", "pluto", "neptune", "uranus", "part_of_fortune"]:
                     if max_orb > 1.5:
                         max_orb = 1.5
@@ -107,15 +98,13 @@ def calculate_aspects(planets: Dict[str, Any]) -> List[Dict[str, Any]]:
                         "p2_deg": p2_deg
                     })
                     
-    # مرتب‌سازی بر اساس Orb (تنگ‌ترین زوایا ابتدا)
     aspects.sort(key=lambda x: x['orb'])
     
-    # بازگشت تنها 5 زاویه برتر
     return aspects[:5]
 
 
 # ----------------------------------------------------------------------
-# تابع اصلی: محاسبه چارت تولد (به روز شده با تحمل خطای بالا)
+# تابع اصلی: محاسبه چارت تولد (به روز شده با گزارش لاگ دقیق)
 # ----------------------------------------------------------------------
 
 def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name: str, latitude: Union[float, int], longitude: Union[float, int], timezone_str: str) -> Dict[str, Any]:
@@ -145,7 +134,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
     # متغیرهایی برای نگهداری خروجی خام swisseph مورد نیاز
     cusps_raw = []
     ascmc = []
-    # FIX: تغییر سیستم خانه از Placidus (P) به Koch (K)
+    # استفاده از سیستم خانه Koch (K)
     house_system = b'K' 
     
     chart_data = {
@@ -167,12 +156,17 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         "aspects": [],
     }
 
-    # 2. محاسبه خانه ها (Houses) - باید قبل از سیارات انجام شود
+    # 2. محاسبه خانه ها (Houses) - با گزارش لاگ دقیق
     try:
+        # **لاگ عیب‌یابی: ورودی‌های تابع se.houses**
+        logging.info(f"DEBUG: Calling se.houses with JD: {jd_utc}, Lat: {float(latitude)}, Lon: {float(longitude)}, System: {house_system.decode('utf-8')}")
+        
         raw_cusps, raw_ascmc = se.houses(jd_utc, float(latitude), float(longitude), house_system)
         
+        # **لاگ عیب‌یابی: خروجی خام تابع se.houses**
+        logging.info(f"DEBUG: se.houses RAW Output - Cusps (first 3): {raw_cusps[:3] if isinstance(raw_cusps, (list, tuple)) else 'Invalid Type'}, Asc/MC: {raw_ascmc[:2] if isinstance(raw_ascmc, (list, tuple)) and len(raw_ascmc) >= 2 else 'Invalid Type/Length'}")
+        
         # گام 1: بررسی خطا و طول خروجی Swisseph
-        # اگر خروجی یک لیست/تاپل عددی نباشد یا طول کافی نداشته باشد، خطا گرفته می‌شود.
         if not isinstance(raw_ascmc, (list, tuple)) or len(raw_ascmc) < 2 or not isinstance(raw_ascmc[0], (int, float)):
              raise ValueError(f"خروجی Asc/MC نامعتبر است. مقدار: {raw_ascmc}")
         
@@ -202,6 +196,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         err_msg = f"FATAL ERROR: خطا در محاسبه خانه‌ها و آسندانت: {e}"
         logging.error(err_msg, exc_info=True)
         chart_data['houses']['error'] = f"❌ خطای محاسبه خانه‌ها: {str(e)}"
+        
         # در صورت شکست، متغیرهای مورد نیاز برای محاسبه خانه‌ سیارات را خالی می‌کنیم تا از خطای زنجیره‌ای جلوگیری شود
         chart_data['houses']['ascendant'] = 0.0
         chart_data['houses']['midheaven'] = 0.0
@@ -209,7 +204,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         ascmc = []
 
 
-    # 3. محاسبه موقعیت سیارات و تعیین خانه و برج (با تحمل خطا)
+    # 3. محاسبه موقعیت سیارات و تعیین خانه و برج 
     for planet_name, planet_code in PLANETS_MAP.items():
         lon_deg = 0.0
         lat_deg = 0.0
@@ -218,14 +213,12 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         error_flag = None
 
         try:
-            # استفاده از se.calc_ut. Flag 0 برای استفاده از فایل‌های اپمریس تنظیم شده
             res = se.calc_ut(jd_utc, planet_code, 0) 
-            lon_deg = res[0][0] # طول جغرافیایی
-            lat_deg = res[0][1] # عرض جغرافیایی 
+            lon_deg = res[0][0] 
+            lat_deg = res[0][1] 
             
             # --- محاسبه Sign و House ---
             planet_sign_en = get_sign_name_en(lon_deg)
-            # تنها زمانی se.house_pos را فراخوانی می‌کنیم که cusps_raw و ascmc معتبر باشند.
             if cusps_raw and ascmc:
                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system)
                 planet_house = int(planet_house_pos[1])
@@ -234,7 +227,6 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             error_flag = f"❌ خطا در محاسبه: {str(e)}"
             logging.error(f"FATAL ERROR: خطا در محاسبه موقعیت سیاره {planet_name}: {e}", exc_info=True)
             
-        # اطمینان از پر شدن کلیدهای مورد نیاز تفسیر، حتی در صورت خطا
         chart_data['planets'][planet_name] = {
             "degree": lon_deg,
             "sign": planet_sign_en,
@@ -245,7 +237,7 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
             chart_data['planets'][planet_name]['error'] = error_flag
             
     
-    # 4. محاسبه نقاط عربی (Part of Fortune) و اضافه کردن آن به سیارات (با تحمل خطا)
+    # 4. محاسبه نقاط عربی (Part of Fortune) 
     try:
         sun_deg = chart_data['planets'].get('sun', {}).get('degree', 0.0)
         moon_deg = chart_data['planets'].get('moon', {}).get('degree', 0.0)
@@ -255,9 +247,8 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         if asc_deg == 0.0 or chart_data['planets'].get('sun', {}).get('error') or chart_data['planets'].get('moon', {}).get('error'):
             raise ValueError("اطلاعات آسندانت، خورشید یا ماه نامعتبر است.")
         
-        # تعیین تولد روز/شب (Day/Night Birth)
+        # تعیین تولد روز/شب 
         def get_house_of_degree_simple(degree: float, asc: float, desc: float) -> int:
-            """تعیین اینکه درجه در نیمکره بالا (7-12) یا پایین (1-6) است."""
             asc = asc % 360
             desc = desc % 360
             degree = degree % 360
@@ -272,15 +263,12 @@ def calculate_natal_chart(birth_date_jalali: str, birth_time_str: str, city_name
         
         
         if is_day_birth:
-            # فرمول روز: Ascendant + Moon - Sun
             pf_degree = asc_deg + moon_deg - sun_deg
         else:
-            # فرمول شب: Ascendant + Sun - Moon
             pf_degree = asc_deg + sun_deg - moon_deg
 
         pf_degree = pf_degree % 360
 
-        # تعیین برج و خانه برای Part of Fortune
         pf_sign_en = get_sign_name_en(pf_degree)
         pf_house = 0
         if cusps_raw and ascmc:
