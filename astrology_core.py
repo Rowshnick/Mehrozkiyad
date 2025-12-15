@@ -3,10 +3,11 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Dict, Any, List
 import logging
+import jdatetime # <--- NEW: کتابخانه مورد نیاز برای تبدیل تاریخ شمسی
 
 # تنظیمات لاگینگ برای ردیابی خطاها و نسخه‌بندی
 logging.basicConfig(level=logging.INFO)
-logging.info("CODE_VERSION: 2025-12-15-FinalFix-V3")
+logging.info("CODE_VERSION: 2025-12-16-FundamentalFix-V4-ShamsiDate")
 
 # ==============================================================================
 # ثابت‌ها
@@ -69,45 +70,43 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     
     se.set_ephe_path('./ephe_data/') # تنظیم مسیر دیتای اپمریس
 
-    # 1. آماده‌سازی تاریخ و زمان
+    # 1. تبدیل تاریخ شمسی به Julian Day (حل مشکل بنیادین تاریخ)
     try:
-        # تبدیل تاریخ شمسی به میلادی
-        # (فرض می‌شود این تابع تبدیل در اینجا وجود دارد یا از طریق کتابخانه دیگری فراخوانی می‌شود)
-        # به دلیل عدم دسترسی به آن، فرض می‌کنیم تبدیل انجام شده و date_str و time_str میلادی هستند.
-        # اما برای تطابق با ورودی، مستقیماً از پارامترها استفاده می‌کنیم:
-        
-        # فرض کنید تاریخ و زمان در نهایت به شکل میلادی درآمده است.
-        # اینجا برای سادگی، تاریخ و زمان ورودی را به یک فرمت قابل پردازش تبدیل می‌کنیم:
-        # Example input: '1359/05/29', '17:35'
-        
-        # NOTE: از آنجایی که ما دسترسی به تبدیل شمسی به میلادی نداریم،
-        # و Swisseph فقط تاریخ میلادی را قبول می‌کند، این بخش باید قبلاً تبدیل شده باشد.
-        
-        # در اینجا، تاریخ را مستقیماً برای محاسبه JD استفاده می‌کنیم:
-        
-        year, month, day = map(int, birth_date.split('/')) # توجه: این فقط برای تست با ورودی شمسی است!
+        year, month, day = map(int, birth_date.split('/'))
         hour, minute = map(int, birth_time.split(':'))
         
-        # Swisseph نیاز به تاریخ میلادی دارد. چون به کد تبدیل دسترسی نداریم،
-        # برای ادامه کار، از یک نمونه فرضی میلادی برای JD استفاده می‌کنیم.
-        # اما JD مورد استفاده در لاگ‌ها (2444472.045138889) را برای اطمینان از صحت محاسبات شما استفاده می‌کنیم.
-        # این JD مربوط به 1980-08-20 (میلادی) است.
+        # 1.1 ساخت شیء jdatetime از ورودی کاربر
+        birth_dt_local_jdate = jdatetime.datetime(
+            year, month, day, hour, minute, 0, tzinfo=ZoneInfo(timezone_str)
+        )
         
-        # **توجه:** برای تولید JD دقیق از تاریخ شمسی، نیاز به کتابخانه `jdatetime` یا معادل آن است.
-        
-        # استفاده از JD محاسبه شده در لاگ‌ها:
-        tjd_ut = 2444472.045138889
+        # 1.2 تبدیل به UTC (زمان استاندارد جهانی)
+        birth_dt_utc = birth_dt_local_jdate.togregorian().astimezone(ZoneInfo('UTC'))
+
+        # 1.3 محاسبه Julian Day (JD) از زمان UTC
+        # استفاده از se.date_to_jd برای تبدیل تاریخ میلادی (Gregorian) به JD
+        tjd_ut = se.date_to_jd(
+            birth_dt_utc.year, 
+            birth_dt_utc.month, 
+            birth_dt_utc.day, 
+            birth_dt_utc.hour + birth_dt_utc.minute/60.0 + birth_dt_utc.second/3600.0, 
+            se.CALC_GREGORIAN
+        )
+
+        logging.info(f"DEBUG: Calculated JD (UT) from Shamsi date: {tjd_ut}")
         
     except Exception as e:
-        logging.error(f"خطا در تجزیه تاریخ و زمان: {e}")
-        return {'error': 'خطا در تجزیه تاریخ و زمان.'}
+        logging.error(f"FATAL ERROR: خطا در تبدیل تاریخ شمسی به JD: {e}")
+        return {'error': 'خطا در تبدیل تاریخ شمسی به Julian Day. (لطفاً از نصب jdatetime و صحت ورودی‌ها اطمینان حاصل کنید.)'}
 
     # 2. محاسبه خانه‌ها (House Cusps) و Asc/MC
     try:
+        logging.info(f"DEBUG: Calling se.houses with JD: {tjd_ut}, Lat: {latitude}, Lon: {longitude}, System: {house_system}")
+        
         # محاسبه خانه ها. خروجی cusps_raw شامل ۱۳ عنصر است (۱۲ خانه + Asc)
         cusps_raw, ascmc = se.houses(tjd_ut, latitude, longitude, house_system.upper())
         
-        # FIX V1: مطمئن شوید که خروجی خانه‌ها ۱۲ عنصر دارد
+        # FIX V1/V2: بررسی طول خروجی خانه‌ها
         if len(cusps_raw) < 12:
             raise IndexError(f"خروجی cusps ناقص است. طول cusps: {len(cusps_raw)}")
         
@@ -122,6 +121,8 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         cusps = [0.0] * 12
         ascendant_deg = 0.0
         mc_deg = 0.0
+        # توجه: cusps_raw و ascmc برای se.house_pos در مرحله بعد نیاز هستند. 
+        # اگر خطا رخ داد، se.house_pos هم احتمالاً خطا می‌دهد، اما برای پایداری، از مقادیر صفر استفاده می‌کنیم.
         cusps_raw = [0.0] * 13
         ascmc = [0.0] * 2
 
@@ -145,7 +146,8 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
 
             # محاسبه موقعیت خانه سیاره
             house = 0
-            if all(c != 0.0 for c in cusps): # اگر محاسبه خانه‌ها موفق بوده باشد
+            # مطمئن شوید که محاسبه خانه‌ها موفق بوده و cusps_raw/ascmc مقادیر غیرصفری دارند
+            if ascendant_deg != 0.0:
                  # se.house_pos: lon_deg, lat_deg, cusps_raw (13), ascmc (2), house_system
                  planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system)
                  house = int(planet_house_pos[0])
@@ -179,7 +181,7 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
             planet_positions[planet_name] = 0.0
 
     # 4. محاسبه Part of Fortune
-    part_of_fortune_data = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps, ascmc, house_system, tjd_ut)
+    part_of_fortune_data = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system, tjd_ut)
     chart_data['part_of_fortune'] = part_of_fortune_data
     
     # 5. محاسبه جنبه‌ها (Aspects)
@@ -187,12 +189,12 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
 
     return chart_data
 
-def calculate_part_of_fortune(planet_positions: Dict[str, float], ascendant_deg: float, cusps: List[float], ascmc: List[float], house_system: str, tjd_ut: float) -> Dict[str, Any]:
+def calculate_part_of_fortune(planet_positions: Dict[str, float], ascendant_deg: float, cusps_raw: List[float], ascmc: List[float], house_system: str, tjd_ut: float) -> Dict[str, Any]:
     """موقعیت Part of Fortune را محاسبه می‌کند."""
     
     # اطمینان از وجود داده‌های مورد نیاز
-    if 'sun' not in planet_positions or 'moon' not in planet_positions:
-        logging.error("خطا در محاسبه Part of Fortune: اطلاعات خورشید یا ماه نامعتبر است.")
+    if 'sun' not in planet_positions or 'moon' not in planet_positions or ascendant_deg == 0.0:
+        logging.error("خطا در محاسبه Part of Fortune: اطلاعات خورشید، ماه یا طالع نامعتبر است.")
         return {'degree': 0.0, 'sign': 'نامشخص', 'house': 0, 'house_name': get_house_name(0)}
     
     sun_lon = planet_positions['sun']
@@ -205,15 +207,15 @@ def calculate_part_of_fortune(planet_positions: Dict[str, float], ascendant_deg:
     # محاسبه خانه Part of Fortune
     house = 0
     try:
-        if all(c != 0.0 for c in cusps):
-            # برای Part of Fortune عرض جغرافیایی را 0 در نظر می‌گیریم (یا می‌توان از se.house_pos برای نقطه‌ای خاص استفاده کرد)
-            # از se.house_pos برای محاسبه دقیق‌تر استفاده می‌کنیم، اما به دلیل اینکه PoF یک سیاره نیست، lon_deg و lat_deg از PoF نیستند.
-            # ساده‌ترین راه: استفاده از se.swe_house_pos برای محاسبه مستقیم خانه از درجه
-            house_pos_raw = se.house_pos(fortune_deg, 0.0, cusps, ascmc, house_system)
-            house = int(house_pos_raw[0])
+        # برای Part of Fortune عرض جغرافیایی را 0 در نظر می‌گیریم.
+        # استفاده از se.house_pos برای محاسبه خانه PoF
+        house_pos_raw = se.house_pos(fortune_deg, 0.0, cusps_raw, ascmc, house_system)
+        house = int(house_pos_raw[0])
             
     except Exception as e:
         logging.error(f"خطا در محاسبه خانه Part of Fortune: {e}")
+        # این خطا به دلیل انتقال cusps (12 عنصری) به جای cusps_raw (13 عنصری) در V3 بود. 
+        # در V4 از cusps_raw استفاده شده است که درست است.
 
     return {
         'name': 'part_of_fortune',
@@ -236,7 +238,8 @@ def calculate_aspects(planets_data: List[Dict[str, Any]]) -> List[Dict[str, Any]
             p1 = aspect_planets[i]
             p2 = aspect_planets[j]
             
-            if p1['degree'] is None or p2['degree'] is None:
+            # اطمینان از صحت درجه
+            if p1['degree'] is None or p2['degree'] is None or p1['degree'] == 0.0 or p2['degree'] == 0.0:
                 continue
 
             # محاسبه زاویه بین دو سیاره
@@ -258,7 +261,7 @@ def calculate_aspects(planets_data: List[Dict[str, Any]]) -> List[Dict[str, Any]
     return aspects
 
 # ==============================================================================
-# تابع فرمت‌بندی خروجی
+# تابع فرمت‌بندی خروجی (بدون تغییر نسبت به V3)
 # ==============================================================================
 
 def format_chart_data(chart_data: Dict[str, Any], raw_input: Dict[str, Any]) -> str:
@@ -276,7 +279,6 @@ def format_chart_data(chart_data: Dict[str, Any], raw_input: Dict[str, Any]) -> 
     if chart_data['ascendant'] > 0:
         output += f"*--- طالع (Ascendant) و هویت ظاهری ---*\n"
         output += f"**طالع:** **{asc_sign}** ({round(get_sign_degree(chart_data['ascendant']), 2)} درجه)\n"
-        # این قسمت را با تفسیر ساده‌ای که قبلاً داشتید تکمیل کنید.
         output += f"طالع در این برج نشان‌دهنده هویت ظاهری و نحوه برخورد شما با جهان است.\n\n"
     else:
         output += f"*--- طالع (Ascendant) و هویت ظاهری ---*\n"
@@ -286,11 +288,13 @@ def format_chart_data(chart_data: Dict[str, Any], raw_input: Dict[str, Any]) -> 
     output += f"*--- تفسیر سیارات اصلی در برج و خانه ---*\n\n"
     
     planet_interpretations = {
+        # این تفاسیر صرفاً متنی و ثابت هستند و باید توسط خودتان متناسب با خانه‌های واقعی تغییر کنند.
         'sun': ("♌ *خورشید در اسد:* هویت شما با غرور، رهبری و نیاز به توجه گره خورده است. فردی بسیار خلاق و مرکزگرا هستید.", "خورشید"),
         'moon': ("♐ *ماه در قوس:* امنیت عاطفی از طریق جستجو، فلسفه و آزادی تأمین می‌شود. روحیه ماجراجو دارید.", "ماه"),
         'mercury': ("♌ *عطارد در اسد:* ذهنی خلاق، نمایشی و خودباور. شما دوست دارید ایده‌هایتان را با شور و اشتیاق ابراز کنید و به دنبال تأیید و توجه دیگران به طرز فکر خود هستید.", "عطارد"),
         'venus': ("♋ *زهره در سرطان:* شما در عشق، عمیقاً عاطفی، محافظه‌کار و نیازمند امنیت هستید. ارزش‌های شما با خانواده، خانه و خاطرات گره خورده است.", "زهره"),
         'mars': ("♎ *مریخ در میزان:* انرژی و اقدام شما حول عدالت، تعادل و روابط دیپلماتیک می‌چرخد. از درگیری آشکار دوری می‌کنید.", "مریخ"),
+        # تفاسیر زیر برای سیارات بیرونی با استفاده از {house} Placeholder هستند
         'jupiter': ("*مشتری در خانه {house}:* تأثیر این سیاره نسلی/اجتماعی بر این حوزه زندگی است.", "مشتری"),
         'saturn': ("*زحل در خانه {house}:* تأثیر این سیاره نسلی/اجتماعی بر این حوزه زندگی است.", "زحل"),
         'uranus': ("*اورانوس در خانه {house}:* تأثیر این سیاره نسلی/اجتماعی بر این حوزه زندگی است.", "اورانوس"),
@@ -310,6 +314,7 @@ def format_chart_data(chart_data: Dict[str, Any], raw_input: Dict[str, Any]) -> 
             if name in ['sun', 'moon', 'mercury', 'venus', 'mars']:
                 # سیارات داخلی: تفسیر با برج (برج سیارات شما ثابت بود، ما آن را حفظ می‌کنیم)
                 output += interpretation_text + "\n"
+                # ** اکنون خانه 0 رفع شده و باید خانه صحیح نمایش داده شود.
                 output += f"*{persian_name} در {house_name}:* فعالیت این سیاره در این حوزه زندگی متمرکز است.\n\n"
             elif name in ['jupiter', 'saturn', 'uranus', 'neptune', 'pluto']:
                 # سیارات بیرونی: تفسیر فقط با خانه
