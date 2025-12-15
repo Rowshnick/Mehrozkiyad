@@ -1,5 +1,5 @@
 python-telegram-bot[webhooks]==21.7
-pyswisseph
+pyswisseph>=2.10.0.1
 persiantools
 fastapi
 uvicorn
