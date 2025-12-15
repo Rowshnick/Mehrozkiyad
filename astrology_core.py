@@ -19,7 +19,7 @@ PLANETS = {
     'sun': se.SUN, 'moon': se.MOON, 'mercury': se.MERCURY, 'venus': se.VENUS, 
     'mars': se.MARS, 'jupiter': se.JUPITER, 'saturn': se.SATURN, 'uranus': se.URANUS,
     'neptune': se.NEPTUNE, 'pluto': se.PLUTO, 'true_node': se.TRUE_NODE, 
-    'chiron': se.CHIRON, 'lilith': se.LILITH # **اصلاح شده:** جایگزینی OSCU_APOGEE با TRUE_APOGEE برای رفع خطای AttributeError
+    'chiron': se.CHIRON, 'lilith': se.TRUE_LILITH # **اصلاح شده:** جایگزینی OSCU_APOGEE با TRUE_APOGEE برای رفع خطای AttributeError
 }
 
 # نام‌های فارسی برج‌ها و خانه‌ها (برای خروجی نهایی)
