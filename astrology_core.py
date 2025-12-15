@@ -7,7 +7,8 @@ import jdatetime # <--- NEW: کتابخانه مورد نیاز برای تبد�
 
 # تنظیمات لاگینگ برای ردیابی خطاها و نسخه‌بندی
 logging.basicConfig(level=logging.INFO)
-logging.info("CODE_VERSION: 2025-12-16-FundamentalFix-V4-ShamsiDate")
+# توصیه: تاریخ و نوع اصلاحیه را در نسخه کد به‌روزرسانی کنید تا لاگ‌ها دقیق باشند.
+logging.info("CODE_VERSION: 2025-12-16-FundamentalFix-V5-AstroCoreFix")
 
 # ==============================================================================
 # ثابت‌ها
@@ -18,7 +19,7 @@ PLANETS = {
     'sun': se.SUN, 'moon': se.MOON, 'mercury': se.MERCURY, 'venus': se.VENUS, 
     'mars': se.MARS, 'jupiter': se.JUPITER, 'saturn': se.SATURN, 'uranus': se.URANUS,
     'neptune': se.NEPTUNE, 'pluto': se.PLUTO, 'true_node': se.TRUE_NODE, 
-    'chiron': se.CHIRON, 'lilith': se.OSCU_APOGEE # Lilith is Osculating Apogee
+    'chiron': se.CHIRON, 'lilith': se.TRUE_APOGEE # **اصلاح شده:** جایگزینی OSCU_APOGEE با TRUE_APOGEE برای رفع خطای AttributeError
 }
 
 # نام‌های فارسی برج‌ها و خانه‌ها (برای خروجی نهایی)
