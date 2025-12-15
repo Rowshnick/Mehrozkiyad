@@ -214,8 +214,6 @@ def calculate_part_of_fortune(planet_positions: Dict[str, float], ascendant_deg:
             
     except Exception as e:
         logging.error(f"خطا در محاسبه خانه Part of Fortune: {e}")
-        # این خطا به دلیل انتقال cusps (12 عنصری) به جای cusps_raw (13 عنصری) در V3 بود. 
-        # در V4 از cusps_raw استفاده شده است که درست است.
 
     return {
         'name': 'part_of_fortune',
@@ -261,7 +259,7 @@ def calculate_aspects(planets_data: List[Dict[str, Any]]) -> List[Dict[str, Any]
     return aspects
 
 # ==============================================================================
-# تابع فرمت‌بندی خروجی (بدون تغییر نسبت به V3)
+# تابع فرمت‌بندی خروجی
 # ==============================================================================
 
 def format_chart_data(chart_data: Dict[str, Any], raw_input: Dict[str, Any]) -> str:
@@ -312,12 +310,11 @@ def format_chart_data(chart_data: Dict[str, Any], raw_input: Dict[str, Any]) -> 
             interpretation_text, persian_name = planet_interpretations[name]
             
             if name in ['sun', 'moon', 'mercury', 'venus', 'mars']:
-                # سیارات داخلی: تفسیر با برج (برج سیارات شما ثابت بود، ما آن را حفظ می‌کنیم)
+                # سیارات داخلی
                 output += interpretation_text + "\n"
-                # ** اکنون خانه 0 رفع شده و باید خانه صحیح نمایش داده شود.
                 output += f"*{persian_name} در {house_name}:* فعالیت این سیاره در این حوزه زندگی متمرکز است.\n\n"
             elif name in ['jupiter', 'saturn', 'uranus', 'neptune', 'pluto']:
-                # سیارات بیرونی: تفسیر فقط با خانه
+                # سیارات بیرونی
                 output += interpretation_text.format(house=house) + "\n\n"
             elif name == 'true_node':
                 # گره شمالی
