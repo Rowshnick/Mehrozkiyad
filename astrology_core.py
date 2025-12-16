@@ -10,8 +10,8 @@ import io
 
 # تنظیمات لاگینگ برای ردیابی خطاها و نسخه‌بندی
 logging.basicConfig(level=logging.INFO)
-# به‌روزرسانی نسخه برای ردیابی این اصلاح
-logging.info("CODE_VERSION: 2025-12-16-FinalFix-AstroCore-julday") 
+# به‌روزرسانی نسخه برای ردیابی این اصلاح نهایی
+logging.info("CODE_VERSION: 2025-12-16-FinalFix-AstroCore-JulianDay-Corrected") 
 
 # ==============================================================================
 # ثابت‌ها
@@ -88,13 +88,13 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         birth_dt_utc = birth_dt_local_jdate.togregorian().astimezone(ZoneInfo('UTC'))
 
         # 1.3 محاسبه Julian Day (JD) از زمان UTC
-        # ✅✅✅ اصلاح حیاتی نهایی: جایگزینی se.swe_julday با se.julday ✅✅✅
-        tjd_ut = se.julday( # ⬅️ اینجا اصلاح شد!
+        # ✅✅✅ اصلاح نهایی: پرچم نامعتبر se.CALC_GREGORIAN حذف شد ✅✅✅
+        tjd_ut = se.julday(
             birth_dt_utc.year, 
             birth_dt_utc.month, 
             birth_dt_utc.day, 
-            birth_dt_utc.hour + birth_dt_utc.minute/60.0 + birth_dt_utc.second/3600.0, 
-            se.CALC_GREGORIAN
+            birth_dt_utc.hour + birth_dt_utc.minute/60.0 + birth_dt_utc.second/3600.0
+            # se.CALC_GREGORIAN حذف شد
         )
 
         logging.info(f"DEBUG: Calculated JD (UT) from Shamsi date: {tjd_ut}")
