@@ -19,6 +19,9 @@ import state_manager
 from handlers import astro_handlers, sajil_handlers 
 import astrology_core
 
+# 🛠️ FIX 1: ایمپورت کتابخانه swisseph
+import swisseph 
+
 # --- تنظیمات ضروری ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
@@ -291,12 +294,25 @@ async def lifespan(app: FastAPI):
     # 💡 فراخوانی ایجاد دیتابیس در هنگام شروع برنامه
     await state_manager.init_db() 
     print("INFO: FastAPI Bot Application Starting... Database initialized.")
+    
+    # 🛠️ FIX 2: تنظیم صریح مسیر فایل‌های اپمریس برای swisseph
+    # بر اساس Dockerfile شما، مسیر فایل‌های ephe_data در کانتینر /usr/src/app/ephe_data/ است.
+    try:
+        EPHEMERIS_PATH = '/usr/src/app/ephe_data/'
+        swisseph.set_ephe_path(EPHEMERIS_PATH)
+        logging.info(f"✅ مسیر Swiss Ephemeris به طور صریح تنظیم شد: {EPHEMERIS_PATH}")
+    except Exception as e:
+        # اگر swisseph نصب نشده یا در این مرحله قابل دسترسی نباشد، هشدار می‌دهد.
+        logging.error(f"FATAL: Failed to set swisseph path: {e}")
+    # ----------------------------------------------------
+
     # تنظیمات کتابخانه محاسباتی (اختیاری، اگر در astrology_core است)
     try:
         # فرض می‌کنیم این خط تنظیمات سوپرامریس را انجام می‌دهد
         await astrology_core.setup_ephemeris()
         logging.info("✅ سوپرامریس (Swiss Ephemeris) با موفقیت تنظیم شد.")
     except AttributeError:
+        # این هشدار اصلی در لاگ‌های شما بود، که اکنون با تنظیم مسیر صریح باید کمتر دیده شود.
         logging.warning("Setup Ephemeris not found or failed, continuing without it.")
     except Exception as e:
         logging.error(f"Ephemeris setup failed: {e}")
