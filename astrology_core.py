@@ -6,11 +6,12 @@ from zoneinfo import ZoneInfo
 from typing import Dict, Any, List
 import logging
 import jdatetime 
-import io # اضافه شد
+import io 
 
 # تنظیمات لاگینگ برای ردیابی خطاها و نسخه‌بندی
 logging.basicConfig(level=logging.INFO)
-logging.info("CODE_VERSION: 2025-12-16-FinalFix-AstroCore-JD") # به‌روزرسانی نسخه
+# به‌روزرسانی نسخه برای ردیابی این اصلاح
+logging.info("CODE_VERSION: 2025-12-16-FinalFix-AstroCore-julday") 
 
 # ==============================================================================
 # ثابت‌ها
@@ -73,7 +74,7 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     
     se.set_ephe_path('./ephe_data/') # تنظیم مسیر دیتای اپمریس
 
-    # 1. تبدیل تاریخ شمسی به Julian Day (حل مشکل بنیادین تاریخ)
+    # 1. تبدیل تاریخ شمسی به Julian Day
     try:
         year, month, day = map(int, birth_date.split('/'))
         hour, minute = map(int, birth_time.split(':'))
@@ -87,8 +88,8 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         birth_dt_utc = birth_dt_local_jdate.togregorian().astimezone(ZoneInfo('UTC'))
 
         # 1.3 محاسبه Julian Day (JD) از زمان UTC
-        # ✅✅✅ اصلاح حیاتی: جایگزینی se.date_to_jd با se.swe_julday ✅✅✅
-        tjd_ut = se.swe_julday( # ⬅️ اینجا اصلاح شد!
+        # ✅✅✅ اصلاح حیاتی نهایی: جایگزینی se.swe_julday با se.julday ✅✅✅
+        tjd_ut = se.julday( # ⬅️ اینجا اصلاح شد!
             birth_dt_utc.year, 
             birth_dt_utc.month, 
             birth_dt_utc.day, 
@@ -124,7 +125,6 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         cusps = [0.0] * 12
         ascendant_deg = 0.0
         mc_deg = 0.0
-        # اگر خطا رخ داد، Cusps_raw و ascmc هم باید به صورت صفر مقداردهی شوند.
         cusps_raw = [0.0] * 13
         ascmc = [0.0] * 2
 
@@ -142,13 +142,13 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
             # se.calc_ut returns [lon, lat, dist, lon_speed, lat_speed, dist_speed]
             planet_pos, ret_flag = se.calc_ut(tjd_ut, planet_id, swisseph_flags)
             
-            # FIX V3: تبدیل صریح به float برای جلوگیری از TypeError در se.house_pos
+            # FIX V3: تبدیل صریح به float
             lon_deg = float(planet_pos[0])
             lat_deg = float(planet_pos[1])
 
             # محاسبه موقعیت خانه سیاره
             house = 0
-            if ascendant_deg != 0.0 and len(cusps_raw) >= 13: # اضافه شدن چک طول برای امنیت بیشتر
+            if ascendant_deg != 0.0 and len(cusps_raw) >= 13: # چک طول برای امنیت بیشتر
                  # se.house_pos: lon_deg, lat_deg, cusps_raw (13), ascmc (2), house_system
                  planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system)
                  house = int(planet_house_pos[0])
@@ -244,21 +244,4 @@ def calculate_aspects(planets_data: List[Dict[str, Any]]) -> List[Dict[str, Any]
 
             # محاسبه زاویه بین دو سیاره
             angle = abs(p1['degree'] - p2['degree'])
-            angle = min(angle, 360 - angle) # پیدا کردن کوتاه‌ترین فاصله
-            
-            for aspect in ASPECTS:
-                diff = abs(angle - aspect['degree'])
-                if diff <= aspect['orb']:
-                    aspects.append({
-                        'p1': p1['name'],
-                        'p2': p2['name'],
-                        'type': aspect['name'],
-                        'exact_angle': round(angle, 2),
-                        'orb': round(diff, 2),
-                        'significance': 1.0 - (diff / aspect['orb']) # محاسبه اهمیت
-                    })
-                    
-    return aspects
-
-# ... (ادامه کدها اگر وجود دارند - تابع format_chart_data و process_astro_request)
-# برای سادگی، بخش format_chart_data و process_astro_request که تغییر نکرده‌اند حذف شدند.
+            angle = min(angle, 360 -
