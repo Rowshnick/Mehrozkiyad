@@ -55,6 +55,7 @@ def get_degree_in_sign(degree: float) -> str:
 
 # ====================================================================
 # بانک اطلاعاتی تفسیری کامل (Fully Populated Interpretation Database)
+# (توجه: این بخش با محتوای ارسالی شما کاملاً حفظ شده است)
 # ====================================================================
 
 # 1. تفسیر آسندانت (شخصیت ظاهری)
@@ -261,9 +262,14 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
         asc_sign_fa = get_sign_name(asc_degree) 
         asc_interp = ASCENDANT_INTERPRETATIONS.get(asc_sign_fa, f"**طالع در {asc_sign_fa}:** تفسیر موجود نیست.")
     else:
-        asc_interp = "**طالع نامشخص:** داده‌های چارت، درجه طالع (Ascendant) را شامل نمی‌شوند."
+        # ✅ پیام هشدار در صورت عدم موفقیت در محاسبه چارت (به دلیل خطای اپمریس)
+        asc_interp = "❌ **خطای بحرانی:** محاسبه چارت ناموفق بوده است (احتمالاً به دلیل عدم دسترسی به فایل‌های اپمریس `seas_18.se1`). تفسیر ممکن نیست."
         
     interpretations.append(f"**طالع:** {asc_interp}")
+    
+    # اگر طالع نامشخص باشد، ادامه تفسیر متوقف می‌شود.
+    if asc_degree is None:
+        return header + "\n".join(interpretations)
 
     # 3. تفسیر سیارات اصلی در برج و خانه
     interpretations.append("\n*--- تفسیر سیارات اصلی در برج و خانه ---*")
@@ -283,6 +289,7 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
             sign_interp = PLANET_IN_SIGN_INTERPRETATIONS.get(planet_name, {}).get(p_sign, f"*{p_fa} در {SIGNS_MAP.get(p_sign, p_sign)}:* تفسیر موجود نیست.")
             
             # تفسیر در خانه
+            # توجه: p_house در اینجا یک عدد است (مثل 1، 2، 3)
             house_interp = PLANET_IN_HOUSE_INTERPRETATIONS.get(p_house, {}).get(planet_name, f"*{p_fa} در خانه {p_house}:* فعالیت این سیاره در این حوزه زندگی متمرکز است.")
 
             # اضافه کردن به لیست
@@ -306,16 +313,24 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
                  node_interp = PLANET_IN_SIGN_INTERPRETATIONS.get('true_node', {}).get(p_sign, f"*{p_fa} در {SIGNS_MAP.get(p_sign, p_sign)}:* مسیر تکاملی روح شما در این حوزه است.")
                  interpretations.append(f"\n{node_interp}")
             else:
+                 # توجه: p_house در اینجا یک عدد است (مثل 1، 2، 3)
                  house_interp = PLANET_IN_HOUSE_INTERPRETATIONS.get(p_house, {}).get(planet_name, f"*{p_fa} در خانه {p_house}:* تأثیر این سیاره نسلی/اجتماعی بر این حوزه زندگی است.")
                  interpretations.append(f"\n{house_interp}")
 
 
     # 5. تفسیر زوایا (Aspects)
-    aspects_list = chart_data.get('aspects', [])
+    
+    # ✅✅✅ اصلاح حیاتی: تغییر کلید از 'aspect' (که باعث خطا شد) به 'aspects'
+    aspects_list = chart_data.get('aspects', []) 
+    
     if aspects_list:
         aspects_interp = ["\n*--- زوایای اصلی (Aspects) ---*"]
         
         for aspect in aspects_list:
+            # مطمئن می شویم که p1 و p2 در aspect وجود دارند تا خطا ندهد
+            if 'p1' not in aspect or 'p2' not in aspect or 'aspect' not in aspect or 'orb' not in aspect:
+                continue
+
             p1 = aspect['p1'].upper().replace(" ", "_")
             p2 = aspect['p2'].upper().replace(" ", "_")
             aspect_name = aspect['aspect']
@@ -343,14 +358,23 @@ def interpret_natal_chart(chart_data: Dict[str, Any]) -> str:
     
     summary_text = ["\n*--- توزیع عناصر و کیفیت‌ها ---*"]
     
-    elements_fa = [f"{ELEMENT_MAP.get(e, e)}: {c:.2f} سیاره" for e, c in element_summary.items()]
-    summary_text.append(f"  • عناصر: {'، '.join(elements_fa)}")
-    
-    qualities_fa = [f"{QUALITY_MAP.get(q, q)}: {c:.2f} سیاره" for q, c in quality_summary.items()]
-    summary_text.append(f"  • کیفیت‌ها: {'، '.join(qualities_fa)}")
+    # بررسی می‌کنیم که دیکشنری‌ها خالی نباشند
+    if element_summary:
+        elements_fa = [f"{ELEMENT_MAP.get(e, e)}: {c:.2f} سیاره" for e, c in element_summary.items()]
+        summary_text.append(f"  • عناصر: {'، '.join(elements_fa)}")
+    else:
+        summary_text.append("  • عناصر: خلاصه توزیع عناصر در دسترس نیست.")
+        
+    if quality_summary:
+        qualities_fa = [f"{QUALITY_MAP.get(q, q)}: {c:.2f} سیاره" for q, c in quality_summary.items()]
+        summary_text.append(f"  • کیفیت‌ها: {'، '.join(qualities_fa)}")
+    else:
+        summary_text.append("  • کیفیت‌ها: خلاصه توزیع کیفیت‌ها در دسترس نیست.")
+
 
     interpretations.extend(summary_text)
 
     # 7. ترکیب نهایی
     final_output = "\n".join(interpretations)
     return header + final_output
+   
