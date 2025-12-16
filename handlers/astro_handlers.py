@@ -55,12 +55,11 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         msg = ""
 
         # 3. فراخوانی تابع محاسبه چارت (Core)
-        # ⚠️ توجه: آرگومان‌های city_name و birth_date_jalali برای رفع خطای TypeError حذف شدند.
-        # birth_time_str فعال شد تا زمان تولد به هسته محاسباتی ارسال شود.
+        # ⚠️ توجه: تمام آرگومان‌های توصیفی (city_name, birth_date_jalali, birth_time_str) حذف شدند
+        # و فقط اطلاعات خام محاسباتی باقی ماندند. (birth_time: 'birth_time_str' سابق)
         chart_result = astrology_core.calculate_natal_chart(
             birth_date=birth_date_str, 
-            birth_time_str=birth_time, 
-            # city_name=city_name, # حذف شد
+            birth_time=birth_time, # ✅ اصلاح شد: نام آرگومان به 'birth_time' تغییر یافت
             latitude=float(latitude), 
             longitude=float(longitude), 
             timezone_str=timezone
