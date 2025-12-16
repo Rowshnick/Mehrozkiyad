@@ -57,7 +57,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         # 3. فراخوانی تابع محاسبه چارت (Core)
         chart_result = astrology_core.calculate_natal_chart(
             birth_date=birth_date_str, 
-            birth_time_str=birth_time, 
+            #birth_time_str=birth_time, 
             city_name=city_name,
             latitude=float(latitude), 
             longitude=float(longitude), 
