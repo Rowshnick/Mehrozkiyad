@@ -103,13 +103,21 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     try:
         logging.info(f"DEBUG: Calling se.houses with JD: {tjd_ut}, Lat: {latitude}, Lon: {longitude}, System: {house_system}")
         
-        # ✅✅✅ رفع خطای "argument 4 must be a byte string of length 1, not str"
-        # تبدیل house_system به بایت استرینگ (b'K' به جای 'K')
+        # رفع خطای "argument 4 must be a byte string of length 1, not str"
         house_system_bytes = house_system.upper().encode('utf-8')
         
-        # محاسبه خانه ها.
-        cusps_raw, ascmc = se.houses(tjd_ut, latitude, longitude, house_system_bytes) 
+        # 💡 اصلاح حیاتی: دریافت نتیجه خام و بررسی طول تاپل برای جلوگیری از خطای "tuple index out of range"
+        result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
         
+        if not isinstance(result, tuple) or len(result) < 2:
+            # اگر swisseph.houses نتیجه نامعتبر برگرداند (دلیل اصلی خطای tuple index out of range)
+            error_details = f"swisseph.houses returned unexpected result length: {len(result) if isinstance(result, tuple) else 'Not a tuple'}"
+            logging.error(f"FATAL ERROR: {error_details}")
+            return {'error': f"خطا در محاسبه خانه‌ها و طالع: {error_details}. لطفاً مختصات یا تاریخ را بررسی کنید."}
+
+        # اگر طول تاپل درست بود، می‌توانیم آن را Unpack کنیم.
+        cusps_raw, ascmc = result
+
         if len(cusps_raw) < 12:
             raise IndexError(f"خروجی cusps ناقص است. طول cusps: {len(cusps_raw)}")
         
@@ -120,12 +128,8 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         
     except Exception as e:
         logging.error(f"FATAL ERROR: خطا در محاسبه خانه‌ها و طالع: {e}")
-        # تنظیم مقادیر پیش‌فرض در صورت خطا
-        cusps = [0.0] * 12
-        ascendant_deg = 0.0
-        mc_deg = 0.0
-        cusps_raw = [0.0] * 13
-        ascmc = [0.0] * 2
+        # در صورت بروز هر خطای دیگری، یک دیکشنری خطا برمی‌گرداند.
+        return {'error': f"خطا در محاسبه خانه‌ها و طالع (Houses/Ascendant): {e}"}
 
     chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
     planet_positions = {} 
@@ -133,8 +137,7 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     # 3. محاسبه موقعیت سیارات
     for planet_name, planet_id in PLANETS.items():
         try:
-            # ✅✅✅ رفع خطای "module 'swisseph' has no attribute 'FLG_SWIEPHE'"
-            # استفاده از مدیریت خطا برای حفظ فلگ‌ها در صورت امکان
+            # رفع خطای "module 'swisseph' has no attribute 'FLG_SWIEPHE'" با استفاده از مدیریت خطا
             swisseph_flags = 0 
             try:
                 # تلاش برای استفاده از فلگ‌های کامل دقت
@@ -196,7 +199,6 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
 
 def calculate_part_of_fortune(planet_positions: Dict[str, float], ascendant_deg: float, cusps_raw: List[float], ascmc: List[float], house_system: str) -> Dict[str, Any]:
     # ... (بدون تغییر) ...
-    # این تابع از داده‌های ورودی استفاده می‌کند که در صورت خطای بالا 0.0 خواهند بود.
     if 'sun' not in planet_positions or 'moon' not in planet_positions or ascendant_deg == 0.0 or planet_positions.get('sun', 0.0) == 0.0:
         logging.error("خطا در محاسبه Part of Fortune: اطلاعات خورشید، ماه یا طالع نامعتبر است.")
         return {'degree': 0.0, 'sign': 'نامشخص', 'house': 0, 'house_name': get_house_name(0)}
@@ -307,4 +309,3 @@ def create_chart_image(chart_data: Dict[str, Any]) -> io.BytesIO:
     img_buffer.seek(0)
     
     return img_buffer
-
