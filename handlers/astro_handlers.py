@@ -1,10 +1,9 @@
-# astro_handlers.py - هندلر سرویس‌های آسترولوژی (نسخه نهایی با اضافه شدن گرافیک)
+# astro_handlers.py - هندلر سرویس‌های آسترولوژی (نسخه نهایی و تصحیح شده)
 
 import astrology_core
 import astrology_interpretation 
 import utils
 import keyboards
-# 💥💥💥 ایمپورت ماژول ترسیم چارت (جدید) 💥💥💥
 from chart_drawer_fa import draw_chart_wheel_fa 
 from persiantools.jdatetime import JalaliDateTime
 from typing import Dict, Any, Optional
@@ -21,8 +20,13 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     """
     state_data: Dict[str, Any] = state.get('data', {})
     
+    # ✅ اصلاح نهایی برای رفع UnboundLocalError: انتقال مقداردهی اولیه به ابتدای تابع
+    chart_result = None
+    interpretation_text = ""
+    msg = ""
+    image_buffer: Optional[io.BytesIO] = None 
+
     try:
-        # INFO: Logging the full data before calculation.
         logging.info(f"DEBUG: Chart Calculation Data for chat {chat_id}: {state_data}")
         
         # 1. بازیابی داده‌ها
@@ -50,15 +54,12 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         longitude = city_lookup_data['longitude']
         timezone = city_lookup_data['timezone'] 
         
-        chart_result = None
-        interpretation_text = ""
-        msg = ""
-
         # 3. فراخوانی تابع محاسبه چارت (Core)
-        # ✅ اصلاح: آرگومان‌ها به شکل نهایی و صحیح ارسال می‌شوند.
+        # 🛑 توجه: این خط به دلیل خطای swisseph.date_to_jd کرش می‌کند.
+        # حتماً باید این خطا در ماژول astrology_core.py برطرف شود.
         chart_result = astrology_core.calculate_natal_chart(
             birth_date=birth_date_str, 
-            birth_time=birth_time, # ✅ اصلاح شده: نام آرگومان به 'birth_time' تغییر یافت
+            birth_time=birth_time, 
             latitude=float(latitude), 
             longitude=float(longitude), 
             timezone_str=timezone
@@ -73,9 +74,8 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         elif chart_result:
             
             # 💥💥💥 4.1. تولید تصویر چارت (گرافیک) 💥💥💥
-            image_buffer: Optional[io.BytesIO] = None
             try:
-                # ✅ اصلاح نهایی: تزریق مجدد اطلاعات متنی برای سازگاری با draw_chart_wheel_fa (رفع خطای KeyError: 'date')
+                # اصلاح تزریق اطلاعات برای سازگاری با draw_chart_wheel_fa 
                 if isinstance(chart_result, dict):
                     chart_result['date'] = birth_date_str 
                     chart_result['time'] = birth_time 
@@ -90,7 +90,6 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
             
             # 💥💥💥 4.2. تولید تفسیر متنی 💥💥💥
             try:
-                # فرض بر وجود astrology_interpretation.interpret_natal_chart است
                 interpretation_text = astrology_interpretation.interpret_natal_chart(chart_result)
                 
                 final_interpretation_message = (
@@ -117,7 +116,6 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
                 f"تاریخ: {birth_date_str}، زمان: {birth_time}"
             )
             
-            # استفاده از تابع جدید ارسال عکس
             await utils.send_photo_with_caption(
                 utils.BOT_TOKEN, 
                 chat_id, 
@@ -133,16 +131,10 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
                 msg, 
                 keyboards.main_menu_keyboard()
              )
-        elif not image_buffer:
-             await utils.send_message(
-                utils.BOT_TOKEN, 
-                chat_id, 
-                utils.escape_markdown_v2("❌ *خطای سیستمی*: خروجی چارت و تفسیر خالی است."), 
-                keyboards.main_menu_keyboard()
-             )
 
 
     except Exception as e:
+        # اینجاست که خطای CRITICAL در لاگ‌های شما ثبت شد
         error_msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی بحرانی*:\nربات ناگهان متوقف شد. لطفاً دوباره تلاش کنید.")
         logging.critical(f"CRITICAL: Handler crashed completely outside inner block: {e}", exc_info=True)
         
