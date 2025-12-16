@@ -35,9 +35,11 @@ WORKDIR $APP_HOME
 
 # 3. نصب پکیج‌های پایتون (بعد از نصب کامپایلرها)
 COPY requirements.txt .
+COPY ephe_data /usr/src/app/ephe_data/ 
 RUN pip install --upgrade pip && \
     # ❗️ نصب تمیز با استفاده از کامپایلر تازه نصب شده
     pip install --no-cache-dir -r requirements.txt
+
 
 # 4. کپی کردن سورس کد برنامه
 COPY . .
