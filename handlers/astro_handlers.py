@@ -5,7 +5,6 @@ import astrology_interpretation
 import utils
 import keyboards
 # 💥💥💥 ایمپورت ماژول ترسیم چارت (جدید) 💥💥💥
-# این خط همان خطی است که احتمالاً خطای زمان شروع برنامه را ایجاد می‌کند
 from chart_drawer_fa import draw_chart_wheel_fa 
 from persiantools.jdatetime import JalaliDateTime
 from typing import Dict, Any, Optional
@@ -23,6 +22,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     state_data: Dict[str, Any] = state.get('data', {})
     
     try:
+        # INFO: Logging the full data before calculation.
         logging.info(f"DEBUG: Chart Calculation Data for chat {chat_id}: {state_data}")
         
         # 1. بازیابی داده‌ها
@@ -55,10 +55,12 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         msg = ""
 
         # 3. فراخوانی تابع محاسبه چارت (Core)
+        # ⚠️ توجه: آرگومان‌های city_name و birth_date_jalali برای رفع خطای TypeError حذف شدند.
+        # birth_time_str فعال شد تا زمان تولد به هسته محاسباتی ارسال شود.
         chart_result = astrology_core.calculate_natal_chart(
             birth_date=birth_date_str, 
-            #birth_time_str=birth_time, 
-            city_name=city_name,
+            birth_time_str=birth_time, 
+            # city_name=city_name, # حذف شد
             latitude=float(latitude), 
             longitude=float(longitude), 
             timezone_str=timezone
