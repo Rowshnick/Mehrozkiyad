@@ -244,4 +244,19 @@ def calculate_aspects(planets_data: List[Dict[str, Any]]) -> List[Dict[str, Any]
 
             # محاسبه زاویه بین دو سیاره
             angle = abs(p1['degree'] - p2['degree'])
-            angle = min(angle, 360 -
+            angle = min(angle, 360 - angle) # پیدا کردن کوتاه‌ترین فاصله
+            
+            for aspect in ASPECTS:
+                diff = abs(angle - aspect['degree'])
+                if diff <= aspect['orb']:
+                    aspects.append({
+                        'p1': p1['name'],
+                        'p2': p2['name'],
+                        'type': aspect['name'],
+                        'exact_angle': round(angle, 2),
+                        'orb': round(diff, 2),
+                        'significance': 1.0 - (diff / aspect['orb']) # محاسبه اهمیت
+                    })
+                    
+    return aspects
+# ... (ادامه توابع format_chart_data و process_astro_request در صورت لزوم)
