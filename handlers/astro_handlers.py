@@ -55,11 +55,9 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         msg = ""
 
         # 3. فراخوانی تابع محاسبه چارت (Core)
-        # ⚠️ توجه: تمام آرگومان‌های توصیفی (city_name, birth_date_jalali, birth_time_str) حذف شدند
-        # و فقط اطلاعات خام محاسباتی باقی ماندند. (birth_time: 'birth_time_str' سابق)
         chart_result = astrology_core.calculate_natal_chart(
             birth_date=birth_date_str, 
-            birth_time=birth_time, # ✅ اصلاح شد: نام آرگومان به 'birth_time' تغییر یافت
+            birth_time=birth_time, 
             latitude=float(latitude), 
             longitude=float(longitude), 
             timezone_str=timezone
@@ -76,11 +74,20 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
             # 💥💥💥 4.1. تولید تصویر چارت (گرافیک) 💥💥💥
             image_buffer: Optional[io.BytesIO] = None
             try:
+                # ✅ اصلاح نهایی: تزریق مجدد اطلاعات متنی برای سازگاری با draw_chart_wheel_fa 
+                # (رفع خطای KeyError: 'date')
+                if isinstance(chart_result, dict):
+                    chart_result['date'] = birth_date_str 
+                    chart_result['time'] = birth_time 
+                    chart_result['city'] = city_name
+                
                 # فراخوانی تابع ترسیم چارت
                 image_buffer = draw_chart_wheel_fa(chart_result) 
             except Exception as draw_e:
+                error_msg_draw = f"✅ محاسبه چارت موفق بود، اما خطایی در ترسیم نمودار رخ داد: `{draw_e}`"
                 logging.error(f"FATAL: Chart drawing failed: {draw_e}", exc_info=True)
-            
+                # در صورت شکست ترسیم، ادامه می‌دهیم تا حداقل تفسیر متنی ارسال شود
+                
             
             # 💥💥💥 4.2. تولید تفسیر متنی 💥💥💥
             try:
