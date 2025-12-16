@@ -1,5 +1,5 @@
 python-telegram-bot[webhooks]==21.7
-pyswisseph==2.10.1
+pyswisseph==2.10.3.2  # ✅ نسخه را به 2.10.3.2 تغییر دهید
 persiantools
 fastapi
 uvicorn
