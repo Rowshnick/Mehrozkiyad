@@ -1,4 +1,4 @@
-# astrology_core.py - نسخه نهایی اصلاح شده
+8# astrology_core.py - نسخه نهایی اصلاح شده
 
 import swisseph as se
 from datetime import datetime
@@ -88,8 +88,8 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         birth_dt_utc = birth_dt_local_jdate.togregorian().astimezone(ZoneInfo('UTC'))
 
         # 1.3 محاسبه Julian Day (JD) از زمان UTC
-        # ✅✅✅ اصلاح نهایی: پرچم نامعتبر se.CALC_GREGORIAN حذف شد ✅✅✅
-        tjd_ut = se.julday(
+        # ✅✅✅ اصلاح نهایی: پرچم نامعتبر se.CALC_GREGORIAN حذف شد (این خطای شما را رفع می‌کند) ✅✅✅
+        tjd_ut = se.julday( 
             birth_dt_utc.year, 
             birth_dt_utc.month, 
             birth_dt_utc.day, 
