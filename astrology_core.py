@@ -103,13 +103,17 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         logging.error(f"FATAL ERROR: خطا در تبدیل تاریخ شمسی به JD: {e}")
         return {'error': f"خطا در تبدیل تاریخ شمسی به Julian Day: {e}"}
 
+
     # 2. محاسبه خانه‌ها (House Cusps) و Asc/MC
-    try:
-        logging.info(f"DEBUG: Calling se.houses with JD: {tjd_ut}, Lat: {latitude}, Lon: {longitude}, System: {house_system}")
-        
-        # محاسبه خانه ها. خروجی cusps_raw شامل ۱۳ عنصر است (۱۲ خانه + Asc)
-        cusps_raw, ascmc = se.houses(tjd_ut, latitude, longitude, house_system.upper())
-        
+try:
+    logging.info(f"DEBUG: Calling se.houses with JD: {tjd_ut}, Lat: {latitude}, Lon: {longitude}, System: {house_system}")
+    
+    # ✅✅✅ خط اضافه شده: آرگومان ۴ را به بایت استرینگ تبدیل می‌کند
+    house_system_bytes = house_system.upper().encode('utf-8') 
+    
+    # خط فراخوانی اصلی: اکنون house_system_bytes (آرگومان ۴ صحیح) ارسال می‌شود
+    cusps_raw, ascmc = se.houses(tjd_ut, latitude, longitude, house_system_bytes) 
+    
         # FIX V1/V2: بررسی طول خروجی خانه‌ها
         if len(cusps_raw) < 12:
             raise IndexError(f"خروجی cusps ناقص است. طول cusps: {len(cusps_raw)}")
