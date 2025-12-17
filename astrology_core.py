@@ -16,6 +16,22 @@ import os # اضافه شده برای مدیریت مسیر
 logging.basicConfig(level=logging.INFO)
 logging.info("CODE_VERSION: 2025-12-16-FinalFix-AstroCore-FINAL-ROBUST") 
 
+
+# پیدا کردن مسیر مطلق پوشه ephe_data
+base_dir = os.path.dirname(os.path.abspath(__file__))
+ephe_path = os.path.join(base_dir, "ephe_data")
+
+# بررسی وجود یکی از فایل‌های اصلی (مثلاً فایل ماه که دارید)
+test_file = os.path.join(ephe_path, "semo_18.se1")
+
+if os.path.exists(test_file):
+    se.set_ephe_path(ephe_path)
+    logging.info(f"✅ فایل‌های نجومی با موفقیت شناسایی شدند: {ephe_path}")
+else:
+    # اگر فایل پیدا نشد، مسیر ریشه را هم چک می‌کند
+    se.set_ephe_path(base_dir)
+    logging.warning(f"⚠️ فایل {test_file} پیدا نشد. مسیر روی ریشه تنظیم شد.")
+
 # ==============================================================================
 # ثابت‌ها
 # ==============================================================================
