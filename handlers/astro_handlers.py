@@ -55,8 +55,6 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         timezone = city_lookup_data['timezone'] 
         
         # 3. فراخوانی تابع محاسبه چارت (Core)
-        # 🛑 توجه: این خط به دلیل خطای swisseph.date_to_jd کرش می‌کند.
-        # حتماً باید این خطا در ماژول astrology_core.py برطرف شود.
         chart_result = astrology_core.calculate_natal_chart(
             birth_date=birth_date_str, 
             birth_time=birth_time, 
@@ -69,6 +67,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         # 4. پردازش و تولید خروجی (گرافیک و متن)
         
         if chart_result and 'error' in chart_result:
+            # 💡 این بلوک، خطای برگشتی از astrology_core.py را کنترل می‌کند
             msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
         
         elif chart_result:
@@ -134,7 +133,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
 
 
     except Exception as e:
-        # اینجاست که خطای CRITICAL در لاگ‌های شما ثبت شد
+        # این بلوک تمام خطاهای پیش‌بینی نشده در هندلر را می‌گیرد
         error_msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی بحرانی*:\nربات ناگهان متوقف شد. لطفاً دوباره تلاش کنید.")
         logging.critical(f"CRITICAL: Handler crashed completely outside inner block: {e}", exc_info=True)
         
