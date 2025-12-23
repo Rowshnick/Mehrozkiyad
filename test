@@ -1,6 +1,0 @@
-git clone https://github.com/aloistr/swisseph.git
-cp -r swisseph/ephe /path/to/Mehrozkiyad/repo/
-cd /path/to/Mehrozkiyad/repo
-git add ephe
-git commit -m "Add ephe folder from swisseph"
-git push
