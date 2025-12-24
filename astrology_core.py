@@ -1,6 +1,3 @@
-# astrology_core.py - نسخه نهایی اصلاح شده و مقاوم در برابر خطا
-# تغییر مسیر از ephe_data به ephe برای پایداری در Railway
-
 import swisseph as se
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -17,25 +14,22 @@ import os
 logging.basicConfig(level=logging.INFO)
 logging.info("CODE_VERSION: 2025-12-24-FINAL-STABLE-EPHE") 
 
-# ۱. تنظیم مسیر مطلق برای پوشه جدید ephe
+# ۱. تنظیم مسیر برای پوشه ephe
 base_dir = os.path.dirname(os.path.abspath(__file__))
 ephe_path = os.path.join(base_dir, "ephe")
 
-# بررسی وجود فایل‌ها قبل از شروع برای جلوگیری از کرش
+# بررسی وجود فایل‌ها قبل از شروع
 test_file = os.path.join(ephe_path, "semo_18.se1")
-
 if os.path.exists(test_file):
     se.set_ephe_path(ephe_path)
-    logging.info(f"✅ فایل‌های نجومی با موفقیت در مسیر جدید شناسایی شدند: {ephe_path}")
+    logging.info(f"✅ فایل‌های نجومی شناسایی شدند: {ephe_path}")
 else:
-    # اگر پوشه ephe پیدا نشد، از مسیر ریشه استفاده می‌کند
     se.set_ephe_path(base_dir)
-    logging.warning(f"⚠️ فایل {test_file} پیدا نشد. لطفاً ساختار پوشه‌ها را چک کنید.")
+    logging.warning(f"⚠️ فایل {test_file} پیدا نشد.")
 
 # ==============================================================================
 # ثابت‌ها
 # ==============================================================================
-
 PLANETS = {
     'sun': se.SUN, 'moon': se.MOON, 'mercury': se.MERCURY, 'venus': se.VENUS, 
     'mars': se.MARS, 'jupiter': se.JUPITER, 'saturn': se.SATURN, 'uranus': se.URANUS,
@@ -57,7 +51,6 @@ ASPECTS = [
 # ==============================================================================
 # توابع کمکی
 # ==============================================================================
-
 def get_sign(degree: float) -> str:
     sign_index = int(degree / 30) % 12
     return SIGNS[sign_index]
@@ -73,10 +66,8 @@ def get_house_name(house_num: int) -> str:
 # ==============================================================================
 # منطق اصلی محاسبه چارت
 # ==============================================================================
-
 def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, longitude: float, timezone_str: str, house_system: str = 'K') -> Dict[str, Any]:
-    
-    # ۲. اصلاح مسیر در داخل تابع (برای اطمینان از عدم تداخل با bot_app)
+    # تنظیم مجدد مسیر در هر فراخوانی برای اطمینان
     current_dir = os.path.dirname(os.path.abspath(__file__))
     target_ephe = os.path.join(current_dir, "ephe")
     se.set_ephe_path(target_ephe) 
@@ -96,20 +87,22 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     except Exception as e:
         return {'error': f"خطا در تبدیل تاریخ: {e}"}
 
-    # ۳. مدیریت خروجی برای جلوگیری از IndexError (Index Out of Range)
+    # بخش مدیریت خروجی se.houses برای جلوگیری از IndexError
     try:
         house_system_bytes = house_system.upper().encode('utf-8')
         result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
         
+        # کد اصلی شما: cusps_raw, ascmc = result
+        # تغییر: برای جلوگیری از "tuple index out of range" ابتدا چک می‌کنیم که لیست خالی نباشد.
         if not result or len(result) < 2:
-            return {'error': "فایل‌های ephemeris (.se1) در پوشه ephe یافت نشدند."}
+            return {'error': "فایل‌های ephemeris در پوشه یافت نشدند."}
 
         cusps_raw, ascmc = result
         cusps = [cusps_raw[i] for i in range(1, 13)] 
         ascendant_deg = ascmc[0]
         mc_deg = ascmc[1]
     except Exception as e:
-        return {'error': f"خطا در محاسبه خانه‌ها (احتمالاً فایل‌ها گم شده‌اند): {e}"}
+        return {'error': f"خطا در محاسبه خانه‌ها: {e}"}
 
     chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
     planet_positions = {} 
@@ -136,6 +129,7 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         except:
             continue
 
+    # فراخوانی توابع جانبی بدون حذفیات
     chart_data['part_of_fortune'] = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system)
     chart_data['aspects'] = calculate_aspects(chart_data['planets'])
 
@@ -167,6 +161,7 @@ def calculate_aspects(planets_data):
     return aspects
 
 def create_chart_image(chart_data):
+    # این تابع برای استفاده در رسم گرافیک حفظ شده است
     if 'ascendant' not in chart_data or chart_data['ascendant'] == 0.0:
         raise ValueError("داده‌های چارت نامعتبر هستند.")
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={'projection': 'polar'})
