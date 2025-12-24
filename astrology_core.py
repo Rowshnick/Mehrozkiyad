@@ -1,4 +1,4 @@
-# astrology_core.py - نسخه نهایی اصلاح شده، مقاوم در برابر خطا و آماده برای تصویرسازی
+# astrology_core.py - نسخه اصلاح شده با نام پوشه جدید ephe
 
 import swisseph as se
 from datetime import datetime
@@ -10,30 +10,28 @@ import io
 import math
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
-import os # اضافه شده برای مدیریت مسیر
+import os
 
-# تنظیمات لاگینگ برای ردیابی خطاها و نسخه‌بندی
+# تنظیمات لاگینگ
 logging.basicConfig(level=logging.INFO)
-logging.info("CODE_VERSION: 2025-12-16-FinalFix-AstroCore-FINAL-ROBUST") 
+logging.info("CODE_VERSION: 2025-12-24-FolderFix-AstroCore-REVISED") 
 
-
-# پیدا کردن مسیر مطلق پوشه ephe_data
+# ۱. اصلاح مسیر اصلی به پوشه جدید ephe
 base_dir = os.path.dirname(os.path.abspath(__file__))
-ephe_path = os.path.join(base_dir, "ephe_data")
+ephe_path = os.path.join(base_dir, "ephe") # تغییر از ephe_data به ephe
 
-# بررسی وجود یکی از فایل‌های اصلی (مثلاً فایل ماه که دارید)
+# بررسی وجود یکی از فایل‌های اصلی
 test_file = os.path.join(ephe_path, "semo_18.se1")
 
 if os.path.exists(test_file):
     se.set_ephe_path(ephe_path)
-    logging.info(f"✅ فایل‌های نجومی با موفقیت شناسایی شدند: {ephe_path}")
+    logging.info(f"✅ فایل‌های نجومی با موفقیت در پوشه جدید شناسایی شدند: {ephe_path}")
 else:
-    # اگر فایل پیدا نشد، مسیر ریشه را هم چک می‌کند
     se.set_ephe_path(base_dir)
-    logging.warning(f"⚠️ فایل {test_file} پیدا نشد. مسیر روی ریشه تنظیم شد.")
+    logging.warning(f"⚠️ فایل {test_file} پیدا نشد. لطفاً مطمئن شوید پوشه ephe و فایل‌های se1. موجود هستند.")
 
 # ==============================================================================
-# ثابت‌ها
+# ثابت‌ها (بدون تغییر)
 # ==============================================================================
 
 PLANETS = {
@@ -76,9 +74,9 @@ def get_house_name(house_num: int) -> str:
 
 def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, longitude: float, timezone_str: str, house_system: str = 'K') -> Dict[str, Any]:
     
-    # ✅ اصلاح ۱: تنظیم مسیر به صورت مطلق برای Railway
+    # ۲. اصلاح مسیر در داخل تابع اصلی برای هماهنگی با Railway
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    ephe_path = os.path.join(base_dir, "ephe_data")
+    ephe_path = os.path.join(base_dir, "ephe") # تغییر از ephe_data به ephe
     se.set_ephe_path(ephe_path) 
 
     try:
@@ -96,14 +94,14 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     except Exception as e:
         return {'error': f"خطا در تبدیل تاریخ: {e}"}
 
-    # ✅ اصلاح ۲: مدیریت خروجی se.houses برای جلوگیری از IndexError
+    # مدیریت خروجی se.houses برای جلوگیری از IndexError
     try:
         house_system_bytes = house_system.upper().encode('utf-8')
         result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
         
-        # اگر فایل‌های se1 نباشند، این لیست خالی است و باعث کرش می‌شود
+        # ۳. اصلاح پیغام خطا برای پوشه جدید
         if not result or len(result) < 2:
-            return {'error': "فایل‌های ephemeris (.se1) در پوشه ephe_data یافت نشدند."}
+            return {'error': "فایل‌های ephemeris (.se1) در پوشه ephe یافت نشدند."}
 
         cusps_raw, ascmc = result
         cusps = [cusps_raw[i] for i in range(1, 13)] 
@@ -117,7 +115,6 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
 
     for planet_name, planet_id in PLANETS.items():
         try:
-            # ✅ اصلاح ۳: فلگ را برای پایداری بیشتر ساده کردیم
             planet_pos, ret_flag = se.calc_ut(tjd_ut, planet_id, 0)
             lon_deg = float(planet_pos[0])
             lat_deg = float(planet_pos[1])
@@ -138,13 +135,11 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         except:
             continue
 
-    # ۴ و ۵. محاسبه Part of Fortune و Aspects (کد شما کاملاً حفظ شد)
     chart_data['part_of_fortune'] = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system)
     chart_data['aspects'] = calculate_aspects(chart_data['planets'])
 
     return chart_data
 
-# توابع زیر دقیقاً کد خودتان هستند و دست نخورده باقی ماندند:
 def calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system):
     if 'sun' not in planet_positions or 'moon' not in planet_positions or ascendant_deg == 0.0:
         return {'degree': 0.0, 'sign': 'نامشخص', 'house': 0}
@@ -171,7 +166,6 @@ def calculate_aspects(planets_data):
     return aspects
 
 def create_chart_image(chart_data):
-    # این بخش طبق کد شما حفظ شد برای تکمیل در آینده
     if 'ascendant' not in chart_data or chart_data['ascendant'] == 0.0:
         raise ValueError("داده‌های چارت نامعتبر هستند.")
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={'projection': 'polar'})
