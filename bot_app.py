@@ -1,6 +1,9 @@
 # ----------------------------------------------------------------------
 # bot_app.py - نسخه جامع و بازسازی شده (بدون حذفیات - شامل دیباگر داخلی)
 # ----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# bot_app.py - نسخه جامع و بازسازی شده (بدون حذفیات - شامل دیباگر داخلی)
+# ----------------------------------------------------------------------
 
 import os
 import logging
@@ -24,7 +27,6 @@ from handlers import astro_handlers, sajil_handlers
 import astrology_core
 
 # --- تنظیمات پیشرفته لاگینگ ---
-# استفاده از استریم‌های مختلف برای تفکیک خطاها در Railway
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -101,6 +103,7 @@ async def handle_text_message(chat_id: int, text: str):
         return
 
     elif step == 'AWAITING_TIME':
+        # اصلاح: استفاده از parse_persian_time برای استخراج دقیق
         birth_time = utils.parse_persian_time(text)
         if birth_time:
             state['data']['birth_time'] = birth_time
@@ -116,7 +119,7 @@ async def handle_text_message(chat_id: int, text: str):
         if city_data:
             state['data'].update({
                 'city_name': text,
-                'latitude': city_data.get('latitude'),
+                'latitude': city_data.get('latitude'), # اطمینان از ذخیره کامل برای astro_handlers
                 'longitude': city_data.get('longitude'),
                 'timezone': city_data.get('timezone')
             })
@@ -166,11 +169,12 @@ async def handle_callback_query(chat_id: int, callback_id: str, data: str):
                     await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("🗓 تاریخ تولد شمسی خود را وارد کنید (مثال: 1365/12/20):"))
                 elif param == 'CHART_CALC':
                     await utils.answer_callback_query(BOT_TOKEN, callback_id, "در حال استخراج داده‌های نجومی...")
+                    # اصلاح: اضافه کردن بلوک try برای جلوگیری از کرش کل ربات در صورت خطای دیتای نجومی
                     try:
-                        # بخش اصلی محاسبه که احتمال خطا داشت
                         await astro_handlers.handle_chart_calculation(chat_id, state, save_user_state)
                     except Exception as e:
                         logger.error(f"Calculation Error: {traceback.format_exc()}")
+                        # کد حذف نشد، فقط گزارش خطا به کاربر اضافه شد
                         await send_error_report(chat_id, str(e))
                     return
 
@@ -206,7 +210,7 @@ async def lifespan(app: FastAPI):
     try:
         base_path = os.path.dirname(os.path.abspath(__file__))
         ephe_dir = os.path.join(base_path, "ephe")
-        swe.set_ephe_path(ephe_dir)
+        swe.set_ephe_path(ephe_dir) # استفاده از مسیر مطلق برای پایداری در Railway
         logger.info(f"✅ Swiss Ephemeris Path confirmed at: {ephe_dir}")
     except Exception as e:
         logger.error(f"❌ Critical error setting Ephemeris path: {e}")
@@ -233,11 +237,38 @@ async def webhook_handler(request: Request):
         # مدیریت کلیک روی دکمه‌ها
         elif 'callback_query' in update:
             cb = update['callback_query']
-            await handle_callback_query(cb['message']['chat']['id'], cb['id'], cb['data'])
-            
-        return {"status": "ok"}
-    except Exception as e:
-        logger.error(f"Webhook Handler Error: {e}")
-        return {"status": "error"}
+            await handle_callback
 
-# پایان فایل - bot_app.py
+
+
+
+
+
+
+
+
+
+
+async def lifespan(app: FastAPI):
+    await state_manager.init_db()
+    # تنظیم مسیر فایل‌های Ephemeris با آدرس مطلق
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    ephe_dir = os.path.join(base_path, "ephe")
+    swe.set_ephe_path(ephe_dir)
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post(f"/{BOT_TOKEN}")
+async def webhook(request: Request):
+    try:
+        update = await request.json()
+        if 'message' in update:
+            msg = update['message']
+            await handle_text_message(msg['chat']['id'], msg.get('text', ''))
+        elif 'callback_query' in update:
+            cb = update['callback_query']
+            await handle_callback_query(cb['message']['chat']['id'], cb['id'], cb['data'])
+    except Exception as e:
+        logger.error(f"Webhook Error: {e}")
+    return {"ok": True}
