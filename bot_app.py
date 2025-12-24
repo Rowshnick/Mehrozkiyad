@@ -225,11 +225,30 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 @app.post(f"/{BOT_TOKEN}")
-async def webhook_handler(request: Request): body = await request.json(); 
+async def webhook_handler(request: Request):
+    """هندلر اصلی وب‌هوک تلگرام."""
+    try:
+        body = await request.json()
+    except Exception as e:
+        logging.error(f"Error parsing JSON body: {e}")
+        return {"ok": False}
+    
     if 'message' in body:
-        msg = body['message']; cid = msg['chat']['id']; txt = msg.get('text', '')
-        if txt.startswith('/start'): await handle_start_command(cid)
-        else: await handle_text_message(cid, txt)
+        message = body['message']
+        chat_id = message['chat']['id']
+        text = message.get('text', '')
+        
+        if text.startswith('/start'):
+            await handle_start_command(chat_id)
+        else:
+            await handle_text_message(chat_id, text)
+
     elif 'callback_query' in body:
-        q = body['callback_query']; await handle_callback_query(q['message']['chat']['id'], q['id'], q['data'])
+        query = body['callback_query']
+        chat_id = query['message']['chat']['id']
+        callback_id = query['id']
+        data = query['data']
+        await handle_callback_query(chat_id, callback_id, data)
+        
     return {"ok": True}
+
