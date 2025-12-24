@@ -18,6 +18,7 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
     """
     state_data: Dict[str, Any] = state.get('data', {})
     
+    # اصلاح: تعریف متغیرها در سطح بالا برای جلوگیری از UnboundLocalError در صورت وقوع خطا در میانه کد
     chart_result = None
     interpretation_text = ""
     msg = ""
@@ -31,12 +32,13 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
         birth_time = state_data.get('birth_time') 
         city_name = state_data.get('city_name')
         
-        # اصلاح: استفاده از کلیدهای مستقیم موجود در استیت برای اطمینان از عدم مقدار Null
-        latitude = state_data.get('latitude')
-        longitude = state_data.get('longitude')
-        timezone = state_data.get('timezone')
+        # تغییر: تبدیل صریح به float برای جلوگیری از خطای tuple index out of range در موتور نجومی
+        # علت: گاهی مقادیر دیتابیس به صورت رشته ذخیره می‌شوند که باعث خطای محاسبات خانه‌ها می‌شود.
+        latitude = float(state_data.get('latitude', 0))
+        longitude = float(state_data.get('longitude', 0))
+        timezone = state_data.get('timezone', 'Asia/Tehran')
         
-        if not (birth_date_str and birth_time and city_name and latitude):
+        if not (birth_date_str and birth_time and city_name):
             msg = utils.escape_markdown_v2("❌ اطلاعات تولد کامل نیست. لطفاً تاریخ، ساعت و شهر را دوباره وارد کنید.")
             await utils.send_message(utils.BOT_TOKEN, chat_id, msg, keyboards.main_menu_keyboard())
             state['step'] = 'WELCOME' 
@@ -44,21 +46,20 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
             return
 
         # 2. فراخوانی تابع محاسبه چارت (Core)
-        # تغییر: اطمینان از فلوت بودن مختصات قبل از ارسال به هسته
         chart_result = astrology_core.calculate_natal_chart(
             birth_date=birth_date_str, 
             birth_time=birth_time, 
-            latitude=float(latitude), 
-            longitude=float(longitude), 
+            latitude=latitude, 
+            longitude=longitude, 
             timezone_str=timezone
         )
 
-        # 4. پردازش و تولید خروجی
+        # 3. پردازش خروجی
         if chart_result and 'error' in chart_result:
             msg = utils.escape_markdown_v2(f"❌ *خطای سیستمی در محاسبه چارت*:\n`{chart_result['error']}`")
         
         elif chart_result:
-            # 4.1. تولید تصویر چارت
+            # 3.1. تولید تصویر چارت
             try:
                 if isinstance(chart_result, dict):
                     chart_result['date'] = birth_date_str 
@@ -67,26 +68,20 @@ async def handle_chart_calculation(chat_id: int, state: dict, save_user_state_fu
                 
                 image_buffer = draw_chart_wheel_fa(chart_result) 
             except Exception as draw_e:
-                logging.error(f"FATAL: Chart drawing failed: {draw_e}", exc_info=True)
-                # تغییر: کد حذف نشد، فقط در صورت بروز خطا لاگ می‌شود تا برنامه متوقف نشود.
+                logging.error(f"FATAL: Chart drawing failed: {draw_e}")
             
-            # 4.2. تولید تفسیر متنی
+            # 3.2. تولید تفسیر متنی
             try:
                 interpretation_text = astrology_interpretation.interpret_natal_chart(chart_result)
-                final_interpretation_message = (
-                    f"✨ **تفسیر کامل چارت تولد**\n"
-                    f"تاریخ: {birth_date_str}، زمان: {birth_time}\n"
-                    f"شهر: {city_name}\n\n"
-                    f"{interpretation_text}"
-                )
+                final_interpretation_message = f"✨ **تفسیر کامل چارت تولد**\n\n{interpretation_text}"
                 msg = utils.escape_markdown_v2(final_interpretation_message)
             except Exception as interp_e:
-                logging.error(f"FATAL: Interpretation failed: {interp_e}", exc_info=True)
-                msg = utils.escape_markdown_v2(f"✅ چارت محاسبه شد اما در تفسیر خطایی رخ داد.")
+                logging.error(f"FATAL: Interpretation failed: {interp_e}")
+                msg = utils.escape_markdown_v2(f"✅ چارت با موفقیت محاسبه شد.")
 
-        # 5. ارسال خروجی نهایی
+        # 4. ارسال خروجی نهایی
         if image_buffer:
-            caption_short = utils.escape_markdown_v2(f"✨ **نمودار چارت تولد شما**\nتاریخ: {birth_date_str}")
+            caption_short = utils.escape_markdown_v2(f"✨ نمودار چارت تولد شما\nتاریخ: {birth_date_str}")
             await utils.send_photo_with_caption(utils.BOT_TOKEN, chat_id, photo=image_buffer, caption=caption_short)
         
         if msg:
