@@ -1,4 +1,5 @@
-# astrology_core.py - نسخه اصلاح شده با نام پوشه جدید ephe
+# astrology_core.py - نسخه نهایی اصلاح شده و مقاوم در برابر خطا
+# تغییر مسیر از ephe_data به ephe برای پایداری در Railway
 
 import swisseph as se
 from datetime import datetime
@@ -12,26 +13,27 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import os
 
-# تنظیمات لاگینگ
+# تنظیمات لاگینگ برای ردیابی دقیق در Railway
 logging.basicConfig(level=logging.INFO)
-logging.info("CODE_VERSION: 2025-12-24-FolderFix-AstroCore-REVISED") 
+logging.info("CODE_VERSION: 2025-12-24-FINAL-STABLE-EPHE") 
 
-# ۱. اصلاح مسیر اصلی به پوشه جدید ephe
+# ۱. تنظیم مسیر مطلق برای پوشه جدید ephe
 base_dir = os.path.dirname(os.path.abspath(__file__))
-ephe_path = os.path.join(base_dir, "ephe") # تغییر از ephe_data به ephe
+ephe_path = os.path.join(base_dir, "ephe")
 
-# بررسی وجود یکی از فایل‌های اصلی
+# بررسی وجود فایل‌ها قبل از شروع برای جلوگیری از کرش
 test_file = os.path.join(ephe_path, "semo_18.se1")
 
 if os.path.exists(test_file):
     se.set_ephe_path(ephe_path)
-    logging.info(f"✅ فایل‌های نجومی با موفقیت در پوشه جدید شناسایی شدند: {ephe_path}")
+    logging.info(f"✅ فایل‌های نجومی با موفقیت در مسیر جدید شناسایی شدند: {ephe_path}")
 else:
+    # اگر پوشه ephe پیدا نشد، از مسیر ریشه استفاده می‌کند
     se.set_ephe_path(base_dir)
-    logging.warning(f"⚠️ فایل {test_file} پیدا نشد. لطفاً مطمئن شوید پوشه ephe و فایل‌های se1. موجود هستند.")
+    logging.warning(f"⚠️ فایل {test_file} پیدا نشد. لطفاً ساختار پوشه‌ها را چک کنید.")
 
 # ==============================================================================
-# ثابت‌ها (بدون تغییر)
+# ثابت‌ها
 # ==============================================================================
 
 PLANETS = {
@@ -53,7 +55,7 @@ ASPECTS = [
 ]
 
 # ==============================================================================
-# توابع کمکی (بدون تغییر)
+# توابع کمکی
 # ==============================================================================
 
 def get_sign(degree: float) -> str:
@@ -74,16 +76,16 @@ def get_house_name(house_num: int) -> str:
 
 def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, longitude: float, timezone_str: str, house_system: str = 'K') -> Dict[str, Any]:
     
-    # ۲. اصلاح مسیر در داخل تابع اصلی برای هماهنگی با Railway
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    ephe_path = os.path.join(base_dir, "ephe") # تغییر از ephe_data به ephe
-    se.set_ephe_path(ephe_path) 
+    # ۲. اصلاح مسیر در داخل تابع (برای اطمینان از عدم تداخل با bot_app)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    target_ephe = os.path.join(current_dir, "ephe")
+    se.set_ephe_path(target_ephe) 
 
     try:
         year, month, day = map(int, birth_date.split('/'))
         hour, minute = map(int, birth_time.split(':'))
-        birth_dt_local_jdate = jdatetime.datetime(year, month, day, hour, minute, 0, tzinfo=ZoneInfo(timezone_str))
-        birth_dt_utc = birth_dt_local_jdate.togregorian().astimezone(ZoneInfo('UTC'))
+        birth_dt_local = jdatetime.datetime(year, month, day, hour, minute, 0, tzinfo=ZoneInfo(timezone_str))
+        birth_dt_utc = birth_dt_local.togregorian().astimezone(ZoneInfo('UTC'))
 
         tjd_ut = se.julday(
             birth_dt_utc.year, 
@@ -94,12 +96,11 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     except Exception as e:
         return {'error': f"خطا در تبدیل تاریخ: {e}"}
 
-    # مدیریت خروجی se.houses برای جلوگیری از IndexError
+    # ۳. مدیریت خروجی برای جلوگیری از IndexError (Index Out of Range)
     try:
         house_system_bytes = house_system.upper().encode('utf-8')
         result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
         
-        # ۳. اصلاح پیغام خطا برای پوشه جدید
         if not result or len(result) < 2:
             return {'error': "فایل‌های ephemeris (.se1) در پوشه ephe یافت نشدند."}
 
@@ -108,7 +109,7 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         ascendant_deg = ascmc[0]
         mc_deg = ascmc[1]
     except Exception as e:
-        return {'error': f"خطا در محاسبه خانه‌ها: {e}"}
+        return {'error': f"خطا در محاسبه خانه‌ها (احتمالاً فایل‌ها گم شده‌اند): {e}"}
 
     chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
     planet_positions = {} 
@@ -171,7 +172,6 @@ def create_chart_image(chart_data):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={'projection': 'polar'})
     ax.set_theta_zero_location("W")
     ax.set_theta_direction(-1)
-    ax.set_xticklabels([f"{sign}" for sign in SIGNS])
     img_buffer = io.BytesIO()
     plt.savefig(img_buffer, format='png')
     plt.close(fig)
