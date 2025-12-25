@@ -93,23 +93,28 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
 
     # --- اصلاح بخش خانه‌ها با رعایت دندانه و تعریف متغیرها ---
     try:
-        house_system_bytes = house_system.upper().encode('utf-8') # تعریف متغیر مورد نیاز
-        result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
+        # تبدیل کد سیستم خانه به بایت (مثلاً 'K' یا 'P')
+        h_sys = house_system.upper().encode('utf-8')
+        result = se.houses(tjd_ut, latitude, longitude, h_sys)
         
-        # بررسی دقیق خروجی برای جلوگیری از IndexError
-        if isinstance(result, tuple) and len(result) >= 2:
-            cusps_raw, ascmc = result
-        else:
-            logging.error(f"SwissEph returned unexpected result: {result}")
-            return {'error': "خطا در دسترسی به جداول نجومی. لطفا تنظیمات فایل‌های ephe را بررسی کنید."}
+        # بررسی پایداری خروجی
+        if not isinstance(result, tuple) or len(result) < 2:
+            logging.warning("سیستم خانه‌بندی انتخابی با شکست مواجه شد. سوئیچ به سیستم Placidus...")
+            result = se.houses(tjd_ut, latitude, longitude, b'P') # سیستم جایگزین پلاسیدوس
             
+        cusps_raw, ascmc = result
         cusps = [cusps_raw[i] for i in range(1, 13)] 
         ascendant_deg = ascmc[0]
         mc_deg = ascmc[1]
+        
+        # تعریف متغیر نهایی برای استفاده در محاسبات بعدی
+        house_system_bytes = h_sys if len(result) >= 2 else b'P'
+        
     except Exception as e:
-        logging.error(f"House calculation failed: {str(e)}")
-        return {'error': f"خطای فنی در محاسبه خانه‌ها: {e}"}
+        logging.error(f"Fatal House calculation failed: {str(e)}")
+        return {'error': "عدم امکان محاسبه خانه‌ها برای این موقعیت جغرافیایی."}
 
+    
     # ادامه محاسبات داخل بدنه تابع
     chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
     planet_positions = {} 
