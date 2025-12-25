@@ -119,31 +119,44 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
     planet_positions = {} 
 
+    # تعریف فلگ‌ها برای محاسبه طول، عرض و سرعت سیارات
+    # FLG_SWIEPH: استفاده از جداول دقیق سوئیسی
+    # FLG_SPEED: برای محاسبه سرعت و تشخیص حرکات برگشتی
+    FLAGS = se.FLG_SWIEPH | se.FLG_SPEED
+
     for planet_name, planet_id in PLANETS.items():
-    try:
-        # استفاده از فلگ‌های دقیق
-        FLAGS = se.FLG_SWIEPH | se.FLG_SPEED
-        planet_pos, ret_flag = se.calc_ut(tjd_ut, planet_id, FLAGS)
-        
-        lon_deg = float(planet_pos[0])
-        lat_deg = float(planet_pos[1]) # عرض جغرافیایی اکنون دقیق محاسبه می‌شود
+        try:
+            # فراخوانی با FLAGS جدید
+            planet_pos, ret_flag = se.calc_ut(tjd_ut, planet_id, FLAGS)
+            
+            # استخراج مقادیر از لیست خروجی
+            lon_deg = float(planet_pos[0]) # طول جغرافیایی (مکان در زودیاک)
+            lat_deg = float(planet_pos[1]) # عرض جغرافیایی (Celestial Latitude)
+            dist = float(planet_pos[2])    # فاصله
+            speed_lon = float(planet_pos[3]) # سرعت (برای تشخیص Retrograde)
 
-        # تشخیص حرکت برگشتی (Retrograde) بر اساس سرعت
-        is_retrograde = planet_pos[3] < 0
+            house = 0
+            if ascendant_deg != 0.0:
+                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system_bytes)
+                 house = int(planet_house_pos[0])
 
-        # ... بقیه محاسبات خانه ...
-        
-        planet_data = {
-            'name': planet_name,
-            'degree': lon_deg,
-            'sign': get_sign(lon_deg),
-            'latitude': lat_deg, # مقدار اصلاح شده
-            'retrograde': is_retrograde
-        }
-        chart_data['planets'].append(planet_data)
-    except Exception as e:
-        logging.error(f"Error calculating {planet_name}: {e}")
-        continue
+            planet_data = {
+                'name': planet_name, 
+                'id': planet_id, 
+                'degree': lon_deg,
+                'sign': get_sign(lon_deg), 
+                'sign_degree': get_sign_degree(lon_deg),
+                'house': house, 
+                'house_name': get_house_name(house),
+                'retrograde': speed_lon < 0, # تشخیص دقیق بر اساس سرعت
+                'latitude': lat_deg,         # حالا این مقدار دیگر 0 نخواهد بود
+                'distance': dist
+            }
+            chart_data['planets'].append(planet_data)
+            planet_positions[planet_name] = lon_deg 
+        except Exception as e:
+            logging.error(f"Error calculating {planet_name}: {e}")
+            continue
 
     # محاسبات نهایی
     chart_data['part_of_fortune'] = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system)
