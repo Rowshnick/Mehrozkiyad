@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 import os
 
+# استفاده از مسیر مطلق برای اطمینان در محیط داکر (Railway)
+ephe_path = "/usr/src/app/ephe" 
+se.set_ephe_path(ephe_path)
+
 # تنظیمات لاگینگ برای ردیابی دقیق در Railway
 logging.basicConfig(level=logging.INFO)
 logging.info("CODE_VERSION: 2025-12-24-FINAL-STABLE-EPHE") 
@@ -88,21 +92,23 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         return {'error': f"خطا در تبدیل تاریخ: {e}"}
 
     # بخش مدیریت خروجی se.houses برای جلوگیری از IndexError
-    try:
-        house_system_bytes = house_system.upper().encode('utf-8')
-        result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
-        
-        # کد اصلی شما: cusps_raw, ascmc = result
-        # تغییر: برای جلوگیری از "tuple index out of range" ابتدا چک می‌کنیم که لیست خالی نباشد.
-        if not result or len(result) < 2:
-            return {'error': "فایل‌های ephemeris در پوشه یافت نشدند."}
-
+   
+try:
+    result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
+    
+    # بررسی دقیق خروجی قبل از Unpacking
+    if isinstance(result, tuple) and len(result) >= 2:
         cusps_raw, ascmc = result
-        cusps = [cusps_raw[i] for i in range(1, 13)] 
-        ascendant_deg = ascmc[0]
-        mc_deg = ascmc[1]
-    except Exception as e:
-        return {'error': f"خطا در محاسبه خانه‌ها: {e}"}
+    else:
+        logging.error(f"SwissEph returned unexpected result: {result}")
+        return {'error': "خطا در دسترسی به جداول نجومی. لطفا تنظیمات فایل‌های ephe را بررسی کنید."}
+        
+    cusps = [cusps_raw[i] for i in range(1, 13)] 
+    ascendant_deg = ascmc[0]
+    mc_deg = ascmc[1]
+except Exception as e:
+    logging.error(f"House calculation failed: {str(e)}")
+    return {'error': f"خطای فنی در محاسبه خانه‌ها: {e}"}
 
     chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
     planet_positions = {} 
