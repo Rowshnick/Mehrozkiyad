@@ -93,28 +93,31 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
 
     # --- اصلاح بخش خانه‌ها با رعایت دندانه و تعریف متغیرها ---
     try:
-        # تبدیل کد سیستم خانه به بایت (مثلاً 'K' یا 'P')
         h_sys = house_system.upper().encode('utf-8')
+        # تلاش اول با سیستم انتخابی (مثلا Koch)
         result = se.houses(tjd_ut, latitude, longitude, h_sys)
-        
-        # بررسی پایداری خروجی
-        if not isinstance(result, tuple) or len(result) < 2:
-            logging.warning("سیستم خانه‌بندی انتخابی با شکست مواجه شد. سوئیچ به سیستم Placidus...")
-            result = se.houses(tjd_ut, latitude, longitude, b'P') # سیستم جایگزین پلاسیدوس
-            
         cusps_raw, ascmc = result
-        cusps = [cusps_raw[i] for i in range(1, 13)] 
-        ascendant_deg = ascmc[0]
-        mc_deg = ascmc[1]
+        house_system_bytes = h_sys
         
-        # تعریف متغیر نهایی برای استفاده در محاسبات بعدی
-        house_system_bytes = h_sys if len(result) >= 2 else b'P'
-        
-    except Exception as e:
-        logging.error(f"Fatal House calculation failed: {str(e)}")
-        return {'error': "عدم امکان محاسبه خانه‌ها برای این موقعیت جغرافیایی."}
+    except (se.Error, Exception) as e:
+        logging.warning(f"سیستم {house_system} با شکست مواجه شد. در حال تلاش با سیستم Placidus...")
+        try:
+            # تلاش دوم با سیستم پلاسیدوس
+            result = se.houses(tjd_ut, latitude, longitude, b'P')
+            cusps_raw, ascmc = result
+            house_system_bytes = b'P'
+        except:
+            logging.error("سیستم پلاسیدوس هم شکست خورد. استفاده از سیستم Whole Sign...")
+            # تلاش نهایی: سیستم Whole Sign (بسیار پایدار)
+            result = se.houses(tjd_ut, latitude, longitude, b'W')
+            cusps_raw, ascmc = result
+            house_system_bytes = b'W'
 
-    
+    # استخراج کپس‌ها (کماکان ۱۲ خانه)
+    cusps = [cusps_raw[i] for i in range(1, 13)] 
+    ascendant_deg = ascmc[0]
+    mc_deg = ascmc[1]
+
     # ادامه محاسبات داخل بدنه تابع
     chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
     planet_positions = {} 
