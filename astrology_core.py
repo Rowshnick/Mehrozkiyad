@@ -61,6 +61,18 @@ def get_house_name(house_num: int) -> str:
         return HOUSES_LIST[house_num - 1]
     return "نامشخص"
 
+
+# کد تست در فایل astro_handlers.py
+logging.info(f"DEBUG: دریافت درخواست محاسبه برای ساعت: {birth_time}")
+logging.info(f"DEBUG: مختصات دریافتی: Lat={latitude}, Lon={longitude}")
+
+try:
+    # فراخوانی تابع اصلی
+    chart = calculate_natal_chart(birth_date, birth_time, latitude, longitude, timezone, house_system)
+    logging.info("DEBUG: محاسبه چارت با موفقیت در هسته انجام شد.")
+except Exception as e:
+    logging.error(f"DEBUG: خطا در حین اجرای تابع calculate_natal_chart: {e}")
+
 # ==============================================================================
 # منطق اصلی محاسبه چارت
 # ==============================================================================
