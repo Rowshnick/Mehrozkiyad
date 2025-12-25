@@ -92,26 +92,19 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         return {'error': f"خطا در تبدیل تاریخ: {e}"}
 
     # --- اصلاح بخش خانه‌ها با رعایت دندانه و تعریف متغیرها ---
+   def calculate_natal_chart(birth_date, birth_time, latitude, longitude, timezone_str, house_system='K'):
+    # ... (بخش تبدیل تاریخ و زمان جولیانی) ...
+
     try:
         h_sys = house_system.upper().encode('utf-8')
-        # تلاش اول با سیستم انتخابی (مثلا Koch)
         result = se.houses(tjd_ut, latitude, longitude, h_sys)
         cusps_raw, ascmc = result
         house_system_bytes = h_sys
-        
-    except (se.Error, Exception) as e:
-        logging.warning(f"سیستم {house_system} با شکست مواجه شد. در حال تلاش با سیستم Placidus...")
-        try:
-            # تلاش دوم با سیستم پلاسیدوس
-            result = se.houses(tjd_ut, latitude, longitude, b'P')
-            cusps_raw, ascmc = result
-            house_system_bytes = b'P'
-        except:
-            logging.error("سیستم پلاسیدوس هم شکست خورد. استفاده از سیستم Whole Sign...")
-            # تلاش نهایی: سیستم Whole Sign (بسیار پایدار)
-            result = se.houses(tjd_ut, latitude, longitude, b'W')
-            cusps_raw, ascmc = result
-            house_system_bytes = b'W'
+    except:
+        # سیستم رزرو (Whole Sign) برای جلوگیری از توقف ربات
+        result = se.houses(tjd_ut, latitude, longitude, b'W')
+        cusps_raw, ascmc = result
+        house_system_bytes = b'W'
 
     # استخراج کپس‌ها (کماکان ۱۲ خانه)
     cusps = [cusps_raw[i] for i in range(1, 13)] 
