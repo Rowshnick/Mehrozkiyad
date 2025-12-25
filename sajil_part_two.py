@@ -14,8 +14,7 @@ def sajil_part_two_process(prepared_data: list[float]) -> dict:
     # مثال: اجرای منطق اصلی (محاسبه مجموع و میانگین)
     total_sum = sum(prepared_data)
     total_count = len(prepared_data)
-    average = total_sum / total_count
-    
+    average = total_sum / total_count if total_count > 0 else 0
     # اینجا می‌توانید منطق پیچیده سجیل را بر اساس مجموع، عناصر و سایر داده‌ها اضافه کنید.
 
     result = {
