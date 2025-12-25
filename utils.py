@@ -17,9 +17,15 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 # --- توابع Telegram API Call ---
 
 def escape_markdown_v2(text: str) -> str:
-    """فراردهی کاراکترهای خاص برای MarkdownV2 تلگرام."""
-    chars_to_escape = r'([_*\[\]()~`>#+\-=|{}.!])'
-    return re.sub(chars_to_escape, r'\\\1', text)
+    """فراردهی دقیق تمام کاراکترهای خاص برای MarkdownV2 تلگرام."""
+    # لیست کامل کاراکترهایی که در MarkdownV2 نیاز به بک‌اسلش دارند
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return "".join(['\\' + char if char in escape_chars else char for char in str(text)])
+
+#def escape_markdown_v2(text: str) -> str:
+   # """فراردهی کاراکترهای خاص برای MarkdownV2 تلگرام."""
+   # chars_to_escape = r'([_*\[\]()~`>#+\-=|{}.!])'
+   # return re.sub(chars_to_escape, r'\\\1', text)
 
 async def send_message(bot_token: str, chat_id: int, text: str, reply_markup: Optional[Dict[str, Any]] = None):
     """
