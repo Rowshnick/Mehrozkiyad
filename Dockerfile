@@ -33,13 +33,14 @@ ENV PYTHONUNBUFFERED 1
 ENV APP_HOME /usr/src/app
 WORKDIR $APP_HOME
 
-# 3. نصب پکیج‌های پایتون (بعد از نصب کامپایلرها)
-# کپی کردن پوشه داده‌های نجومی به مسیر مشخص 
+# 3. نصب پکیج‌های پایتون و داده‌ها
 COPY requirements.txt .
 COPY ephe/ /usr/src/app/ephe/
-# تنظیم دسترسی خواندن برای تمام فایل‌های .se1 (بسیار مهم برای Railway)
 RUN chmod -R 755 /usr/src/app/ephe
 
+# ❗️ حتماً این سطر را اینجا داشته باشید تا پکیج‌ها نصب شوند
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # 4. کپی کردن سورس کد برنامه
 COPY . .
