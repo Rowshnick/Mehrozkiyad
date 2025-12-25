@@ -91,25 +91,26 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     except Exception as e:
         return {'error': f"خطا در تبدیل تاریخ: {e}"}
 
-    # بخش مدیریت خروجی se.houses برای جلوگیری از IndexError
-   
-try:
-    result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
-    
-    # بررسی دقیق خروجی قبل از Unpacking
-    if isinstance(result, tuple) and len(result) >= 2:
-        cusps_raw, ascmc = result
-    else:
-        logging.error(f"SwissEph returned unexpected result: {result}")
-        return {'error': "خطا در دسترسی به جداول نجومی. لطفا تنظیمات فایل‌های ephe را بررسی کنید."}
+    # --- اصلاح بخش خانه‌ها با رعایت دندانه و تعریف متغیرها ---
+    try:
+        house_system_bytes = house_system.upper().encode('utf-8') # تعریف متغیر مورد نیاز
+        result = se.houses(tjd_ut, latitude, longitude, house_system_bytes)
         
-    cusps = [cusps_raw[i] for i in range(1, 13)] 
-    ascendant_deg = ascmc[0]
-    mc_deg = ascmc[1]
-except Exception as e:
-    logging.error(f"House calculation failed: {str(e)}")
-    return {'error': f"خطای فنی در محاسبه خانه‌ها: {e}"}
+        # بررسی دقیق خروجی برای جلوگیری از IndexError
+        if isinstance(result, tuple) and len(result) >= 2:
+            cusps_raw, ascmc = result
+        else:
+            logging.error(f"SwissEph returned unexpected result: {result}")
+            return {'error': "خطا در دسترسی به جداول نجومی. لطفا تنظیمات فایل‌های ephe را بررسی کنید."}
+            
+        cusps = [cusps_raw[i] for i in range(1, 13)] 
+        ascendant_deg = ascmc[0]
+        mc_deg = ascmc[1]
+    except Exception as e:
+        logging.error(f"House calculation failed: {str(e)}")
+        return {'error': f"خطای فنی در محاسبه خانه‌ها: {e}"}
 
+    # ادامه محاسبات داخل بدنه تابع
     chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
     planet_positions = {} 
 
@@ -121,6 +122,7 @@ except Exception as e:
 
             house = 0
             if ascendant_deg != 0.0:
+                 # استفاده از متغیر تعریف شده
                  planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system_bytes)
                  house = int(planet_house_pos[0])
 
@@ -135,7 +137,7 @@ except Exception as e:
         except:
             continue
 
-    # فراخوانی توابع جانبی بدون حذفیات
+    # محاسبات نهایی
     chart_data['part_of_fortune'] = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system)
     chart_data['aspects'] = calculate_aspects(chart_data['planets'])
 
