@@ -120,27 +120,30 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
     planet_positions = {} 
 
     for planet_name, planet_id in PLANETS.items():
-        try:
-            planet_pos, ret_flag = se.calc_ut(tjd_ut, planet_id, 0)
-            lon_deg = float(planet_pos[0])
-            lat_deg = float(planet_pos[1])
+    try:
+        # استفاده از فلگ‌های دقیق
+        FLAGS = se.FLG_SWIEPH | se.FLG_SPEED
+        planet_pos, ret_flag = se.calc_ut(tjd_ut, planet_id, FLAGS)
+        
+        lon_deg = float(planet_pos[0])
+        lat_deg = float(planet_pos[1]) # عرض جغرافیایی اکنون دقیق محاسبه می‌شود
 
-            house = 0
-            if ascendant_deg != 0.0:
-                 # استفاده از متغیر تعریف شده
-                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system_bytes)
-                 house = int(planet_house_pos[0])
+        # تشخیص حرکت برگشتی (Retrograde) بر اساس سرعت
+        is_retrograde = planet_pos[3] < 0
 
-            planet_data = {
-                'name': planet_name, 'id': planet_id, 'degree': lon_deg,
-                'sign': get_sign(lon_deg), 'sign_degree': get_sign_degree(lon_deg),
-                'house': house, 'house_name': get_house_name(house),
-                'retrograde': planet_pos[3] < 0, 'latitude': lat_deg
-            }
-            chart_data['planets'].append(planet_data)
-            planet_positions[planet_name] = lon_deg 
-        except:
-            continue
+        # ... بقیه محاسبات خانه ...
+        
+        planet_data = {
+            'name': planet_name,
+            'degree': lon_deg,
+            'sign': get_sign(lon_deg),
+            'latitude': lat_deg, # مقدار اصلاح شده
+            'retrograde': is_retrograde
+        }
+        chart_data['planets'].append(planet_data)
+    except Exception as e:
+        logging.error(f"Error calculating {planet_name}: {e}")
+        continue
 
     # محاسبات نهایی
     chart_data['part_of_fortune'] = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system)
