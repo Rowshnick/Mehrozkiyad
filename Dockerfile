@@ -34,11 +34,11 @@ ENV APP_HOME /usr/src/app
 WORKDIR $APP_HOME
 
 # 3. نصب پکیج‌های پایتون (بعد از نصب کامپایلرها)
+# کپی کردن پوشه داده‌های نجومی به مسیر مشخص 
 COPY requirements.txt .
-COPY ephe/ /usr/src/app/ephe
-RUN pip install --upgrade pip && \
-    # ❗️ نصب تمیز با استفاده از کامپایلر تازه نصب شده
-    pip install --no-cache-dir -r requirements.txt
+COPY ephe/ /usr/src/app/ephe/
+# تنظیم دسترسی خواندن برای تمام فایل‌های .se1 (بسیار مهم برای Railway)
+RUN chmod -R 755 /usr/src/app/ephe
 
 
 # 4. کپی کردن سورس کد برنامه
