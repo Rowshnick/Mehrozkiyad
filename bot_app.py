@@ -100,6 +100,7 @@ async def handle_text_message(chat_id: int, text: str):
             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("❌ فرمت تاریخ صحیح نیست. مثال: 1370/01/01"))
         return
 
+    
     elif step == 'AWAITING_TIME':
         # اصلاح داخلی (فقط برای جلوگیری از باگ): پارس کردن زمان
         birth_time = utils.parse_persian_time(text)
@@ -110,27 +111,33 @@ async def handle_text_message(chat_id: int, text: str):
             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("✅ ساعت ثبت شد.\n\n📍 حالا نام شهر محل تولد را به فارسی وارد کنید:"))
         else:
             await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("❌ ساعت نامعتبر است. مثال: 08:20 یا 21:45"))
-        return
+        return    
 
     elif step == 'AWAITING_CITY':
         city_data = utils.get_city_lookup_data(text)
         if city_data:
-            # تغییر: اضافه کردن float() برای حل باگ tuple index out of range 
-            # (این تغییر برای موتور نجومی حیاتی است اما منطق شما را تغییر نمی دهد)
-            state['data'].update({
-                'city_name': text,
-                'latitude': float(city_data.get('latitude', 0)), 
-                'longitude': float(city_data.get('longitude', 0)),
-                'timezone': city_data.get('timezone')
-            })
-            state['step'] = 'CHART_INPUT_COMPLETE'
-            await save_user_state(chat_id, state)
-            
-            msg = f"✅ شهر {text} با مختصات {city_data['latitude']} شناسایی شد.\n\nآماده محاسبه چارت هستید؟"
-            calc_kb = keyboards.create_keyboard([[keyboards.create_button("محاسبه و ارسال چارت 📝", callback_data='SERVICES|ASTRO|CHART_CALC')]])
-            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2(msg), calc_kb)
+            # اطمینان از تبدیل شدن مقادیر به عدد اعشاری (float)
+            try:
+                lat = float(city_data.get('latitude', 0))
+                lon = float(city_data.get('longitude', 0))
+                
+                state['data'].update({
+                    'city_name': text,
+                    'latitude': lat, 
+                    'longitude': lon,
+                    'timezone': city_data.get('timezone', 'Asia/Tehran') # مقدار پیش‌فرض
+                })
+                state['step'] = 'CHART_INPUT_COMPLETE'
+                await save_user_state(chat_id, state)
+                
+                msg = f"✅ شهر {text} شناسایی شد.\n\nآماده محاسبه چارت هستید؟"
+                calc_kb = keyboards.create_keyboard([[keyboards.create_button("محاسبه و ارسال چارت 📝", callback_data='SERVICES|ASTRO|CHART_CALC')]])
+                await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2(msg), calc_kb)
+            except Exception as e:
+                logger.error(f"Error processing city coordinates: {e}")
+                await utils.send_message(BOT_TOKEN, chat_id, "❌ خطایی در پردازش مختصات شهر رخ داد.")
         else:
-            await utils.send_message(BOT_TOKEN, chat_id, utils.escape_markdown_v2("❌ شهر پیدا نشد. لطفاً نام مرکز استان را وارد کنید."))
+            await utils.send_message(BOT_TOKEN, chat_id, "❌ شهر پیدا نشد. لطفاً نام مرکز استان را وارد کنید.")
         return
 
     # 2. بخش ورود داده‌های سجیل (Sajil)
