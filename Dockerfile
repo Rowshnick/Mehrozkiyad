@@ -36,9 +36,9 @@ RUN chmod -R 755 /usr/src/app/ephe
 COPY . .
 
 # تنظیم متغیرهای محیطی برای زبان
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 # ۵. دستور اجرای برنامه
 CMD ["python", "-m", "uvicorn", "bot_app:app", "--host", "0.0.0.0", "--port", "8080"]
