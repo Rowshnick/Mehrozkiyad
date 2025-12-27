@@ -99,9 +99,18 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
 
             house = 0
             if ascendant_deg != 0.0:
-                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, h_sys_final)
-                 house = int(planet_house_pos[0])
-
+    try:
+        # در اکثر نسخه‌های pyswisseph خروجی یک float است
+        planet_house_pos = se.house_pos(lon_deg, lat_deg, latitude, h_sys_final, cusps_raw)
+        
+        if isinstance(planet_house_pos, (list, tuple)):
+            house = int(planet_house_pos[0])
+        else:
+            house = int(planet_house_pos)
+    except Exception as e:
+        logging.warning(f"Error calculating house for planet: {e}")
+        house = 0
+        
             p_data = {
                 'name': planet_name, 
                 'degree': lon_deg,
