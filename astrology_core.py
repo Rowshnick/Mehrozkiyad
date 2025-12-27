@@ -78,8 +78,8 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
             h_sys = house_system.upper().encode('utf-8')
             cusps_raw, ascmc = se.houses(tjd_ut, latitude, longitude, h_sys)
             h_sys_final = h_sys
-        except:
-            logging.warning("Falling back to Whole Sign System")
+        except Exception as e:
+            logging.warning(f"Falling back to Whole Sign System due to: {e}")
             cusps_raw, ascmc = se.houses(tjd_ut, latitude, longitude, b'W')
             h_sys_final = b'W'
 
@@ -99,18 +99,17 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
 
             house = 0
             if ascendant_deg != 0.0:
-    try:
-        # در اکثر نسخه‌های pyswisseph خروجی یک float است
-        planet_house_pos = se.house_pos(lon_deg, lat_deg, latitude, h_sys_final, cusps_raw)
-        
-        if isinstance(planet_house_pos, (list, tuple)):
-            house = int(planet_house_pos[0])
-        else:
-            house = int(planet_house_pos)
-    except Exception as e:
-        logging.warning(f"Error calculating house for planet: {e}")
-        house = 0
-        
+                try:
+                    # اصلاح خروجی برای جلوگیری از خطای tuple index out of range
+                    planet_house_pos = se.house_pos(lon_deg, lat_deg, latitude, h_sys_final, cusps_raw)
+                    if isinstance(planet_house_pos, (list, tuple)):
+                        house = int(planet_house_pos[0])
+                    else:
+                        house = int(planet_house_pos)
+                except Exception as e:
+                    logging.warning(f"Error calculating house for {planet_name}: {e}")
+                    house = 0
+
             p_data = {
                 'name': planet_name, 
                 'degree': lon_deg,
@@ -124,7 +123,8 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
             chart_data['planets'].append(p_data)
             planet_positions[planet_name] = lon_deg 
 
-        chart_data['part_of_fortune'] = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, h_sys_final)
+        # اصلاح فراخوانی: اضافه شدن متغیر latitude
+        chart_data['part_of_fortune'] = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, h_sys_final, latitude)
         chart_data['aspects'] = calculate_aspects(chart_data['planets'])
 
         return chart_data
@@ -133,21 +133,29 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
         logging.error(f"Critical error in calculate_natal_chart: {e}")
         return None
 
-def calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, h_sys_bytes):
+def calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, h_sys_bytes, latitude):
     if 'sun' not in planet_positions or 'moon' not in planet_positions:
         return {'degree': 0.0, 'sign': 'نامشخص'}
     
     fortune_deg = (ascendant_deg + planet_positions['moon'] - planet_positions['sun']) % 360
     house = 0
-   try:
-    house_pos_raw = se.house_pos(fortune_deg, 0.0, latitude, h_sys_bytes, cusps_raw)
-    if isinstance(house_pos_raw, (list, tuple)):
-        house = int(house_pos_raw[0])
-    else:
-        house = int(house_pos_raw)
-except: 
-    house = 0
-    return {'degree': fortune_deg, 'sign': get_sign(fortune_deg), 'sign_degree': get_sign_degree(fortune_deg), 'house': house, 'house_name': get_house_name(house)}
+    try:
+        # اصلاح خروجی برای جلوگیری از خطای index out of range
+        house_pos_raw = se.house_pos(fortune_deg, 0.0, latitude, h_sys_bytes, cusps_raw)
+        if isinstance(house_pos_raw, (list, tuple)):
+            house = int(house_pos_raw[0])
+        else:
+            house = int(house_pos_raw)
+    except: 
+        house = 0
+        
+    return {
+        'degree': fortune_deg, 
+        'sign': get_sign(fortune_deg), 
+        'sign_degree': get_sign_degree(fortune_deg), 
+        'house': house, 
+        'house_name': get_house_name(house)
+    }
 
 def calculate_aspects(planets_data):
     aspects = []
@@ -159,5 +167,10 @@ def calculate_aspects(planets_data):
             angle = min(angle, 360 - angle) 
             for aspect in ASPECTS:
                 if abs(angle - aspect['degree']) <= aspect['orb']:
-                    aspects.append({'p1': p1['name'], 'p2': p2['name'], 'type': aspect['name'], 'orb': round(abs(angle - aspect['degree']), 2)})
+                    aspects.append({
+                        'p1': p1['name'], 
+                        'p2': p2['name'], 
+                        'type': aspect['name'], 
+                        'orb': round(abs(angle - aspect['degree']), 2)
+                    })
     return aspects
