@@ -79,6 +79,8 @@ except Exception as e:
 def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, longitude: float, timezone_str: str, house_system: str = 'K') -> Dict[str, Any]:
     """محاسبه چارت با سیستم Fallback برای پایداری در Railway"""
     try:
+        # متغیر birth_time باید حتماً داخل تابع باشد تا شناسایی شود
+        logging.info(f"DEBUG: دریافت درخواست محاسبه برای ساعت: {birth_time}")
         year, month, day = map(int, birth_date.split('/'))
         hour, minute = map(int, birth_time.split(':'))
         birth_dt_local = jdatetime.datetime(year, month, day, hour, minute, 0, tzinfo=ZoneInfo(timezone_str))
@@ -91,7 +93,8 @@ def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, lon
             birth_dt_utc.hour + birth_dt_utc.minute/60.0
         )
     except Exception as e:
-        return {'error': f"خطا در تبدیل تاریخ: {e}"}
+        logging.error(f"خطا در محاسبات: {str(e)}")
+        return None
 
     # --- اصلاح بخش خانه‌ها با رعایت دقیق تورفتگی ---
     try:
