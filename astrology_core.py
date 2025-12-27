@@ -139,10 +139,14 @@ def calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc,
     
     fortune_deg = (ascendant_deg + planet_positions['moon'] - planet_positions['sun']) % 360
     house = 0
-    try:
-        house_pos_raw = se.house_pos(fortune_deg, 0.0, cusps_raw, ascmc, h_sys_bytes)
+   try:
+    house_pos_raw = se.house_pos(fortune_deg, 0.0, latitude, h_sys_bytes, cusps_raw)
+    if isinstance(house_pos_raw, (list, tuple)):
         house = int(house_pos_raw[0])
-    except: pass
+    else:
+        house = int(house_pos_raw)
+except: 
+    house = 0
     return {'degree': fortune_deg, 'sign': get_sign(fortune_deg), 'sign_degree': get_sign_degree(fortune_deg), 'house': house, 'house_name': get_house_name(house)}
 
 def calculate_aspects(planets_data):
