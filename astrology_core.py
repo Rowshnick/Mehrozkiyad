@@ -1,171 +1,85 @@
+# astrology_core.py
+import pytz
+from skyfield.api import load, Topos
+from persiantools.jdatetime import JalaliDateTime
+from typing import Dict, Any
 
-import swisseph as se
-from datetime import datetime
-from zoneinfo import ZoneInfo
-from typing import Dict, Any, List
-import logging
-import jdatetime 
-import io 
-import math
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
-import os
-
-# تنظیمات لاگینگ برای ردیابی دقیق در Railway
-logging.basicConfig(level=logging.INFO)
-logging.info("CODE_VERSION: 2025-12-24-FINAL-STABLE-EPHE") 
-
-# ۱. تنظیم مسیر برای پوشه ephe (استفاده از مسیر مطلق برای اطمینان در محیط داکر)
-base_dir = os.path.dirname(os.path.abspath(__file__))
-ephe_path = os.path.join(base_dir, "ephe")
-
-# بررسی وجود فایل‌ها قبل از شروع
-if os.path.exists(ephe_path):
-    se.set_ephe_path(ephe_path)
-    logging.info(f"✅ فایل‌های نجومی شناسایی شدند: {ephe_path}")
-else:
-    logging.warning(f"⚠️ پوشه ephe یافت نشد.")
-
-# ==============================================================================
-# ثابت‌ها
-# ==============================================================================
-PLANETS = {
-    'sun': se.SUN, 'moon': se.MOON, 'mercury': se.MERCURY, 'venus': se.VENUS, 
-    'mars': se.MARS, 'jupiter': se.JUPITER, 'saturn': se.SATURN, 'uranus': se.URANUS,
-    'neptune': se.NEPTUNE, 'pluto': se.PLUTO, 'true_node': se.TRUE_NODE, 
-    'chiron': se.CHIRON, 'lilith': 12
-}
-
-SIGNS = ["حمل", "ثور", "جوزا", "سرطان", "اسد", "سنبله", "میزان", "عقرب", "قوس", "جدی", "دلو", "حوت"]
-HOUSES_LIST = [f"خانه {i}" for i in range(1, 13)]
-
-ASPECTS = [
-    {'name': 'تثلیث', 'degree': 120, 'orb': 6},
-    {'name': 'تراضی', 'degree': 60, 'orb': 4},
-    {'name': 'اقتران', 'degree': 0, 'orb': 8},
-    {'name': 'تربیع', 'degree': 90, 'orb': 6},
-    {'name': 'تقابل', 'degree': 180, 'orb': 6}
+PLANETS = [
+    'sun', 'moon', 'mercury', 'venus', 'mars',
+    'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
 ]
 
-# ==============================================================================
-# توابع کمکی
-# ==============================================================================
-def get_sign(degree: float) -> str:
-    return SIGNS[int(degree / 30) % 12]
-
-def get_sign_degree(degree: float) -> float:
-    return degree % 30
-
-def get_house_name(house_num: int) -> str:
-    if 1 <= house_num <= 12:
-        return HOUSES_LIST[house_num - 1]
-    return "نامشخص"
-
-
-# کد تست در فایل astro_handlers.py
-logging.info(f"DEBUG: دریافت درخواست محاسبه برای ساعت: {birth_time}")
-logging.info(f"DEBUG: مختصات دریافتی: Lat={latitude}, Lon={longitude}")
+PLANET_MAPPING = {
+    'sun': 'sun',
+    'moon': 'moon',
+    'mercury': 'mercury',
+    'venus': 'venus',
+    'mars': 'mars',
+    'jupiter': 'jupiter barycenter',
+    'saturn': 'saturn barycenter',
+    'uranus': 'uranus barycenter',
+    'neptune': 'neptune barycenter',
+    'pluto': 'pluto barycenter',
+}
 
 try:
-    # فراخوانی تابع اصلی
-    chart = calculate_natal_chart(birth_date, birth_time, latitude, longitude, timezone, house_system)
-    logging.info("DEBUG: محاسبه چارت با موفقیت در هسته انجام شد.")
+    ts = load.timescale()
+    eph = load('de421.bsp')
+    EPHEMERIS = {k: eph[v] for k, v in PLANET_MAPPING.items()}
+    EPHEMERIS['earth'] = eph['earth']
 except Exception as e:
-    logging.error(f"DEBUG: خطا در حین اجرای تابع calculate_natal_chart: {e}")
+    EPHEMERIS = {}
+    raise RuntimeError(f"Ephemeris load failed: {e}")
 
-# ==============================================================================
-# منطق اصلی محاسبه چارت
-# ==============================================================================
-def calculate_natal_chart(birth_date: str, birth_time: str, latitude: float, longitude: float, timezone_str: str, house_system: str = 'K') -> Dict[str, Any]:
-    """محاسبه چارت با سیستم Fallback برای پایداری در Railway"""
+def calculate_natal_chart(
+    birth_date_jalali: str,
+    birth_time: str,
+    city_name: str,
+    lat: float,
+    lon: float,
+    tz_name: str
+) -> Dict[str, Any]:
+
+    if not EPHEMERIS:
+        return {"error": "Ephemeris not loaded"}
+
     try:
-        year, month, day = map(int, birth_date.split('/'))
-        hour, minute = map(int, birth_time.split(':'))
-        birth_dt_local = jdatetime.datetime(year, month, day, hour, minute, 0, tzinfo=ZoneInfo(timezone_str))
-        birth_dt_utc = birth_dt_local.togregorian().astimezone(ZoneInfo('UTC'))
-
-        tjd_ut = se.julday(
-            birth_dt_utc.year, 
-            birth_dt_utc.month, 
-            birth_dt_utc.day, 
-            birth_dt_utc.hour + birth_dt_utc.minute/60.0
+        jdt = JalaliDateTime.strptime(
+            f"{birth_date_jalali} {birth_time}",
+            "%Y/%m/%d %H:%M"
         )
+
+        tz = pytz.timezone(tz_name)
+        dt_local = tz.localize(jdt.to_gregorian())
+        dt_utc = dt_local.astimezone(pytz.utc)
+        t = ts.utc(dt_utc)
+
+        observer = EPHEMERIS['earth'] + Topos(
+            latitude_degrees=lat,
+            longitude_degrees=lon
+        )
+
     except Exception as e:
-        return {'error': f"خطا در تبدیل تاریخ: {e}"}
+        return {"error": f"Time conversion error: {e}"}
 
-    # --- اصلاح بخش خانه‌ها با رعایت دقیق تورفتگی ---
-    try:
-        h_sys = house_system.upper().encode('utf-8')
-        result = se.houses(tjd_ut, latitude, longitude, h_sys)
-        cusps_raw, ascmc = result
-        house_system_bytes = h_sys
-    except Exception as e:
-        logging.warning(f"سیستم {house_system} خطا داد. استفاده از Whole Sign...")
-        result = se.houses(tjd_ut, latitude, longitude, b'W')
-        cusps_raw, ascmc = result
-        house_system_bytes = b'W'
+    result: Dict[str, Any] = {
+        "meta": {
+            "city": city_name,
+            "date": birth_date_jalali,
+            "time": birth_time,
+            "timezone": tz_name
+        },
+        "planets": {}
+    }
 
-    cusps = [cusps_raw[i] for i in range(1, 13)] 
-    ascendant_deg = ascmc[0]
-    mc_deg = ascmc[1]
-
-    chart_data = {'planets': [], 'cusps': cusps, 'ascendant': ascendant_deg, 'mc': mc_deg}
-    planet_positions = {} 
-    FLAGS = se.FLG_SWIEPH | se.FLG_SPEED
-
-    for planet_name, planet_id in PLANETS.items():
+    for p in PLANETS:
         try:
-            planet_pos, _ = se.calc_ut(tjd_ut, planet_id, FLAGS)
-            lon_deg = float(planet_pos[0])
-            lat_deg = float(planet_pos[1])
-            speed_lon = float(planet_pos[3])
-
-            house = 0
-            if ascendant_deg != 0.0:
-                 planet_house_pos = se.house_pos(lon_deg, lat_deg, cusps_raw, ascmc, house_system_bytes)
-                 house = int(planet_house_pos[0])
-
-            p_data = {
-                'name': planet_name, 
-                'degree': lon_deg,
-                'sign': get_sign(lon_deg), 
-                'sign_degree': get_sign_degree(lon_deg),
-                'house': house, 
-                'house_name': get_house_name(house),
-                'retrograde': speed_lon < 0,
-                'latitude': lat_deg
+            pos = observer.at(t).observe(EPHEMERIS[p]).apparent()
+            lon_rad, _, _ = pos.ecliptic_lonlat()
+            result["planets"][p] = {
+                "degree": round(lon_rad.degrees, 4)
             }
-            chart_data['planets'].append(p_data)
-            planet_positions[planet_name] = lon_deg 
         except Exception as e:
-            logging.error(f"Error calculating {planet_name}: {e}")
+            result["planets"][p] = {"error": str(e)}
 
-    chart_data['part_of_fortune'] = calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system)
-    chart_data['aspects'] = calculate_aspects(chart_data['planets'])
-
-    return chart_data
-
-def calculate_part_of_fortune(planet_positions, ascendant_deg, cusps_raw, ascmc, house_system):
-    if 'sun' not in planet_positions or 'moon' not in planet_positions:
-        return {'degree': 0.0, 'sign': 'نامشخص'}
-    fortune_deg = (ascendant_deg + planet_positions['moon'] - planet_positions['sun']) % 360
-    house = 0
-    try:
-        house_pos_raw = se.house_pos(fortune_deg, 0.0, cusps_raw, ascmc, house_system.upper().encode('utf-8'))
-        house = int(house_pos_raw[0])
-    except: pass
-    return {'degree': fortune_deg, 'sign': get_sign(fortune_deg), 'sign_degree': get_sign_degree(fortune_deg), 'house': house, 'house_name': get_house_name(house)}
-
-def calculate_aspects(planets_data):
-    aspects = []
-    p_list = [p for p in planets_data if p['name'] not in ['true_node', 'lilith', 'chiron']]
-    for i in range(len(p_list)):
-        for j in range(i + 1, len(p_list)):
-            p1, p2 = p_list[i], p_list[j]
-            angle = abs(p1['degree'] - p2['degree'])
-            angle = min(angle, 360 - angle) 
-            for aspect in ASPECTS:
-                if abs(angle - aspect['degree']) <= aspect['orb']:
-                    aspects.append({'p1': p1['name'], 'p2': p2['name'], 'type': aspect['name'], 'orb': round(abs(angle - aspect['degree']), 2)})
-    return aspects
-
+    return result
