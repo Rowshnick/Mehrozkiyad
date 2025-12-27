@@ -1,37 +1,45 @@
 import swisseph as swe
 import logging
+import os
 
 def calculate_natal_chart(year, month, day, hour, minute, lat, lon):
     try:
-        # تنظیم مسیر فایل‌های نجومی
-        import os
+        # 1. تنظیم مسیر فایل‌های نجومی (Ephemeris)
         base_path = os.path.dirname(os.path.abspath(__file__))
-        swe.set_ephe_path(os.path.join(base_path, "ephe"))
+        ephe_path = os.path.join(base_path, "ephe")
+        swe.set_ephe_path(ephe_path)
+        
+        # 2. محاسبه زمان جولین (Julian Day)
+        # تبدیل ساعت محلی به زمان اعشاری
+        decimal_hour = hour + (minute / 60.0)
+        jd = swe.julday(year, month, day, decimal_hour)
+        
+        # 3. محاسبه خانه‌ها (House Cusps) با متد Placidus ('P')
+        # خروجی این تابع معمولاً یک توپل شامل (cusps, ascmc) است
+        result = swe.houses(jd, lat, lon, b'P')
+        
+        # --- بخش اصلاحی برای رفع خطای Tuple Index ---
+        if not result or not isinstance(result, tuple) or len(result) < 2:
+            logging.error(f"Invalid SwissEph result: {result}")
+            return {"status": "error", "message": "اختلال در محاسبات نجومی - خروجی نامعتبر"}
+            
+        cusps = result[0]
+        ascmc = result[1]
+        
+        # 4. محاسبه موقعیت سیارات (مثال برای خورشید)
+        sun_pos = swe.calc_ut(jd, swe.SUN)[0]
+        
+        # در اینجا می‌توانید بقیه سیارات را اضافه کنید...
 
-        # محاسبه زمان جولین
-        jd = swe.julday(year, month, day, hour + minute/60.0)
-        
-        # محاسبه خانه‌ها - بخش بحرانی
-        # متد محاسباتی Placidus ('P')
-        res = swe.houses(jd, lat, lon, b'P')
-        
-        # لاگ برای دیباگ - این را در لاگ Railway چک کنید
-        logging.info(f"DEBUG: SwissEph Houses result type: {type(res)}")
-        
-        # بررسی هوشمند خروجی برای جلوگیری از خطای Index
-        if isinstance(res, tuple) and len(res) > 0:
-            cusps = res[0]
-            ascmc = res[1]
-        else:
-            # اگر خروجی مستقیم بود (در برخی نسخه‌ها)
-            cusps = res
-            ascmc = [0, 0] # مقدار پیش‌فرض
-
-        # ادامه محاسبات سیارات...
-        # (بقیه کد شما در اینجا قرار بگیرد)
-        
-        return {"status": "success", "cusps": cusps, "ascendant": ascmc[0]}
+        return {
+            "status": "success",
+            "cusps": list(cusps),
+            "ascendant": ascmc[0],
+            "mc": ascmc[1],
+            "sun": sun_pos
+        }
 
     except Exception as e:
-        logging.error(f"DETAILED ERROR: {str(e)}")
-        raise e
+        logging.error(f"Critical error in calculate_natal_chart: {str(e)}")
+        # برگرداندن خطا به جای کرش کردن کل برنامه
+        return {"status": "error", "message": str(e)}
