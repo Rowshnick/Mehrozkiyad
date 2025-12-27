@@ -13,7 +13,7 @@ import os
 
 # تنظیمات لاگینگ
 logging.basicConfig(level=logging.INFO)
-logging.info("CODE_VERSION: 2025-12-27-STABLE-PRODUCTION") 
+logging.info("CODE_VERSION: FIXED-VERSION-V2")
 
 # تنظیم مسیر فایل‌های نجومی
 base_dir = os.path.dirname(os.path.abspath(__file__))
