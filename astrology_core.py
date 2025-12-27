@@ -4,32 +4,29 @@ import logging
 
 def calculate_natal_chart(year, month, day, hour, minute, lat, lon):
     try:
-        # تنظیم مسیر فایل‌های نجومی
+        # تنظیم دقیق مسیر
         base_path = os.path.dirname(os.path.abspath(__file__))
         ephe_path = os.path.join(base_path, "ephe")
         swe.set_ephe_path(ephe_path)
         
-        # تبدیل تاریخ و زمان به زمان جهانی (Julian Day)
-        # توجه: اگر از تاریخ شمسی استفاده می‌کنید، باید ابتدا به میلادی تبدیل شود
+        # چاپ محتویات پوشه در لاگ برای اطمینان (فقط برای دیباگ)
+        logging.info(f"Files in ephe folder: {os.listdir(ephe_path)}")
+        
         jd = swe.julday(year, month, day, hour + minute/60.0)
         
-        # محاسبه خانه‌ها (Cusps)
-        # اضافه کردن چک امنیتی برای خروجی
+        # فراخوانی با متد ایمن
         res = swe.houses(jd, lat, lon, b'P')
         
-        if not res or len(res) < 2:
-            logging.error(f"SwissEph Error: Invalid output for Houses. Result: {res}")
-            return {"status": "error", "message": "فایل‌های دیتابیس نجومی (ephe) ناقص هستند یا لود نشدند."}
-            
+        # بررسی اینکه آیا خروجی طبق انتظار است یا خیر
+        if len(res) < 2:
+            logging.error(f"Error: SwissEph returned incomplete data: {res}")
+            return {"status": "error", "message": "داده‌های نجومی یافت نشد. فایل‌های پوشه ephe را بررسی کنید."}
+
         cusps = res[0]
         ascmc = res[1]
         
-        # محاسبه موقعیت خورشید (نمونه)
-        sun_res = swe.calc_ut(jd, swe.SUN)
-        if not sun_res:
-            return {"status": "error", "message": "خطا در محاسبه موقعیت سیارات"}
-            
-        sun_pos = sun_res[0]
+        # محاسبه خورشید
+        sun_pos = swe.calc_ut(jd, swe.SUN)[0]
 
         return {
             "status": "success",
@@ -39,5 +36,6 @@ def calculate_natal_chart(year, month, day, hour, minute, lat, lon):
         }
 
     except Exception as e:
-        logging.error(f"CRITICAL ERROR in astrology_core: {str(e)}")
-        return {"status": "error", "message": str(e)}
+        logging.error(f"CRITICAL ERROR: {str(e)}")
+        return {"status": "error", "message": f"خطای سیستمی: {str(e)}"}
+
