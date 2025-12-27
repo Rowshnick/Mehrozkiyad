@@ -32,7 +32,7 @@ logger = logging.getLogger("BOT_MAIN")
 
 # --- متغیرهای سراسری ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CODE_VERSION = "2025-12-24-ULTIMATE-V300"
+CODE_VERSION = "2025-12-27-FIXED-V1"
 
 # --- توابع مدیریت وضعیت (State Management) ---
 async def get_user_state(chat_id: int) -> Dict[str, Any]:
