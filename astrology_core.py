@@ -2,26 +2,22 @@ import swisseph as swe
 import os
 import logging
 
-def calculate_natal_chart(year, month, day, hour, minute, lat, lon):
+def calculate_natal_chart(year, month, day, hour, minute, lat, lon, **kwargs):
     try:
-        # تنظیم دقیق مسیر
+        # تنظیم مسیر فایل‌های ephe
         base_path = os.path.dirname(os.path.abspath(__file__))
         ephe_path = os.path.join(base_path, "ephe")
         swe.set_ephe_path(ephe_path)
         
-        # چاپ محتویات پوشه در لاگ برای اطمینان (فقط برای دیباگ)
-        logging.info(f"Files in ephe folder: {os.listdir(ephe_path)}")
-        
+        # محاسبه Julian Day
         jd = swe.julday(year, month, day, hour + minute/60.0)
         
-        # فراخوانی با متد ایمن
+        # محاسبه خانه‌ها
         res = swe.houses(jd, lat, lon, b'P')
         
-        # بررسی اینکه آیا خروجی طبق انتظار است یا خیر
-        if len(res) < 2:
-            logging.error(f"Error: SwissEph returned incomplete data: {res}")
-            return {"status": "error", "message": "داده‌های نجومی یافت نشد. فایل‌های پوشه ephe را بررسی کنید."}
-
+        if not res or len(res) < 2:
+            return {"status": "error", "message": "دیتابیس نجومی ناقص است"}
+            
         cusps = res[0]
         ascmc = res[1]
         
@@ -36,6 +32,5 @@ def calculate_natal_chart(year, month, day, hour, minute, lat, lon):
         }
 
     except Exception as e:
-        logging.error(f"CRITICAL ERROR: {str(e)}")
-        return {"status": "error", "message": f"خطای سیستمی: {str(e)}"}
-
+        logging.error(f"Error in core: {str(e)}")
+        return {"status": "error", "message": str(e)}
