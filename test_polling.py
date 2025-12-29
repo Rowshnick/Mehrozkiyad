@@ -1,14 +1,9 @@
-# test_polling.py
-# =============================================================================
-# نسخه‌ی تستی ربات تلگرام با Polling (بدون Webhook)
-# مناسب برای Google Colab یا اجرای محلی
-# =============================================================================
+# test_polling.py — نسخه مخصوص Google Colab
 
 import os
 import logging
 from telegram.ext import (
     Application,
-    CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
     filters
@@ -24,19 +19,12 @@ from chart_drawer_fa import draw_chart_wheel_fa
 import keyboards
 
 
-# -----------------------------------------------------------------------------
-# تنظیمات اولیه
-# -----------------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 if not BOT_TOKEN:
-    raise ValueError("❌ BOT_TOKEN در محیط تنظیم نشده است.")
+    raise ValueError("❌ BOT_TOKEN تنظیم نشده است.")
 
-
-# =============================================================================
-# توابع کمکی State Machine
-# =============================================================================
 
 async def get_state(chat_id):
     return await get_user_state_db(chat_id)
@@ -44,10 +32,6 @@ async def get_state(chat_id):
 async def save_state(chat_id, state):
     await save_user_state_db(chat_id, state)
 
-
-# =============================================================================
-# مدیریت پیام‌های متنی
-# =============================================================================
 
 async def handle_message(update, context):
     message = update.message
@@ -57,9 +41,6 @@ async def handle_message(update, context):
     state = await get_state(chat_id)
     step = state.get("step", "START")
 
-    # -------------------------------------------------------------------------
-    # شروع ربات
-    # -------------------------------------------------------------------------
     if step == "START":
         await message.reply_text(
             "سلام! برای شروع یکی از گزینه‌های زیر را انتخاب کنید:",
@@ -69,13 +50,10 @@ async def handle_message(update, context):
         await save_state(chat_id, state)
         return
 
-    # -------------------------------------------------------------------------
-    # ورودی تاریخ تولد
-    # -------------------------------------------------------------------------
     if step == "ASTRO_DATE":
         date_obj = utils.parse_persian_date(text)
         if not date_obj:
-            await message.reply_text("❌ تاریخ نامعتبر است. لطفاً به‌صورت YYYY/MM/DD وارد کنید.")
+            await message.reply_text("❌ تاریخ نامعتبر است.")
             return
 
         state["data"]["birth_date"] = text
@@ -83,34 +61,28 @@ async def handle_message(update, context):
         await save_state(chat_id, state)
 
         await message.reply_text(
-            "⏰ لطفاً *ساعت تولد* را وارد کنید (مثلاً 14:25):",
+            "⏰ لطفاً ساعت تولد را وارد کنید:",
             reply_markup=keyboards.time_input_keyboard()
         )
         return
 
-    # -------------------------------------------------------------------------
-    # ورودی زمان تولد
-    # -------------------------------------------------------------------------
     if step == "ASTRO_TIME":
         time_obj = utils.parse_persian_time(text)
         if not time_obj:
-            await message.reply_text("❌ ساعت نامعتبر است. لطفاً به‌صورت HH:MM وارد کنید.")
+            await message.reply_text("❌ ساعت نامعتبر است.")
             return
 
         state["data"]["birth_time"] = text
         state["step"] = "ASTRO_CITY"
         await save_state(chat_id, state)
 
-        await message.reply_text("📍 لطفاً *نام شهر تولد* را وارد کنید:")
+        await message.reply_text("📍 لطفاً نام شهر تولد را وارد کنید:")
         return
 
-    # -------------------------------------------------------------------------
-    # ورودی شهر تولد
-    # -------------------------------------------------------------------------
     if step == "ASTRO_CITY":
         city_info = utils.get_city_lookup_data(text)
         if not city_info:
-            await message.reply_text("❌ شهر یافت نشد. لطفاً یک شهر معتبر وارد کنید.")
+            await message.reply_text("❌ شهر یافت نشد.")
             return
 
         state["data"]["city"] = text
@@ -125,10 +97,6 @@ async def handle_message(update, context):
         return
 
 
-# =============================================================================
-# مدیریت کلیک روی دکمه‌ها
-# =============================================================================
-
 async def handle_callback(update, context):
     callback = update.callback_query
     chat_id = callback.message.chat_id
@@ -138,9 +106,6 @@ async def handle_callback(update, context):
 
     state = await get_state(chat_id)
 
-    # -------------------------------------------------------------------------
-    # منوی اصلی
-    # -------------------------------------------------------------------------
     if data.startswith("MAIN|"):
         await callback.message.reply_text(
             "منوی اصلی:",
@@ -150,36 +115,26 @@ async def handle_callback(update, context):
         await save_state(chat_id, state)
         return
 
-    # -------------------------------------------------------------------------
-    # خدمات → آسترولوژی
-    # -------------------------------------------------------------------------
     if data == "SERVICES|ASTRO|0":
         state["step"] = "ASTRO_DATE"
         state["data"] = {}
         await save_state(chat_id, state)
 
-        await callback.message.reply_text("لطفاً *تاریخ تولد* را وارد کنید (شمسی، YYYY/MM/DD):")
+        await callback.message.reply_text("لطفاً تاریخ تولد را وارد کنید:")
         return
 
-    # -------------------------------------------------------------------------
-    # انتخاب زمان پیش‌فرض
-    # -------------------------------------------------------------------------
     if data.startswith("TIME|DEFAULT"):
         default_time = data.split("|")[2]
         state["data"]["birth_time"] = default_time
         state["step"] = "ASTRO_CITY"
         await save_state(chat_id, state)
 
-        await callback.message.reply_text("📍 لطفاً *نام شهر تولد* را وارد کنید:")
+        await callback.message.reply_text("📍 لطفاً نام شهر تولد را وارد کنید:")
         return
 
 
-# =============================================================================
-# اجرای کامل جریان آسترولوژی
-# =============================================================================
-
 async def run_astrology_workflow(chat_id, data, context):
-    await context.bot.send_message(chat_id, "🔄 در حال محاسبه چارت تولد شما... لطفاً صبر کنید.")
+    await context.bot.send_message(chat_id, "🔄 در حال محاسبه چارت...")
 
     chart = calculate_natal_chart(
         birth_date_jalali=data["birth_date"],
@@ -191,7 +146,7 @@ async def run_astrology_workflow(chat_id, data, context):
     )
 
     if "error" in chart:
-        await context.bot.send_message(chat_id, f"❌ خطا در محاسبه چارت:\n{chart['error']}")
+        await context.bot.send_message(chat_id, f"❌ خطا:\n{chart['error']}")
         return
 
     interpretation = interpret_natal_chart(chart)
@@ -208,11 +163,8 @@ async def run_astrology_workflow(chat_id, data, context):
     await save_state(chat_id, {"step": "WELCOME", "data": {}})
 
 
-# =============================================================================
-# اجرای Polling
-# =============================================================================
-
-async def main():
+# نسخه مخصوص Colab — بدون asyncio.run()
+async def start_polling():
     await init_db()
 
     app = Application.builder().token(BOT_TOKEN).build()
@@ -220,10 +172,12 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_callback))
 
-    print("🤖 ربات در حالت Polling فعال شد...")
-    await app.run_polling()
+    print("🤖 ربات در حالت Polling فعال شد (Colab-safe)...")
+    await app.run_polling(close_loop=False)
 
 
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+import nest_asyncio
+nest_asyncio.apply()
+
+import asyncio
+asyncio.get_event_loop().create_task(start_polling())
