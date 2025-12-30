@@ -203,8 +203,8 @@ def calculate_natal_chart(
     )
 
     # cusps_raw آرایه‌ای با 13 مقدار است (اندیس 0 بلااستفاده)
-    cusps: List[float] = [cusps_raw[i] for i in range(1, 13)]
-
+    cusps: List[float] = [float(x) for x in cusps_raw]
+   
     ascendant_deg: float = float(ascmc[0])
     mc_deg: float = float(ascmc[1])
 
