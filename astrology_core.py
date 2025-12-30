@@ -234,8 +234,7 @@ def calculate_natal_chart(
             house_num = 0
             try:
                 if ascendant_deg != 0.0:
-                    house_pos = se.house_pos(
-                        lon_deg, lat_deg, cusps_raw, ascmc, house_system_bytes
+                    house_pos = se.house_pos(lon_deg,lat_deg,list(cusps_raw),list(ascmc),house_system_bytes
                     )
                     house_num = int(house_pos[0])
             except Exception as e:
@@ -266,7 +265,6 @@ def calculate_natal_chart(
     part_of_fortune = calculate_part_of_fortune(
         planet_longitudes, ascendant_deg, cusps_raw, ascmc, house_system
     )
-
     # -------------------------------------------------------------------------
     # 5. محاسبه زوایا (Aspects) بین سیارات اصلی
     # -------------------------------------------------------------------------
@@ -331,8 +329,9 @@ def calculate_part_of_fortune(
     house_num = 0
     try:
         house_pos = se.house_pos(
-            fortune_deg, 0.0, cusps_raw, ascmc, house_system.upper().encode('utf-8')
+        fortune_deg, 0.0, list(cusps_raw),list(ascmc), house_system.upper().encode('utf-8')
         )
+
         house_num = int(house_pos[0])
     except Exception as e:
         logging.warning(f"⚠️ خطا در محاسبه خانه برای سهم سعادت: {e}")
