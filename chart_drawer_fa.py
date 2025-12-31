@@ -15,7 +15,7 @@ import matplotlib.font_manager as fm
 # تنظیم فونت فارسی
 # -------------------------------
 plt.rcParams['axes.unicode_minus'] = False
-font_path = "fonts/Vazirmatn.ttf"
+font_path = "fonts/Vazirmatn-Black.ttf"
 fm.fontManager.addfont(font_path)
 plt.rcParams['font.family'] = 'Vazirmatn'
 plt.rcParams['font.size'] = 14
