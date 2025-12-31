@@ -8,13 +8,17 @@ import io
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+
 
 # -------------------------------
 # تنظیم فونت فارسی
 # -------------------------------
+plt.rcParams['axes.unicode_minus'] = False
+font_path = "fonts/Vazirmatn.ttf"
+fm.fontManager.addfont(font_path)
 plt.rcParams['font.family'] = 'Vazirmatn'
 plt.rcParams['font.size'] = 14
-plt.rcParams['axes.unicode_minus'] = False
 
 # -------------------------------
 # رنگ‌های حرفه‌ای برای برج‌ها
