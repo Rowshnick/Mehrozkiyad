@@ -8,49 +8,34 @@
 #   - از خطای 400 تلگرام جلوگیری می‌کند
 #   - escape_code_block اضافه شده
 #   - برای Railway و httpx بهینه شده
+# توابع کمکی ربات (ارسال پیام، ارسال عکس، فراردهی MarkdownV2، تبدیل تاریخ و ...)
+# نسخه اصلاح‌شده و پایدار برای Railway
 # =============================================================================
 
-import os
 import re
 import logging
 from typing import Dict, Any, Optional
 import httpx
 import io
 import datetime
-from persiantools.jdatetime import JalaliDate, JalaliDateTime
+from persiantools.jdatetime import JalaliDate
 
 logging.basicConfig(level=logging.INFO)
-
-# -----------------------------------------------------------------------------
-# توکن ربات
-# -----------------------------------------------------------------------------
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-
 
 # =============================================================================
 # ۱) توابع فراردهی MarkdownV2
 # =============================================================================
 
 def escape_markdown_v2(text: str) -> str:
-    """
-    فراردهی کامل کاراکترهای خاص MarkdownV2.
-    این تابع از خطای 400 تلگرام جلوگیری می‌کند.
-    """
     if text is None:
         return ""
-
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return "".join("\\" + c if c in escape_chars else c for c in str(text))
 
 
 def escape_code_block(text: str) -> str:
-    """
-    فراردهی مخصوص کد یا ورودی کاربر.
-    این تابع فقط بک‌تیک‌ها و بک‌اسلش‌ها را امن می‌کند.
-    """
     if text is None:
         return ""
-
     text = text.replace("\\", "\\\\")
     text = text.replace("`", "\\`")
     return text
@@ -68,9 +53,11 @@ async def send_message(
 ):
     """
     ارسال پیام متنی به کاربر.
-    - اگر reply_markup خالی باشد، ارسال نمی‌شود (برای جلوگیری از خطای 400)
-    - متن به‌صورت MarkdownV2 ارسال می‌شود.
     """
+
+    if not bot_token:
+        logging.error("❌ BOT_TOKEN خالی است! پیام ارسال نشد.")
+        return
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
@@ -88,8 +75,10 @@ async def send_message(
             response = await client.post(url, json=payload)
             response.raise_for_status()
             logging.info(f"📨 پیام ارسال شد → {response.status_code}")
+
     except httpx.HTTPStatusError as e:
         logging.error(f"❌ خطای HTTP در sendMessage: {e.response.status_code} → {e.response.text}")
+
     except Exception as e:
         logging.error(f"❌ خطای ناشناخته در sendMessage: {e}")
 
@@ -104,9 +93,10 @@ async def answer_callback_query(
     text: Optional[str] = None,
     show_alert: bool = False
 ):
-    """
-    پاسخ به کلیک دکمه‌های اینلاین.
-    """
+    if not bot_token:
+        logging.error("❌ BOT_TOKEN خالی است! Callback ارسال نشد.")
+        return
+
     url = f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery"
 
     payload = {
@@ -118,12 +108,13 @@ async def answer_callback_query(
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(url, json=payload)
+
     except Exception as e:
         logging.error(f"❌ خطا در answerCallbackQuery: {e}")
 
 
 # =============================================================================
-# ۴) ارسال عکس + کپشن (بدون خطای 400)
+# ۴) ارسال عکس + کپشن
 # =============================================================================
 
 async def send_photo_with_caption(
@@ -133,11 +124,9 @@ async def send_photo_with_caption(
     caption: str,
     reply_markup: Optional[Dict[str, Any]] = None
 ):
-    """
-    ارسال عکس به همراه کپشن MarkdownV2.
-    - فایل به‌صورت باینری ارسال می‌شود
-    - reply_markup در صورت وجود JSON می‌شود
-    """
+    if not bot_token:
+        logging.error("❌ BOT_TOKEN خالی است! عکس ارسال نشد.")
+        return {"ok": False}
 
     url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
 
@@ -176,14 +165,10 @@ async def send_photo_with_caption(
 
 
 # =============================================================================
-# ۵) توابع تبدیل تاریخ و زمان
+# ۵) تبدیل تاریخ و زمان
 # =============================================================================
 
 def parse_persian_date(date_str: str) -> Optional[JalaliDate]:
-    """
-    تبدیل رشته تاریخ شمسی به JalaliDate.
-    ورودی: YYYY/MM/DD
-    """
     try:
         return JalaliDate.strptime(date_str, "%Y/%m/%d")
     except ValueError:
@@ -191,9 +176,6 @@ def parse_persian_date(date_str: str) -> Optional[JalaliDate]:
 
 
 def parse_persian_time(time_str: str) -> Optional[str]:
-    """
-    اعتبارسنجی رشته ساعت (HH:MM)
-    """
     try:
         datetime.datetime.strptime(time_str, "%H:%M")
         return time_str
@@ -202,15 +184,10 @@ def parse_persian_time(time_str: str) -> Optional[str]:
 
 
 # =============================================================================
-# ۶) جستجوی شهر (نسخه ساده – قابل جایگزینی با دیتابیس واقعی)
+# ۶) جستجوی شهر
 # =============================================================================
 
 def get_city_lookup_data(city_name: str) -> Optional[Dict[str, Any]]:
-    """
-    جستجوی اطلاعات شهر بر اساس نام فارسی.
-    این نسخه ساده است و می‌توان آن را با دیتابیس واقعی جایگزین کرد.
-    """
-
     city_name = city_name.strip()
 
     test_cities = {
