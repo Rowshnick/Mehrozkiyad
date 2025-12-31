@@ -260,10 +260,20 @@ async def run_astrology_workflow(chat_id: int, data: Dict[str, Any]):
     chart_image = draw_chart_wheel_fa(chart)
 
     # ارسال تصویر
+    # 1) ارسال عکس بدون کپشن
     await utils.send_photo_with_caption(
-        BOT_TOKEN, chat_id,
-        chart_image,
-        interpretation
+    BOT_TOKEN, chat_id,
+    chart_image,
+    "",   # کپشن خالی
+       None  # کیبورد هم بهتر است اینجا نباشد
+     )
+
+   # 2) ارسال تفسیر در پیام جداگانه
+   await utils.send_message(
+    BOT_TOKEN,
+    chat_id,
+    utils.escape_markdown_v2(interpretation),
+    keyboards.main_menu_keyboard()
     )
 
     # بازگشت به منوی اصلی
