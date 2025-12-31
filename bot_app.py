@@ -1,13 +1,12 @@
 # bot_app.py
 # =============================================================================
-# هسته‌ی اجرایی ربات تلگرام (FastAPI + Webhook)
-# -----------------------------------------------------------------------------
 # این فایل:
 #   - پیام‌های ورودی را دریافت می‌کند
 #   - state کاربر را مدیریت می‌کند
 #   - ورودی تاریخ/زمان/شهر را جمع‌آوری می‌کند
 #   - چارت تولد را محاسبه می‌کند
 #   - تفسیر فارسی و تصویر چارت را ارسال می‌کند
+#   - هسته‌ی اجرایی ربات تلگرام (FastAPI + Webhook)
 # =============================================================================
 
 import os
@@ -62,11 +61,9 @@ async def startup_event():
 async def telegram_webhook(request: Request):
     update = await request.json()
 
-    # پیام متنی
     if "message" in update:
         await handle_message(update["message"])
 
-    # کلیک روی دکمه اینلاین
     if "callback_query" in update:
         await handle_callback(update["callback_query"])
 
@@ -99,7 +96,7 @@ async def handle_message(message: Dict[str, Any]):
         return
 
     # -------------------------------------------------------------------------
-    # ورودی تاریخ تولد (شمسی)
+    # ورودی تاریخ تولد
     # -------------------------------------------------------------------------
     if step == "ASTRO_DATE":
         date_obj = utils.parse_persian_date(text)
@@ -179,9 +176,7 @@ async def handle_callback(callback: Dict[str, Any]):
 
     state = await get_state(chat_id)
 
-    # -------------------------------------------------------------------------
     # منوی اصلی
-    # -------------------------------------------------------------------------
     if data.startswith("MAIN|"):
         await utils.send_message(
             BOT_TOKEN, chat_id,
@@ -192,9 +187,7 @@ async def handle_callback(callback: Dict[str, Any]):
         await save_state(chat_id, state)
         return
 
-    # -------------------------------------------------------------------------
     # خدمات → آسترولوژی
-    # -------------------------------------------------------------------------
     if data == "SERVICES|ASTRO|0":
         await utils.send_message(
             BOT_TOKEN, chat_id,
@@ -204,9 +197,7 @@ async def handle_callback(callback: Dict[str, Any]):
         await save_state(chat_id, state)
         return
 
-    # -------------------------------------------------------------------------
     # انتخاب زمان پیش‌فرض
-    # -------------------------------------------------------------------------
     if data.startswith("TIME|DEFAULT"):
         default_time = data.split("|")[2]
         state["data"]["birth_time"] = default_time
@@ -225,12 +216,6 @@ async def handle_callback(callback: Dict[str, Any]):
 # =============================================================================
 
 async def run_astrology_workflow(chat_id: int, data: Dict[str, Any]):
-    """
-    ۱) محاسبه چارت
-    ۲) تولید تفسیر
-    ۳) رسم چارت
-    ۴) ارسال خروجی به کاربر
-    """
 
     await utils.send_message(
         BOT_TOKEN, chat_id,
@@ -259,21 +244,21 @@ async def run_astrology_workflow(chat_id: int, data: Dict[str, Any]):
     # رسم چارت
     chart_image = draw_chart_wheel_fa(chart)
 
-    # ارسال تصویر
     # 1) ارسال عکس بدون کپشن
     await utils.send_photo_with_caption(
-    BOT_TOKEN, chat_id,
-    chart_image,
-    "",   # کپشن خالی
-       None  # کیبورد هم بهتر است اینجا نباشد
-     )
+        BOT_TOKEN,
+        chat_id,
+        chart_image,
+        "",   # کپشن خالی
+        None  # بدون کیبورد
+    )
 
-   # 2) ارسال تفسیر در پیام جداگانه
-   await utils.send_message(
-    BOT_TOKEN,
-    chat_id,
-    utils.escape_markdown_v2(interpretation),
-    keyboards.main_menu_keyboard()
+    # 2) ارسال تفسیر در پیام جداگانه
+    await utils.send_message(
+        BOT_TOKEN,
+        chat_id,
+        utils.escape_markdown_v2(interpretation),
+        keyboards.main_menu_keyboard()
     )
 
     # بازگشت به منوی اصلی
