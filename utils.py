@@ -1,24 +1,16 @@
 # utils.py
 # =============================================================================
 # توابع کمکی ربات (ارسال پیام، ارسال عکس، فراردهی MarkdownV2، تبدیل تاریخ و ...)
-# -----------------------------------------------------------------------------
-# این نسخه:
-#   - کاملاً فارسی است
-#   - با MarkdownV2 سازگار است
-#   - از خطای 400 تلگرام جلوگیری می‌کند
-#   - escape_code_block اضافه شده
-#   - برای Railway و httpx بهینه شده
-# توابع کمکی ربات (ارسال پیام، ارسال عکس، فراردهی MarkdownV2، تبدیل تاریخ و ...)
-# نسخه اصلاح‌شده و پایدار برای Railway
+# نسخه اصلاح‌شده و پایدار برای Railway + لاگ‌های دقیق‌تر
 # =============================================================================
 
-import re
 import logging
 from typing import Dict, Any, Optional
 import httpx
 import io
 import datetime
 from persiantools.jdatetime import JalaliDate
+import json
 
 logging.basicConfig(level=logging.INFO)
 
@@ -53,6 +45,7 @@ async def send_message(
 ):
     """
     ارسال پیام متنی به کاربر.
+    توجه: فرض می‌کنیم متن قبلاً با escape_markdown_v2 فرار داده شده.
     """
 
     if not bot_token:
@@ -61,26 +54,31 @@ async def send_message(
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
-    payload = {
+    payload: Dict[str, Any] = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "MarkdownV2"
+        "parse_mode": "MarkdownV2",
     }
 
     if reply_markup is not None:
+        # اینجا json خود httpx را می‌گذاریم آن را serialize کند
         payload["reply_markup"] = reply_markup
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, json=payload)
-            response.raise_for_status()
-            logging.info(f"📨 پیام ارسال شد → {response.status_code}")
+            if response.status_code != 200:
+                logging.error(
+                    f"❌ خطای HTTP در sendMessage: {response.status_code} → {response.text}"
+                )
+            else:
+                logging.info(f"📨 پیام ارسال شد → {response.status_code}")
 
-    except httpx.HTTPStatusError as e:
-        logging.error(f"❌ خطای HTTP در sendMessage: {e.response.status_code} → {e.response.text}")
+    except httpx.HTTPError as e:
+        logging.error(f"❌ خطای شبکه/HTTP در sendMessage: {repr(e)}")
 
     except Exception as e:
-        logging.error(f"❌ خطای ناشناخته در sendMessage: {e}")
+        logging.error(f"❌ خطای ناشناخته در sendMessage: {repr(e)}")
 
 
 # =============================================================================
@@ -99,18 +97,30 @@ async def answer_callback_query(
 
     url = f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery"
 
-    payload = {
+    payload: Dict[str, Any] = {
         "callback_query_id": callback_id,
-        "text": text,
         "show_alert": show_alert
     }
 
+    # اگر متنی برای نمایش داری
+    if text:
+        payload["text"] = text
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(url, json=payload)
+            response = await client.post(url, json=payload)
+            if response.status_code != 200:
+                logging.error(
+                    f"❌ خطای HTTP در answerCallbackQuery: {response.status_code} → {response.text}"
+                )
+            else:
+                logging.info(f"✅ answerCallbackQuery ارسال شد → {response.status_code}")
+
+    except httpx.HTTPError as e:
+        logging.error(f"❌ خطای شبکه/HTTP در answerCallbackQuery: {repr(e)}")
 
     except Exception as e:
-        logging.error(f"❌ خطا در answerCallbackQuery: {e}")
+        logging.error(f"❌ خطا در answerCallbackQuery: {repr(e)}")
 
 
 # =============================================================================
@@ -130,37 +140,51 @@ async def send_photo_with_caption(
 
     url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
 
+    # مطمئن شویم از ابتدای بایت‌ها خوانده می‌شود
+    if hasattr(photo, "seek"):
+        photo.seek(0)
+
     files = {
         "photo": ("chart.png", photo, "image/png")
     }
 
-    data = {
+    data: Dict[str, Any] = {
         "chat_id": chat_id,
         "caption": caption,
         "parse_mode": "MarkdownV2"
     }
 
     if reply_markup is not None:
-        import json
         data["reply_markup"] = json.dumps(reply_markup)
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, data=data, files=files)
-            response.raise_for_status()
+            if response.status_code != 200:
+                logging.error(
+                    f"❌ خطای HTTP در sendPhoto: {response.status_code} → {response.text}"
+                )
+                await send_message(
+                    bot_token,
+                    chat_id,
+                    escape_markdown_v2(f"❌ خطا در ارسال عکس:\n{response.status_code}")
+                )
+                return {"ok": False}
+
             logging.info(f"🖼 عکس ارسال شد → {response.status_code}")
             return response.json()
 
-    except httpx.HTTPStatusError as e:
-        logging.error(f"❌ خطای HTTP در sendPhoto: {e.response.status_code} → {e.response.text}")
+    except httpx.HTTPError as e:
+        logging.error(f"❌ خطای شبکه/HTTP در sendPhoto: {repr(e)}")
         await send_message(
-            bot_token, chat_id,
-            escape_markdown_v2(f"❌ خطا در ارسال عکس:\n{e.response.status_code}")
+            bot_token,
+            chat_id,
+            escape_markdown_v2("❌ خطای شبکه در ارسال عکس.")
         )
         return {"ok": False}
 
     except Exception as e:
-        logging.error(f"❌ خطای ناشناخته در sendPhoto: {e}")
+        logging.error(f"❌ خطای ناشناخته در sendPhoto: {repr(e)}")
         return {"ok": False}
 
 
