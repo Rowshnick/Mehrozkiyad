@@ -1,171 +1,152 @@
 # chart_drawer_fa.py
 # =============================================================================
-# نسخه حرفه‌ای و رنگی چارت نجومی فارسی
+# ترسیم چارت نجومی فارسی با matplotlib
+# نسخهٔ نهایی با پشتیبانی از فونت فارسی + نمادهای نجومی
 # =============================================================================
 
-import math
-import io
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import matplotlib.font_manager as fm
+import io
+import logging
+import math
 
+# -----------------------------------------------------------------------------
+# ۱) تنظیم فونت فارسی + fallback برای نمادهای نجومی
+# -----------------------------------------------------------------------------
 
-# -------------------------------
-# تنظیم فونت فارسی
-# -------------------------------
-plt.rcParams['axes.unicode_minus'] = False
-font_path = "fonts/Vazirmatn-Black.ttf"
-fm.fontManager.addfont(font_path)
-plt.rcParams['font.family'] = 'Vazirmatn'
-plt.rcParams['font.size'] = 14
+# مسیر فونت Vazirmatn (نسخه Regular)
+# اگر نام فایل متفاوت است، فقط نام فایل را تغییر بده
+FA_FONT_PATH = "/usr/share/fonts/truetype/Vazirmatn/Vazirmatn-Regular.ttf"
 
-# -------------------------------
-# رنگ‌های حرفه‌ای برای برج‌ها
-# -------------------------------
+try:
+    fa_prop = fm.FontProperties(fname=FA_FONT_PATH)
+    fa_name = fa_prop.get_name()
+    plt.rcParams['font.family'] = [fa_name, 'DejaVu Sans']
+    logging.info(f"🎨 فونت فارسی فعال شد: {fa_name}")
+except Exception as e:
+    logging.warning(f"⚠️ فونت فارسی یافت نشد، استفاده از DejaVu Sans → {e}")
+    plt.rcParams['font.family'] = ['DejaVu Sans']
+
+plt.rcParams['text.color'] = '#333333'
+
+# -----------------------------------------------------------------------------
+# ۲) رنگ‌های برج‌ها
+# -----------------------------------------------------------------------------
+
 SIGN_COLORS = [
-    "#FF6B6B", "#FFA06B", "#FFD56B", "#E8FF6B",
-    "#A6FF6B", "#6BFF8F", "#6BFFD5", "#6BE8FF",
-    "#6BB6FF", "#6B7EFF", "#A06BFF", "#D56BFF"
+    "#f8c8dc", "#f8e0c8", "#f8f8c8", "#d0f8c8",
+    "#c8f8f8", "#c8d0f8", "#e0c8f8", "#f8c8f0",
+    "#f0c8c8", "#d8d8d8", "#c8f0e0", "#e0f8c8"
 ]
 
-# -------------------------------
-# نام فارسی برج‌ها
-# -------------------------------
+# -----------------------------------------------------------------------------
+# ۳) نمادهای سیارات
+# -----------------------------------------------------------------------------
+
+PLANET_SYMBOLS = {
+    "sun": "☉", "moon": "☽", "mercury": "☿", "venus": "♀", "mars": "♂",
+    "jupiter": "♃", "saturn": "♄", "uranus": "♅", "neptune": "♆", "pluto": "♇",
+    "true_node": "☊", "chiron": "⚷", "lilith": "⚸"
+}
+
+# -----------------------------------------------------------------------------
+# ۴) نام فارسی برج‌ها
+# -----------------------------------------------------------------------------
+
 SIGNS_FA = [
     "حمل", "ثور", "جوزا", "سرطان", "اسد", "سنبله",
     "میزان", "عقرب", "قوس", "جدی", "دلو", "حوت"
 ]
 
-# -------------------------------
-# نمادهای سیارات
-# -------------------------------
-PLANET_SYMBOLS_FA = {
-    "sun": "☉",
-    "moon": "☾",
-    "mercury": "☿",
-    "venus": "♀",
-    "mars": "♂",
-    "jupiter": "♃",
-    "saturn": "♄",
-    "uranus": "♅",
-    "neptune": "♆",
-    "pluto": "♇",
-    "true_node": "☊",
-    "chiron": "⚷",
-    "lilith": "⚸",
-}
+# -----------------------------------------------------------------------------
+# ۵) تابع اصلی رسم چارت
+# -----------------------------------------------------------------------------
 
-# -------------------------------
-# رنگ‌های سیارات
-# -------------------------------
-PLANET_COLORS = {
-    "sun": "#FFB300",
-    "moon": "#C0C0C0",
-    "mercury": "#8E8E8E",
-    "venus": "#FF69B4",
-    "mars": "#FF3B30",
-    "jupiter": "#FF9500",
-    "saturn": "#C49A6C",
-    "uranus": "#30D5C8",
-    "neptune": "#007AFF",
-    "pluto": "#8E44AD",
-    "true_node": "#2ECC71",
-    "chiron": "#A569BD",
-    "lilith": "#000000",
-}
+def draw_chart_wheel_fa(chart: dict) -> io.BytesIO:
+    """
+    رسم چارت چرخشی نجومی به زبان فارسی.
+    ورودی: chart_data از astrology_core
+    خروجی: تصویر BytesIO برای ارسال به تلگرام
+    """
 
-# =============================================================================
-# تابع اصلی رسم چارت
-# =============================================================================
+    # بررسی ورودی
+    if not chart.get("planets_list") or not chart.get("cusps"):
+        logging.warning("⚠️ چارت ورودی ناقص است. هیچ سیاره یا خانه‌ای یافت نشد.")
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.text(0.5, 0.5, "چارت خالی است", ha='center', va='center', fontsize=16)
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+        return buf
 
-def draw_chart_wheel_fa(chart_data):
-    fig, ax = plt.subplots(figsize=(10, 10), dpi=200)
-    ax.set_xlim(-1.15, 1.15)
-    ax.set_ylim(-1.15, 1.15)
-    ax.set_aspect("equal")
-    ax.axis("off")
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(-1.1, 1.1)
+    ax.set_ylim(-1.1, 1.1)
+    ax.set_aspect('equal')
+    ax.axis('off')
 
     # -------------------------------------------------------------------------
-    # 1) دایره‌های اصلی با رنگ ملایم
+    # رسم دایره اصلی
     # -------------------------------------------------------------------------
-    outer_circle = plt.Circle((0, 0), 1.0, fill=False, linewidth=3, color="#444")
-    mid_circle = plt.Circle((0, 0), 0.78, fill=False, linewidth=2, color="#888")
-    inner_circle = plt.Circle((0, 0), 0.60, fill=False, linewidth=1.5, color="#AAA")
-
-    ax.add_patch(outer_circle)
-    ax.add_patch(mid_circle)
-    ax.add_patch(inner_circle)
+    circle = plt.Circle((0, 0), 1.0, color='black', fill=False, linewidth=2)
+    ax.add_artist(circle)
 
     # -------------------------------------------------------------------------
-    # 2) تقسیم‌بندی ۱۲ برج با رنگ‌های اختصاصی
+    # رسم برج‌ها
     # -------------------------------------------------------------------------
     for i in range(12):
         start_angle = i * 30
         end_angle = start_angle + 30
 
-        # رنگ پس‌زمینه هر برج
-        wedge = plt.matplotlib.patches.Wedge(
+        wedge = patches.Wedge(
             center=(0, 0),
             r=1.0,
             theta1=start_angle,
             theta2=end_angle,
-            width=0.22,
             facecolor=SIGN_COLORS[i],
-            alpha=0.25
+            edgecolor='white',
+            linewidth=1
         )
         ax.add_patch(wedge)
 
-        # خط جداکننده
-        angle_rad = math.radians(start_angle)
-        ax.plot(
-            [0, math.cos(angle_rad)],
-            [0, math.sin(angle_rad)],
-            color="#555",
-            linewidth=1.2
-        )
-
-        # نام برج
-        mid_angle = start_angle + 15
-        mid_rad = math.radians(mid_angle)
-        tx = 0.90 * math.cos(mid_rad)
-        ty = 0.90 * math.sin(mid_rad)
-
-        ax.text(
-            tx, ty, SIGNS_FA[i],
-            ha="center", va="center",
-            fontsize=16, fontweight="bold",
-            color=SIGN_COLORS[i]
-        )
+        # نام برج فارسی
+        angle_rad = math.radians(start_angle + 15)
+        x = 0.75 * math.cos(angle_rad)
+        y = 0.75 * math.sin(angle_rad)
+        ax.text(x, y, SIGNS_FA[i], ha='center', va='center', fontsize=12)
 
     # -------------------------------------------------------------------------
-    # 3) رسم سیارات با رنگ و نماد اختصاصی
+    # رسم سیارات
     # -------------------------------------------------------------------------
-    planets = chart_data["planets_list"]
+    for planet in chart["planets_list"]:
+        deg = planet["degree"]
+        symbol = PLANET_SYMBOLS.get(planet["name"], "?")
 
-    for p in planets:
-        lon = p["degree"]
-        name = p["name"]
-        symbol = PLANET_SYMBOLS_FA.get(name, name)
-        color = PLANET_COLORS.get(name, "#000")
+        angle_rad = math.radians(deg)
+        x = 0.55 * math.cos(angle_rad)
+        y = 0.55 * math.sin(angle_rad)
 
-        angle_rad = math.radians(lon)
-        px = 0.68 * math.cos(angle_rad)
-        py = 0.68 * math.sin(angle_rad)
-
-        ax.text(
-            px, py, symbol,
-            ha="center", va="center",
-            fontsize=20, fontweight="bold",
-            color=color
-        )
+        ax.text(x, y, symbol, ha='center', va='center', fontsize=18)
 
     # -------------------------------------------------------------------------
-    # 4) خروجی تصویر
+    # رسم Asc و MC
+    # -------------------------------------------------------------------------
+    asc = chart.get("ascendant", 0)
+    mc = chart.get("mc", 0)
+
+    for label, deg, color in [("ASC", asc, "red"), ("MC", mc, "blue")]:
+        angle_rad = math.radians(deg)
+        x = 1.05 * math.cos(angle_rad)
+        y = 1.05 * math.sin(angle_rad)
+        ax.text(x, y, label, ha='center', va='center', fontsize=10, color=color)
+
+    # -------------------------------------------------------------------------
+    # خروجی تصویر
     # -------------------------------------------------------------------------
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+    plt.savefig(buf, format='png', bbox_inches='tight')
     buf.seek(0)
-    plt.close(fig)
-
+    plt.close()
     return buf
