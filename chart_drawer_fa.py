@@ -1,8 +1,10 @@
 # chart_drawer_fa.py
 # =============================================================================
-# ترسیم چارت نجومی فارسی با matplotlib (نسخهٔ پیشرفته)
-# - برج‌ها + خانه‌ها
-# - سیارات با نماد + درجه + ℞
+# ترسیم چارت نجومی فارسی با matplotlib (نسخهٔ پیشرفته و سازگار با Render)
+# شامل:
+# - برج‌ها
+# - خانه‌ها
+# - سیارات + درجه + ℞
 # - زوایا (Aspects)
 # - فونت فارسی Vazirmatn + fallback نمادها
 # =============================================================================
@@ -16,10 +18,10 @@ import math
 from typing import Dict, Any, List, Optional
 
 # -----------------------------------------------------------------------------
-# ۱) تنظیم فونت فارسی + fallback برای نمادهای نجومی
+# ۱) مسیر فونت فارسی (در داخل پروژه)
 # -----------------------------------------------------------------------------
 
-FA_FONT_PATH = "/usr/share/fonts/truetype/Vazirmatn/Vazirmatn-Regular.ttf"
+FA_FONT_PATH = "fonts/Vazirmatn-Regular.ttf"
 
 try:
     fa_prop = fm.FontProperties(fname=FA_FONT_PATH)
@@ -44,11 +46,11 @@ SIGN_COLORS = [
 
 HOUSE_LINE_COLOR = "#666666"
 ASPECT_COLORS = {
-    "conjunction": "#ff9800",  # نارنجی
-    "sextile": "#4caf50",      # سبز
-    "square": "#f44336",       # قرمز
-    "trine": "#2196f3",        # آبی
-    "opposition": "#9c27b0"    # بنفش
+    "conjunction": "#ff9800",
+    "sextile": "#4caf50",
+    "square": "#f44336",
+    "trine": "#2196f3",
+    "opposition": "#9c27b0"
 }
 
 # -----------------------------------------------------------------------------
@@ -71,33 +73,23 @@ SIGNS_FA = [
 ]
 
 # -----------------------------------------------------------------------------
-# تابع کمکی: تبدیل درجه به مختصات (x,y) روی دایره
+# تابع کمکی: تبدیل درجه به مختصات
 # -----------------------------------------------------------------------------
 
 def polar_to_cartesian(deg: float, radius: float) -> (float, float):
-    angle_rad = math.radians(deg - 90)  # تا 0° بالا باشد
-    x = radius * math.cos(angle_rad)
-    y = radius * math.sin(angle_rad)
-    return x, y
+    angle_rad = math.radians(deg - 90)
+    return radius * math.cos(angle_rad), radius * math.sin(angle_rad)
 
 # -----------------------------------------------------------------------------
-# تابع اصلی رسم چارت پیشرفته
+# تابع اصلی: رسم چارت پیشرفته
 # -----------------------------------------------------------------------------
 
 def draw_chart_advanced_fa(chart: Dict[str, Any]) -> io.BytesIO:
-    """
-    رسم چارت کاملاً پیشرفته:
-    - برج‌ها
-    - خانه‌ها
-    - سیارات + درجه + ℞
-    - زوایا
-    """
-
     planets: List[Dict[str, Any]] = chart.get("planets_list") or []
     cusps: List[float] = chart.get("cusps") or []
 
     if not planets or len(cusps) != 12:
-        logging.warning("⚠️ چارت ورودی ناقص است. سیارات یا خانه‌ها کامل نیستند.")
+        logging.warning("⚠️ چارت ورودی ناقص است.")
         fig, ax = plt.subplots(figsize=(6, 6))
         ax.axis('off')
         ax.text(0.5, 0.5, "چارت ناقص است", ha='center', va='center', fontsize=16)
@@ -113,22 +105,16 @@ def draw_chart_advanced_fa(chart: Dict[str, Any]) -> io.BytesIO:
     ax.set_aspect('equal')
     ax.axis('off')
 
-    # -------------------------------------------------------------------------
-    # دایره‌های اصلی
-    # -------------------------------------------------------------------------
     outer_r = 1.0
     inner_r = 0.6
     house_r = 0.9
     planet_r = 0.7
 
-    # دایره بیرونی
+    # دایره‌ها
     ax.add_artist(plt.Circle((0, 0), outer_r, color='black', fill=False, linewidth=2))
-    # دایره داخلی (تفکیک خانه/سیاره)
     ax.add_artist(plt.Circle((0, 0), inner_r, color='#888888', fill=False, linewidth=1))
 
-    # -------------------------------------------------------------------------
-    # رسم برج‌ها (پس‌زمینه رنگی ثابت ۳۰ درجه‌ای)
-    # -------------------------------------------------------------------------
+    # برج‌ها
     for i in range(12):
         start_angle = i * 30
         end_angle = start_angle + 30
@@ -144,31 +130,23 @@ def draw_chart_advanced_fa(chart: Dict[str, Any]) -> io.BytesIO:
         )
         ax.add_patch(wedge)
 
-        # نام برج
         mid_deg = start_angle + 15
         x, y = polar_to_cartesian(mid_deg, (outer_r + inner_r) / 2)
         ax.text(x, y, SIGNS_FA[i], ha='center', va='center', fontsize=11)
 
-    # -------------------------------------------------------------------------
-    # رسم خانه‌ها (از روی cusps)
-    # -------------------------------------------------------------------------
+    # خانه‌ها
     for i, cusp_deg in enumerate(cusps):
-        # خط مرزی خانه
         x1, y1 = polar_to_cartesian(cusp_deg, inner_r)
         x2, y2 = polar_to_cartesian(cusp_deg, outer_r)
         ax.plot([x1, x2], [y1, y2], color=HOUSE_LINE_COLOR, linewidth=1)
 
-        # شماره خانه (وسط هر خانه)
         next_cusp = cusps[(i + 1) % 12]
-        # اختلاف درجه (اگر از 360 عبور کرد)
-        mid_deg = (cusp_deg + ( (next_cusp - cusp_deg) % 360 ) / 2) % 360
+        mid_deg = (cusp_deg + ((next_cusp - cusp_deg) % 360) / 2) % 360
         tx, ty = polar_to_cartesian(mid_deg, house_r)
-        ax.text(tx, ty, str(i + 1), ha='center', va='center', fontsize=10, color="#444444")
+        ax.text(tx, ty, str(i + 1), ha='center', va='center', fontsize=10)
 
-    # -------------------------------------------------------------------------
-    # رسم سیارات (نماد + درجه + ℞)
-    # -------------------------------------------------------------------------
-    planet_positions: Dict[str, (float, float)] = {}
+    # سیارات
+    planet_positions = {}
 
     for planet in planets:
         name = planet.get("name", "")
@@ -176,26 +154,20 @@ def draw_chart_advanced_fa(chart: Dict[str, Any]) -> io.BytesIO:
         symbol = PLANET_SYMBOLS.get(name, "?")
         is_retro = planet.get("is_retrograde", False)
 
-        # مختصات نماد
         px, py = polar_to_cartesian(deg, planet_r)
         ax.text(px, py, symbol, ha='center', va='center', fontsize=16)
 
-        # درجه به‌صورت عدد
         dx, dy = polar_to_cartesian(deg, planet_r - 0.08)
         degree_text = f"{int(round(deg % 30)):02d}°"
         ax.text(dx, dy, degree_text, ha='center', va='center', fontsize=8)
 
-        # ℞ برای رتروگراد
         if is_retro:
             rx, ry = polar_to_cartesian(deg, planet_r + 0.06)
             ax.text(rx, ry, "℞", ha='center', va='center', fontsize=9, color="#d32f2f")
 
-        # برای رسم زوایا
         planet_positions[name] = polar_to_cartesian(deg, planet_r - 0.02)
 
-    # -------------------------------------------------------------------------
-    # رسم Asc و MC
-    # -------------------------------------------------------------------------
+    # ASC / MC
     asc = float(chart.get("ascendant", 0.0))
     mc = float(chart.get("mc", 0.0))
 
@@ -203,9 +175,7 @@ def draw_chart_advanced_fa(chart: Dict[str, Any]) -> io.BytesIO:
         tx, ty = polar_to_cartesian(deg, outer_r + 0.05)
         ax.text(tx, ty, label, ha='center', va='center', fontsize=10, color=color)
 
-    # -------------------------------------------------------------------------
-    # رسم زوایا (Aspects) اگر وجود داشته باشد
-    # -------------------------------------------------------------------------
+    # زوایا
     aspects: Optional[List[Dict[str, Any]]] = chart.get("aspects")
     if aspects:
         for asp in aspects:
@@ -222,9 +192,7 @@ def draw_chart_advanced_fa(chart: Dict[str, Any]) -> io.BytesIO:
             color = ASPECT_COLORS.get(asp_type, "#888888")
             ax.plot([x1, x2], [y1, y2], color=color, linewidth=1)
 
-    # -------------------------------------------------------------------------
-    # خروجی تصویر
-    # -------------------------------------------------------------------------
+    # خروجی
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     buf.seek(0)
