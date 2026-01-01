@@ -1,272 +1,276 @@
 # bot_app.py
 # =============================================================================
-# این فایل:
-#   - پیام‌های ورودی را دریافت می‌کند
-#   - state کاربر را مدیریت می‌کند
-#   - ورودی تاریخ/زمان/شهر را جمع‌آوری می‌کند
-#   - چارت تولد را محاسبه می‌کند
-#   - تفسیر فارسی و تصویر چارت را ارسال می‌کند
-#   - هسته‌ی اجرایی ربات تلگرام (FastAPI + Webhook)
+# FastAPI Telegram Webhook Handler
+# نسخهٔ پیشرفته، سازگار با Render + چارت فارسی پیشرفته
 # =============================================================================
 
 import os
 import logging
-from fastapi import FastAPI, Request
-from typing import Dict, Any
+from typing import Tuple, Optional
 
-import utils
-from state_manager import init_db, get_user_state_db, save_user_state_db
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, PlainTextResponse
+import httpx
 
 from astrology_core import calculate_natal_chart
-from interpret_natal_chart import interpret_natal_chart
-from chart_drawer_fa import draw_chart_wheel_fa
-
-import keyboards
+from chart_drawer_fa import draw_chart_advanced_fa
 
 # -----------------------------------------------------------------------------
-# تنظیمات اولیه
+# تنظیمات اولیه و لاگ
 # -----------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO)
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-app = FastAPI()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
+logger = logging.getLogger("bot_app")
 
-# =============================================================================
-# توابع کمکی State Machine
-# =============================================================================
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # اگر خواستی به‌صورت خودکار ست کنیم
+TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-async def get_state(chat_id: int) -> Dict[str, Any]:
-    return await get_user_state_db(chat_id)
+if not BOT_TOKEN:
+    logger.error("❌ متغیر محیطی BOT_TOKEN تنظیم نشده است!")
 
-async def save_state(chat_id: int, state: Dict[str, Any]):
-    await save_user_state_db(chat_id, state)
-
-
-# =============================================================================
-# راه‌اندازی دیتابیس هنگام شروع
-# =============================================================================
-
-@app.on_event("startup")
-async def startup_event():
-    await init_db()
-    logging.info("📦 دیتابیس state کاربران آماده شد.")
+app = FastAPI(title="Mehrozkiyad Telegram Bot")
 
 
-# =============================================================================
-# وبهوک اصلی ربات
-# =============================================================================
+# -----------------------------------------------------------------------------
+# توابع کمکی تلگرام
+# -----------------------------------------------------------------------------
+
+async def send_message(
+    chat_id: int,
+    text: str,
+    reply_markup: Optional[dict] = None,
+    parse_mode: Optional[str] = None,
+):
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        try:
+            await client.post(f"{TELEGRAM_API}/sendMessage", json=payload)
+        except Exception as e:
+            logger.error(f"❌ خطا در ارسال پیام: {e}")
+
+
+async def send_chat_action(chat_id: int, action: str = "upload_photo"):
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            await client.post(
+                f"{TELEGRAM_API}/sendChatAction",
+                json={"chat_id": chat_id, "action": action},
+            )
+        except Exception as e:
+            logger.error(f"❌ خطا در ارسال chat_action: {e}")
+
+
+async def send_photo(
+    chat_id: int,
+    image_bytes,
+    caption: Optional[str] = None,
+    reply_markup: Optional[dict] = None,
+):
+    data = {"chat_id": chat_id}
+    if caption:
+        data["caption"] = caption
+
+    if reply_markup:
+        data["reply_markup"] = reply_markup
+
+    files = {"photo": ("chart.png", image_bytes, "image/png")}
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        try:
+            await client.post(
+                f"{TELEGRAM_API}/sendPhoto",
+                data=data,
+                files=files,
+            )
+        except Exception as e:
+            logger.error(f"❌ خطا در ارسال عکس: {e}")
+
+
+# -----------------------------------------------------------------------------
+# Keyboardها
+# -----------------------------------------------------------------------------
+
+def main_menu_keyboard() -> dict:
+    return {
+        "keyboard": [
+            [{"text": "📅 راهنمای فرمت تاریخ تولد"}],
+            [{"text": "ℹ️ درباره ربات"}],
+        ],
+        "resize_keyboard": True,
+        "one_time_keyboard": False,
+    }
+
+
+# -----------------------------------------------------------------------------
+# پردازش و اعتبارسنجی ورودی تولد
+# -----------------------------------------------------------------------------
+
+def parse_birth_input(text: str) -> Tuple[str, str, str]:
+    """
+    انتظار: چیزی شبیه:
+    1990-05-12 14:30 Tehran
+    یا:
+    1990-05-12 14:30 تهران
+    """
+    parts = text.strip().split()
+
+    if len(parts) < 2:
+        raise ValueError(
+            "لطفاً حداقل تاریخ و ساعت را به این شکل بفرست:\n"
+            "`YYYY-MM-DD HH:MM شهر`\nمثال:\n`1990-05-12 14:30 Tehran`"
+        )
+
+    birth_date = parts[0]  # YYYY-MM-DD
+    birth_time = parts[1]  # HH:MM
+    birth_city = " ".join(parts[2:]) if len(parts) > 2 else "Tehran"
+
+    # چک خیلی ساده روی فرمت (می‌توانیم بعداً سخت‌گیرتر کنیم)
+    if len(birth_date.split("-")) != 3 or ":" not in birth_time:
+        raise ValueError(
+            "فرمت ورودی درست نیست.\n"
+            "مثال صحیح:\n`1990-05-12 14:30 Tehran`"
+        )
+
+    return birth_date, birth_time, birth_city
+
+
+# -----------------------------------------------------------------------------
+# فرمان‌ها
+# -----------------------------------------------------------------------------
+
+async def handle_start(chat_id: int):
+    text = (
+        "سلام 🌙\n\n"
+        "من ربات محاسبه و ترسیم چارت نجومی هستم.\n"
+        "برای شروع، تاریخ و ساعت و شهر تولدت را به این شکل بفرست:\n\n"
+        "`YYYY-MM-DD HH:MM City`\n"
+        "مثال:\n"
+        "`1990-05-12 14:30 Tehran`\n\n"
+        "می‌توانی از دکمهٔ «📅 راهنمای فرمت تاریخ تولد» هم استفاده کنی."
+    )
+    await send_message(chat_id, text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+
+
+async def handle_help(chat_id: int):
+    text = (
+        "📅 راهنمای ارسال اطلاعات تولد:\n\n"
+        "فرمت پیشنهادی:\n"
+        "`YYYY-MM-DD HH:MM City`\n\n"
+        "مثال:\n"
+        "`1990-05-12 14:30 Tehran`\n\n"
+        "- تاریخ: سال-ماه-روز (تقویم میلادی)\n"
+        "- ساعت: به‌وقت محلی شهر تولد\n"
+        "- شهر: نام شهر به انگلیسی یا فارسی (مثلاً Tehran یا تهران)\n\n"
+        "بعد از ارسال، چارت نجومی کامل برایت ارسال می‌شود 🌟"
+    )
+    await send_message(chat_id, text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+
+
+async def handle_about(chat_id: int):
+    text = (
+        "ℹ️ دربارهٔ این ربات:\n\n"
+        "این ربات با استفاده از Swiss Ephemeris و محاسبات دقیق نجومی، "
+        "چارت تولد تو را محاسبه و به‌صورت چرخ فارسی با سیارات، خانه‌ها و زوایا ترسیم می‌کند.\n\n"
+        "خروجی برای استفاده در موبایل و تلگرام بهینه شده است."
+    )
+    await send_message(chat_id, text, reply_markup=main_menu_keyboard())
+
+
+# -----------------------------------------------------------------------------
+# تولید و ارسال چارت
+# -----------------------------------------------------------------------------
+
+async def handle_birth_message(chat_id: int, text: str):
+    try:
+        birth_date, birth_time, birth_city = parse_birth_input(text)
+    except ValueError as ve:
+        await send_message(chat_id, str(ve), reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+        return
+
+    await send_chat_action(chat_id, "upload_photo")
+
+    try:
+        # محاسبه چارت
+        chart_data = calculate_natal_chart(birth_date, birth_time, birth_city)
+    except Exception as e:
+        logger.error(f"❌ خطا در calculate_natal_chart: {e}")
+        await send_message(chat_id, "در محاسبهٔ چارت خطایی رخ داد. لطفاً بعداً دوباره تلاش کن.")
+        return
+
+    try:
+        # رسم چارت با نسخهٔ پیشرفته
+        image_bytes = draw_chart_advanced_fa(chart_data)
+    except Exception as e:
+        logger.error(f"❌ خطا در رسم چارت: {e}")
+        await send_message(chat_id, "در ترسیم چارت خطایی رخ داد. لطفاً بعداً دوباره تلاش کن.")
+        return
+
+    caption = (
+        "چارت نجومی تولد شما آماده شد 🌟\n\n"
+        f"تاریخ: {birth_date}\n"
+        f"ساعت: {birth_time}\n"
+        f"شهر: {birth_city}"
+    )
+
+    await send_photo(chat_id, image_bytes, caption=caption, reply_markup=main_menu_keyboard())
+
+
+# -----------------------------------------------------------------------------
+# Webhook اصلی تلگرام
+# -----------------------------------------------------------------------------
 
 @app.post("/")
 async def telegram_webhook(request: Request):
     update = await request.json()
+    logger.info(f"📩 Update: {update}")
 
-    if "message" in update:
-        await handle_message(update["message"])
+    message = update.get("message") or update.get("edited_message")
+    if not message:
+        return JSONResponse({"ok": True})
 
-    if "callback_query" in update:
-        await handle_callback(update["callback_query"])
-
-    return {"ok": True}
-
-
-# =============================================================================
-# مدیریت پیام‌های متنی
-# =============================================================================
-
-async def handle_message(message: Dict[str, Any]):
     chat_id = message["chat"]["id"]
-    text = message.get("text", "").strip()
+    text = message.get("text", "") or ""
 
-    state = await get_state(chat_id)
-    step = state.get("step", "START")
+    # فرمان‌ها
+    if text.startswith("/start"):
+        await handle_start(chat_id)
+        return JSONResponse({"ok": True})
 
-    # -------------------------------------------------------------------------
-    # شروع ربات
-    # -------------------------------------------------------------------------
-    if step == "START":
-        await utils.send_message(
-            BOT_TOKEN,
-            chat_id,
-            utils.escape_markdown_v2("سلام! برای شروع یکی از گزینه‌های زیر را انتخاب کنید:"),
-            keyboards.main_menu_keyboard()
-        )
-        state["step"] = "WELCOME"
-        await save_state(chat_id, state)
-        return
+    if text.startswith("/help") or text == "📅 راهنمای فرمت تاریخ تولد":
+        await handle_help(chat_id)
+        return JSONResponse({"ok": True})
 
-    # -------------------------------------------------------------------------
-    # ورودی تاریخ تولد
-    # -------------------------------------------------------------------------
-    if step == "ASTRO_DATE":
-        date_obj = utils.parse_persian_date(text)
-        if not date_obj:
-            await utils.send_message(
-                BOT_TOKEN, chat_id,
-                utils.escape_markdown_v2("❌ تاریخ نامعتبر است. لطفاً به‌صورت YYYY/MM/DD وارد کنید.")
-            )
-            return
+    if text.startswith("/about") or text == "ℹ️ درباره ربات":
+        await handle_about(chat_id)
+        return JSONResponse({"ok": True})
 
-        state["data"]["birth_date"] = text
-        state["step"] = "ASTRO_TIME"
-        await save_state(chat_id, state)
-
-        await utils.send_message(
-            BOT_TOKEN, chat_id,
-            utils.escape_markdown_v2("⏰ لطفاً *ساعت تولد* را وارد کنید (مثلاً 14:25):"),
-            keyboards.time_input_keyboard()
-        )
-        return
-
-    # -------------------------------------------------------------------------
-    # ورودی زمان تولد
-    # -------------------------------------------------------------------------
-    if step == "ASTRO_TIME":
-        time_obj = utils.parse_persian_time(text)
-        if not time_obj:
-            await utils.send_message(
-                BOT_TOKEN, chat_id,
-                utils.escape_markdown_v2("❌ ساعت نامعتبر است. لطفاً به‌صورت HH:MM وارد کنید.")
-            )
-            return
-
-        state["data"]["birth_time"] = text
-        state["step"] = "ASTRO_CITY"
-        await save_state(chat_id, state)
-
-        await utils.send_message(
-            BOT_TOKEN, chat_id,
-            utils.escape_markdown_v2("📍 لطفاً *نام شهر تولد* را وارد کنید:")
-        )
-        return
-
-    # -------------------------------------------------------------------------
-    # ورودی شهر تولد
-    # -------------------------------------------------------------------------
-    if step == "ASTRO_CITY":
-        city_info = utils.get_city_lookup_data(text)
-        if not city_info:
-            await utils.send_message(
-                BOT_TOKEN, chat_id,
-                utils.escape_markdown_v2("❌ شهر یافت نشد. لطفاً یک شهر معتبر وارد کنید.")
-            )
-            return
-
-        state["data"]["city"] = text
-        state["data"]["latitude"] = city_info["latitude"]
-        state["data"]["longitude"] = city_info["longitude"]
-        state["data"]["timezone"] = city_info["timezone"]
-
-        state["step"] = "ASTRO_CALCULATE"
-        await save_state(chat_id, state)
-
-        await run_astrology_workflow(chat_id, state["data"])
-        return
+    # هر چیز دیگری → تلاش برای تفسیر به‌عنوان اطلاعات تولد
+    await handle_birth_message(chat_id, text)
+    return JSONResponse({"ok": True})
 
 
-# =============================================================================
-# مدیریت کلیک روی دکمه‌ها
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Root / Health Check
+# -----------------------------------------------------------------------------
 
-async def handle_callback(callback: Dict[str, Any]):
-    chat_id = callback["message"]["chat"]["id"]
-    data = callback["data"]
-
-    await utils.answer_callback_query(BOT_TOKEN, callback["id"])
-
-    state = await get_state(chat_id)
-
-    # منوی اصلی
-    if data.startswith("MAIN|"):
-        await utils.send_message(
-            BOT_TOKEN, chat_id,
-            utils.escape_markdown_v2("منوی اصلی:"),
-            keyboards.main_menu_keyboard()
-        )
-        state["step"] = "WELCOME"
-        await save_state(chat_id, state)
-        return
-
-    # خدمات → آسترولوژی
-    if data == "SERVICES|ASTRO|0":
-        await utils.send_message(
-            BOT_TOKEN, chat_id,
-            utils.escape_markdown_v2("لطفاً *تاریخ تولد* را وارد کنید (شمسی، YYYY/MM/DD):")
-        )
-        state["step"] = "ASTRO_DATE"
-        await save_state(chat_id, state)
-        return
-
-    # انتخاب زمان پیش‌فرض
-    if data.startswith("TIME|DEFAULT"):
-        default_time = data.split("|")[2]
-        state["data"]["birth_time"] = default_time
-        state["step"] = "ASTRO_CITY"
-        await save_state(chat_id, state)
-
-        await utils.send_message(
-            BOT_TOKEN, chat_id,
-            utils.escape_markdown_v2("📍 لطفاً *نام شهر تولد* را وارد کنید:")
-        )
-        return
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "mehrozkiyad-bot"}
 
 
-# =============================================================================
-# اجرای کامل جریان آسترولوژی
-# =============================================================================
-
-async def run_astrology_workflow(chat_id: int, data: Dict[str, Any]):
-
-    await utils.send_message(
-        BOT_TOKEN, chat_id,
-        utils.escape_markdown_v2("🔄 در حال محاسبه چارت تولد شما... لطفاً صبر کنید.")
-    )
-
-    chart = calculate_natal_chart(
-        birth_date_jalali=data["birth_date"],
-        birth_time_str=data["birth_time"],
-        latitude=data["latitude"],
-        longitude=data["longitude"],
-        timezone_str=data["timezone"],
-        house_system="K"
-    )
-
-    if "error" in chart:
-        await utils.send_message(
-            BOT_TOKEN, chat_id,
-            utils.escape_markdown_v2(f"❌ خطا در محاسبه چارت:\n{chart['error']}")
-        )
-        return
-
-    # تفسیر
-    interpretation = interpret_natal_chart(chart)
-
-    # رسم چارت
-    chart_image = draw_chart_wheel_fa(chart)
-
-    # 1) ارسال عکس بدون کپشن
-    await utils.send_photo_with_caption(
-        BOT_TOKEN,
-        chat_id,
-        chart_image,
-        "",   # کپشن خالی
-        None  # بدون کیبورد
-    )
-
-    # 2) ارسال تفسیر در پیام جداگانه
-    await utils.send_message(
-        BOT_TOKEN,
-        chat_id,
-        utils.escape_markdown_v2(interpretation),
-        keyboards.main_menu_keyboard()
-    )
-
-    # بازگشت به منوی اصلی
-    await utils.send_message(
-        BOT_TOKEN, chat_id,
-        utils.escape_markdown_v2("بازگشت به منوی اصلی:"),
-        keyboards.main_menu_keyboard()
-    )
-
-    # ریست state
-    await save_state(chat_id, {"step": "WELCOME", "data": {}})
+@app.get("/health")
+async def health():
+    return PlainTextResponse("OK")
