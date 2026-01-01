@@ -1,44 +1,53 @@
-# ----------------------------------------------------------------------
-# Dockerfile - نسخه مقاوم در برابر خطا با ابزارهای کامپایل
-# ----------------------------------------------------------------------
-# استفاده از پایتون نسخه سبک
-FROM python:3.9-slim-bullseye
+# -----------------------------
+# 1) Base image
+# -----------------------------
+FROM python:3.11-slim
 
-# نصب پیش‌نیازهای سیستم‌عامل
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+# -----------------------------
+# 2) Install system dependencies
+# -----------------------------
+RUN apt-get update && apt-get install -y \
     build-essential \
-    cmake \
-    pkg-config \
     libfreetype6-dev \
-    locales \
-    fonts-noto-extra \
-    && echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
-    locale-gen en_US.UTF-8 && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    libpng-dev \
+    libopenblas-dev \
+    liblapack-dev \
+    libatlas-base-dev \
+    fonts-dejavu \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
 
-# تنظیم پوشه کاری
-WORKDIR /usr/src/app
+# -----------------------------
+# 3) Create app directory
+# -----------------------------
+WORKDIR /app
 
-# ۱. کپی کردن فایل نیازمندی‌ها
+# -----------------------------
+# 4) Copy requirements
+# -----------------------------
 COPY requirements.txt .
 
-# ۲. نصب کتابخانه‌های پایتون (این خط در فایل شما جا افتاده است)
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# ۳. کپی کردن پوشه داده‌های نجومی و تنظیم دسترسی
-COPY ephe/ /usr/src/app/ephe/
-RUN chmod -R 755 /usr/src/app/ephe
-
-# ۴. کپی کردن بقیه فایل‌های پروژه
+# -----------------------------
+# 5) Copy project files
+# -----------------------------
 COPY . .
 
-# تنظیم متغیرهای محیطی برای زبان
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US:en
-ENV LC_ALL=en_US.UTF-8
+# -----------------------------
+# 6) Install Vazirmatn font manually
+# -----------------------------
+RUN mkdir -p /usr/share/fonts/truetype/vazirmatn && \
+    cp /app/fonts/Vazirmatn-Regular.ttf /usr/share/fonts/truetype/vazirmatn/ && \
+    fc-cache -f -v
 
-# ۵. دستور اجرای برنامه
-CMD ["python", "-m", "uvicorn", "bot_app:app", "--host", "0.0.0.0", "--port", "8080"]
+# -----------------------------
+# 7) Expose port for Render
+# -----------------------------
+EXPOSE 10000
+
+# -----------------------------
+# 8) Start FastAPI app
+# -----------------------------
+CMD ["uvicorn", "bot_app:app", "--host", "0.0.0.0", "--port", "10000"]
