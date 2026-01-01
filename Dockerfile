@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     libopenblas-dev \
     liblapack-dev \
     fonts-dejavu \
+    fontconfig \
     wget \
     unzip \
     && rm -rf /var/lib/apt/lists/*
