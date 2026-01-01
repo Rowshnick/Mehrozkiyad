@@ -1,7 +1,6 @@
 # bot_app.py
 # =============================================================================
-# FastAPI Telegram Webhook Handler
-# مدل سه‌مرحله‌ای: تاریخ جلالی → ساعت → شهر
+# نسخهٔ دیباگ کامل — مدل سه‌مرحله‌ای
 # =============================================================================
 
 import os
@@ -19,7 +18,7 @@ from chart_drawer_fa import draw_chart_advanced_fa
 # -----------------------------------------------------------------------------
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("bot")
+logger = logging.getLogger("bot-debug")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
@@ -27,17 +26,10 @@ TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 app = FastAPI()
 
 # -----------------------------------------------------------------------------
-# حافظهٔ ساده برای نگه‌داری state کاربران
+# حافظهٔ state کاربران
 # -----------------------------------------------------------------------------
 
-user_state = {}  
-# ساختار:
-# user_state[chat_id] = {
-#     "step": 1/2/3,
-#     "date": "",
-#     "time": "",
-#     "city": ""
-# }
+user_state = {}
 
 
 # -----------------------------------------------------------------------------
@@ -45,6 +37,7 @@ user_state = {}
 # -----------------------------------------------------------------------------
 
 async def send_message(chat_id: int, text: str):
+    logger.info(f"📤 ارسال پیام به {chat_id}: {text}")
     async with httpx.AsyncClient(timeout=10) as client:
         await client.post(
             f"{TELEGRAM_API}/sendMessage",
@@ -53,6 +46,7 @@ async def send_message(chat_id: int, text: str):
 
 
 async def send_photo(chat_id: int, image_bytes, caption: str = None):
+    logger.info(f"📤 ارسال عکس به {chat_id}")
     async with httpx.AsyncClient(timeout=20) as client:
         files = {"photo": ("chart.png", image_bytes, "image/png")}
         data = {"chat_id": chat_id}
@@ -71,14 +65,17 @@ async def send_photo(chat_id: int, image_bytes, caption: str = None):
 # -----------------------------------------------------------------------------
 
 def jalali_to_gregorian(jdate: str) -> str:
+    logger.info(f"🔄 تبدیل تاریخ جلالی: {jdate}")
     jdate = jdate.replace("-", "/")
     parts = jdate.split("/")
     if len(parts) != 3:
-        raise ValueError("فرمت تاریخ جلالی صحیح نیست. مثال: 1359/05/29")
+        raise ValueError("فرمت تاریخ جلالی صحیح نیست.")
 
     jy, jm, jd = map(int, parts)
     g = jdatetime.date(jy, jm, jd).togregorian()
-    return g.strftime("%Y-%m-%d")
+    g_date = g.strftime("%Y-%m-%d")
+    logger.info(f"📌 تاریخ میلادی: {g_date}")
+    return g_date
 
 
 # -----------------------------------------------------------------------------
@@ -88,9 +85,10 @@ def jalali_to_gregorian(jdate: str) -> str:
 @app.post("/")
 async def telegram_webhook(request: Request):
     update = await request.json()
-    logger.info(f"📩 Update: {update}")
+    logger.info(f"📩 Update دریافت شد:\n{update}")
 
     if "message" not in update:
+        logger.warning("⚠️ پیام بدون message دریافت شد")
         return JSONResponse({"ok": True})
 
     message = update["message"]
@@ -102,87 +100,84 @@ async def telegram_webhook(request: Request):
     # -----------------------------
     if text.startswith("/start"):
         user_state[chat_id] = {"step": 1}
+        logger.info(f"🚀 شروع گفتگو با کاربر {chat_id}")
         await send_message(chat_id, "تاریخ تولد را وارد کن (جلالی):\nمثال: 1359/05/29")
         return JSONResponse({"ok": True})
 
     # -----------------------------
-    # اگر کاربر در state نیست → شروع از اول
+    # اگر state وجود ندارد → شروع از اول
     # -----------------------------
     if chat_id not in user_state:
+        logger.info(f"ℹ️ کاربر {chat_id} state نداشت → شروع از اول")
         user_state[chat_id] = {"step": 1}
         await send_message(chat_id, "تاریخ تولد را وارد کن (جلالی):")
         return JSONResponse({"ok": True})
 
     step = user_state[chat_id]["step"]
+    logger.info(f"📌 مرحله فعلی کاربر {chat_id}: {step}")
 
     # -----------------------------
     # مرحله ۱ → تاریخ جلالی
     # -----------------------------
     if step == 1:
         try:
-            gregorian_date = jalali_to_gregorian(text)
-            user_state[chat_id]["date"] = gregorian_date
+            g_date = jalali_to_gregorian(text)
+            user_state[chat_id]["date"] = g_date
             user_state[chat_id]["jalali"] = text
             user_state[chat_id]["step"] = 2
+            logger.info(f"✔ تاریخ ذخیره شد: {g_date}")
             await send_message(chat_id, "ساعت تولد را وارد کن:\nمثال: 17:35")
-        except Exception:
+        except Exception as e:
+            logger.error(f"❌ خطا در تاریخ: {e}")
             await send_message(chat_id, "فرمت تاریخ صحیح نیست. مثال: 1359/05/29")
         return JSONResponse({"ok": True})
 
     # -----------------------------
-    # مرحله ۲ → ساعت تولد
+    # مرحله ۲ → ساعت
     # -----------------------------
     if step == 2:
         if ":" not in text:
+            logger.error("❌ فرمت ساعت اشتباه است")
             await send_message(chat_id, "فرمت ساعت صحیح نیست. مثال: 17:35")
             return JSONResponse({"ok": True})
 
         user_state[chat_id]["time"] = text
         user_state[chat_id]["step"] = 3
+        logger.info(f"✔ ساعت ذخیره شد: {text}")
         await send_message(chat_id, "شهر تولد را وارد کن:")
         return JSONResponse({"ok": True})
 
     # -----------------------------
-    # مرحله ۳ → شهر تولد
+    # مرحله ۳ → شهر
     # -----------------------------
     if step == 3:
         user_state[chat_id]["city"] = text
+        logger.info(f"✔ شهر ذخیره شد: {text}")
 
-        # گرفتن داده‌ها
         g_date = user_state[chat_id]["date"]
         j_date = user_state[chat_id]["jalali"]
         b_time = user_state[chat_id]["time"]
         b_city = user_state[chat_id]["city"]
 
+        logger.info("📌 داده‌های نهایی کاربر:")
+        logger.info(f"  - تاریخ جلالی: {j_date}")
+        logger.info(f"  - تاریخ میلادی: {g_date}")
+        logger.info(f"  - ساعت: {b_time}")
+        logger.info(f"  - شهر: {b_city}")
+
         # پاک کردن state
         del user_state[chat_id]
 
+        # -----------------------------
         # محاسبه چارت
+        # -----------------------------
         try:
+            logger.info("🔮 شروع محاسبه چارت...")
             chart_data = calculate_natal_chart(g_date, b_time, b_city)
-            image_bytes = draw_chart_advanced_fa(chart_data)
+            logger.info(f"📌 خروجی calculate_natal_chart:\n{chart_data}")
 
-            caption = (
-                "چارت نجومی شما آماده شد 🌙\n\n"
-                f"تاریخ (جلالی): {j_date}\n"
-                f"تاریخ (میلادی): {g_date}\n"
-                f"ساعت: {b_time}\n"
-                f"شهر: {b_city}"
-            )
+            # بررسی کامل بودن چارت
+            if not chart_data:
+                raise ValueError("خروجی چارت خالی است!")
 
-            await send_photo(chat_id, image_bytes, caption)
-
-        except Exception as e:
-            logger.error(f"❌ خطا در محاسبه چارت: {e}")
-            await send_message(chat_id, "خطا در محاسبه چارت. لطفاً دوباره تلاش کن.")
-
-        return JSONResponse({"ok": True})
-
-
-# -----------------------------------------------------------------------------
-# Health Check
-# -----------------------------------------------------------------------------
-
-@app.get("/")
-async def root():
-    return {"status": "ok", "service": "mehrozkiyad-bot"}
+            if "planets_list
