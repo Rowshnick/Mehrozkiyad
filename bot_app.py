@@ -180,4 +180,6 @@ async def telegram_webhook(request: Request):
             if not chart_data:
                 raise ValueError("خروجی چارت خالی است!")
 
-            if "planets_list
+            if "planets_list" not in chart_data or not chart_data["planets_list"]:
+                raise ValueError("لیست سیارات خالی است!")
+        
