@@ -493,7 +493,6 @@ async def handle_synastry(chat_id: int, text: str):
             await send_message(chat_id, "ساعت تولد نفر دوم را وارد کن:")
         except Exception:
             await send_message(chat_id, "فرمت تاریخ صحیح نیست. مثال: 1365/01/15")
-       -
 
 async def handle_synastry(chat_id: int, text: str):
     state = user_state[chat_id]
