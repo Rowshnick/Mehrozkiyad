@@ -560,3 +560,39 @@ def format_natal_pro_for_user(interpretations: List[InterpretationRule]) -> str:
         lines.append("")
 
     return "\n".join(lines).strip()
+# -----------------------------------------------------------------------------
+# ۵) ادغام نسخهٔ PRO با Composite Interpretation
+# -----------------------------------------------------------------------------
+
+from interpretations_composite import generate_composite_text
+
+def generate_natal_pro_full(chart_data: Dict[str, Any]) -> str:
+    """
+    خروجی نهایی نسخهٔ PRO:
+    - تفسیر سیستمی (PRO)
+    - تفسیر ترکیبی (Composite)
+    - ادغام در یک متن کامل
+    """
+
+    # ۱) تفسیر PRO
+    pro_rules = interpret_natal_pro(chart_data)
+    pro_text = format_natal_pro_for_user(pro_rules)
+
+    # ۲) تفسیر Composite
+    composite_text = generate_composite_text(chart_data)
+
+    # ۳) ادغام
+    final_parts = []
+
+    final_parts.append("🌟 **گزارش ناتال حرفه‌ای (نسخه PRO)**")
+    final_parts.append("")
+    final_parts.append(pro_text)
+
+    if composite_text.strip():
+        final_parts.append("\n" + "="*40 + "\n")
+        final_parts.append("🌙 **تحلیل ترکیبی (Composite Interpretation)**")
+        final_parts.append("")
+        final_parts.append(composite_text)
+
+    return "\n".join(final_parts).strip()
+    
