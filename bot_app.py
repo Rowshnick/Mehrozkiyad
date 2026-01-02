@@ -1,6 +1,6 @@
 # bot_app.py
 # =============================================================================
-# نسخهٔ دیباگ کامل — مدل سه‌مرحله‌ای
+# نسخهٔ کامل و اصلاح‌شده — محاسبه چارت + رسم چارت + تفسیر متنی
 # =============================================================================
 
 import os
@@ -12,6 +12,7 @@ import jdatetime
 
 from astrology_core import calculate_natal_chart
 from chart_drawer_fa import draw_chart_advanced_fa
+from interpretations import interpret_chart, format_for_user
 
 # -----------------------------------------------------------------------------
 # تنظیمات لاگ
@@ -30,13 +31,13 @@ TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 app = FastAPI()
 
 # -----------------------------------------------------------------------------
-# حافظهٔ state کاربران (در حافظهٔ RAM — فقط برای تست/دیباگ)
+# حافظهٔ state کاربران (در RAM)
 # -----------------------------------------------------------------------------
 
 user_state = {}
 
 # -----------------------------------------------------------------------------
-# توابع ارسال پیام/عکس به تلگرام
+# توابع ارسال پیام/تصویر به تلگرام
 # -----------------------------------------------------------------------------
 
 async def send_message(chat_id: int, text: str):
@@ -75,6 +76,10 @@ async def send_photo(chat_id: int, image_bytes: bytes, caption: str | None = Non
 # -----------------------------------------------------------------------------
 
 def jalali_to_gregorian(jdate: str) -> str:
+    """
+    ورودی: رشته تاریخ جلالی مثل '1359/05/29' یا '1359-05-29'
+    خروجی: تاریخ میلادی به‌صورت 'YYYY-MM-DD'
+    """
     logger.info(f"🔄 تبدیل تاریخ جلالی: {jdate}")
     jdate = jdate.replace("-", "/")
     parts = jdate.split("/")
@@ -88,7 +93,21 @@ def jalali_to_gregorian(jdate: str) -> str:
     return g_date
 
 # -----------------------------------------------------------------------------
-# Webhook اصلی ربات
+# دیتابیس سادهٔ شهرها → مختصات
+# -----------------------------------------------------------------------------
+
+CITY_DB = {
+    "تهران":  (35.6892, 51.3890),
+    "اراک":   (34.0954, 49.7013),
+    "مشهد":   (36.2605, 59.6168),
+    "اصفهان": (32.6546, 51.6680),
+    "شیراز":  (29.5918, 52.5837),
+    "تبریز":  (38.0962, 46.2738),
+    # شهرهای دیگر را می‌توانی کم‌کم اضافه کنی
+}
+
+# -----------------------------------------------------------------------------
+# Webhook اصلی تلگرام
 # -----------------------------------------------------------------------------
 
 @app.post("/")
@@ -104,18 +123,19 @@ async def telegram_webhook(request: Request):
     chat_id = message["chat"]["id"]
     text = message.get("text", "").strip()
 
-    # -----------------------------
-    # فرمان /start
-    # -----------------------------
+    # -------------------------------------------------------------------------
+    # /start → ریست و شروع مکالمه
+    # -------------------------------------------------------------------------
     if text.startswith("/start"):
         user_state[chat_id] = {"step": 1}
         logger.info(f"🚀 شروع گفتگو با کاربر {chat_id}")
-        await send_message(chat_id, "تاریخ تولد را وارد کن (جلالی):\nمثال: 1359/05/29")
+        await send_message(
+            chat_id,
+            "تاریخ تولد را وارد کن (جلالی):\nمثال: 1359/05/29"
+        )
         return JSONResponse({"ok": True})
 
-    # -----------------------------
-    # اگر state وجود ندارد → شروع از اول
-    # -----------------------------
+    # اگر state از بین رفته باشد، دوباره از اول شروع کن
     if chat_id not in user_state:
         logger.info(f"ℹ️ کاربر {chat_id} state نداشت → شروع از اول")
         user_state[chat_id] = {"step": 1}
@@ -125,9 +145,9 @@ async def telegram_webhook(request: Request):
     step = user_state[chat_id]["step"]
     logger.info(f"📌 مرحله فعلی کاربر {chat_id}: {step}")
 
-    # -----------------------------
-    # مرحله ۱ → تاریخ جلالی
-    # -----------------------------
+    # -------------------------------------------------------------------------
+    # مرحله ۱ → تاریخ تولد (جلالی)
+    # -------------------------------------------------------------------------
     if step == 1:
         try:
             g_date = jalali_to_gregorian(text)
@@ -135,7 +155,7 @@ async def telegram_webhook(request: Request):
             user_state[chat_id]["jalali"] = text
             user_state[chat_id]["step"] = 2
 
-            logger.info(f"✔ تاریخ ذخیره شد: {g_date}")
+            logger.info(f"✔ تاریخ ذخیره شد: جلالی={text} | میلادی={g_date}")
             await send_message(chat_id, "ساعت تولد را وارد کن:\nمثال: 17:35")
 
         except Exception as e:
@@ -144,9 +164,9 @@ async def telegram_webhook(request: Request):
 
         return JSONResponse({"ok": True})
 
-    # -----------------------------
-    # مرحله ۲ → ساعت
-    # -----------------------------
+    # -------------------------------------------------------------------------
+    # مرحله ۲ → ساعت تولد
+    # -------------------------------------------------------------------------
     if step == 2:
         if ":" not in text:
             logger.error("❌ فرمت ساعت اشتباه است")
@@ -161,17 +181,16 @@ async def telegram_webhook(request: Request):
 
         return JSONResponse({"ok": True})
 
-    # -----------------------------
-    # مرحله ۳ → شهر
-    # -----------------------------
+    # -------------------------------------------------------------------------
+    # مرحله ۳ → شهر تولد
+    # -------------------------------------------------------------------------
     if step == 3:
         user_state[chat_id]["city"] = text
-        logger.info(f"✔ شهر ذخیره شد: {text}")
+        b_city = text.strip()
 
         g_date = user_state[chat_id]["date"]
         j_date = user_state[chat_id]["jalali"]
         b_time = user_state[chat_id]["time"]
-        b_city = user_state[chat_id]["city"]
 
         logger.info("📌 داده‌های نهایی کاربر:")
         logger.info(f"  - تاریخ جلالی: {j_date}")
@@ -179,46 +198,41 @@ async def telegram_webhook(request: Request):
         logger.info(f"  - ساعت: {b_time}")
         logger.info(f"  - شهر: {b_city}")
 
-        # پاک کردن state
+        # پاک کردن state برای این کاربر
         del user_state[chat_id]
 
-        # -----------------------------
+        # مختصات شهر (در صورت ناشناخته بودن، تهران پیش‌فرض می‌شود)
+        lat, lon = CITY_DB.get(b_city, (35.6892, 51.3890))
+        logger.info(f"📌 مختصات شهر: lat={lat}, lon={lon}")
+
+        # ---------------------------------------------------------------------
         # محاسبه چارت
-        # -----------------------------
+        # ---------------------------------------------------------------------
         try:
             logger.info("🔮 شروع محاسبه چارت...")
 
             chart_data = calculate_natal_chart(
-                j_date,         # تاریخ جلالی (مطابق امضای تابع در astrology_core)
+                j_date,         # تاریخ جلالی (مطابق امضای تابع)
                 b_time,         # ساعت تولد "HH:MM"
-                35.6892,        # latitude تهران - فعلاً پیش‌فرض
-                51.3890,        # longitude تهران - فعلاً پیش‌فرض
+                lat,            # عرض جغرافیایی
+                lon,            # طول جغرافیایی
                 "Asia/Tehran"   # منطقهٔ زمانی
             )
 
             logger.info("📌 خروجی calculate_natal_chart:")
             logger.info(chart_data)
 
+            # کنترل حداقلی صحت دیتا
             if not chart_data:
-                raise ValueError("خروجی چارت خالی است!")
-
+                raise ValueError("خروجی چارت خالی است.")
             if "planets_list" not in chart_data or not chart_data["planets_list"]:
-                raise ValueError("لیست سیارات خالی است!")
+                raise ValueError("لیست سیارات در چارت خالی است.")
+            if "cusps" not in chart_data or len(chart_data["cusps"]) != 12:
+                raise ValueError("خانه‌های چارت کامل نیستند (باید ۱۲ خانه باشند).")
 
-            if "cusps" not in chart_data or not chart_data["cusps"]:
-                raise ValueError("خانه‌ها خالی هستند!")
-
-            if len(chart_data["cusps"]) != 12:
-                raise ValueError("تعداد خانه‌ها باید ۱۲ باشد!")
-
-            if "ascendant" not in chart_data:
-                raise ValueError("صعودی (ASC) در چارت وجود ندارد!")
-
-            logger.info("✔ چارت کامل و معتبر است")
-
-            # -----------------------------
+            # -----------------------------------------------------------------
             # رسم چارت
-            # -----------------------------
+            # -----------------------------------------------------------------
             logger.info("🎨 شروع رسم چارت...")
             image_bytes = draw_chart_advanced_fa(chart_data)
 
@@ -227,19 +241,36 @@ async def telegram_webhook(request: Request):
 
             logger.info("✔ چارت با موفقیت رسم شد")
 
-            # -----------------------------
-            # ارسال عکس
-            # -----------------------------
+            # ارسال تصویر چارت
             await send_photo(
                 chat_id,
                 image_bytes,
                 caption="چارت تولد شما آماده شد 🌟"
             )
-
             logger.info("📤 عکس با موفقیت ارسال شد")
 
+            # -----------------------------------------------------------------
+            # تولید و ارسال تفسیر متنی
+            # -----------------------------------------------------------------
+            logger.info("🧠 شروع تولید تفسیر چارت...")
+            interpretations = interpret_chart(chart_data)
+            interpretation_text = format_for_user(interpretations)
+
+            if interpretation_text:
+                logger.info("✔ تفسیر تولید شد، ارسال برای کاربر...")
+                await send_message(chat_id, interpretation_text)
+            else:
+                logger.warning("⚠️ هیچ قانون تفسیری فعال نشد، متن خالی است")
+                await send_message(
+                    chat_id,
+                    "چارت شما محاسبه شد، اما در حال حاضر تفسیر متنی محدودی برای این ترکیب‌ها تعریف شده است."
+                )
+
         except Exception as e:
-            logger.error(f"❌ خطا در محاسبه یا رسم چارت: {e}")
+            logger.error(f"❌ خطا در محاسبه یا رسم/تفسیر چارت: {e}")
             await send_message(chat_id, f"خطا در محاسبه چارت:\n{e}")
 
         return JSONResponse({"ok": True})
+
+    # اگر به هر دلیل به اینجا برسیم
+    return JSONResponse({"ok": True})
