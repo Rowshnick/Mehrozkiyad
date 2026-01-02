@@ -15,3 +15,5 @@ timezonefinder[database]
 aiosqlite
 matplotlib
 jdatetime
+arabic-reshaper
+python-bidi
