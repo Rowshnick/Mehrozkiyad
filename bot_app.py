@@ -1,4 +1,4 @@
- # bot_app.py
+# bot_app.py
 # =============================================================================
 # نسخهٔ دیباگ کامل — مدل سه‌مرحله‌ای
 # =============================================================================
@@ -187,18 +187,14 @@ async def telegram_webhook(request: Request):
         # -----------------------------
         try:
             logger.info("🔮 شروع محاسبه چارت...")
-            
-            # جدید (هات‌فیکس موقت)
+
             chart_data = calculate_natal_chart(
-               j_date,         # تاریخ جلالی که خودت در state نگه داشته‌ای
-               b_time,         # ساعت تولد به صورت "HH:MM"
-               35.6892,        # latitude تهران - فعلاً پیش‌فرض
-               51.3890,        # longitude تهران - فعلاً پیش‌فرض
-               "Asia/Tehran"   # منطقهٔ زمانی
+                j_date,         # تاریخ جلالی (مطابق امضای تابع در astrology_core)
+                b_time,         # ساعت تولد "HH:MM"
+                35.6892,        # latitude تهران - فعلاً پیش‌فرض
+                51.3890,        # longitude تهران - فعلاً پیش‌فرض
+                "Asia/Tehran"   # منطقهٔ زمانی
             )
-            chart_data = calculate_natal_chart(g_date, b_time, b_city, None, "Asia/Tehran")
-            #جدید
-            #chart_data = calculate_natal_chart(g_date, b_time, b_city)
 
             logger.info("📌 خروجی calculate_natal_chart:")
             logger.info(chart_data)
@@ -246,4 +242,4 @@ async def telegram_webhook(request: Request):
             logger.error(f"❌ خطا در محاسبه یا رسم چارت: {e}")
             await send_message(chat_id, f"خطا در محاسبه چارت:\n{e}")
 
-        return JSONResponse({"ok": True})     
+        return JSONResponse({"ok": True})
