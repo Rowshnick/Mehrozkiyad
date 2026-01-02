@@ -187,7 +187,11 @@ async def telegram_webhook(request: Request):
         # -----------------------------
         try:
             logger.info("🔮 شروع محاسبه چارت...")
-            chart_data = calculate_natal_chart(g_date, b_time, b_city)
+            
+            # جدید (هات‌فیکس موقت)
+            chart_data = calculate_natal_chart(g_date, b_time, b_city, None, "Asia/Tehran")
+            #جدید
+            #chart_data = calculate_natal_chart(g_date, b_time, b_city)
 
             logger.info("📌 خروجی calculate_natal_chart:")
             logger.info(chart_data)
