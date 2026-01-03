@@ -46,17 +46,19 @@ def extract_core_positions(chart: Dict[str, Any]) -> Dict[str, Any]:
     houses = chart.get("houses", {})
 
     out = {
-        "sun": None,
-        "moon": None,
-        "venus": None,
-        "mars": None,
-        "saturn": None,
-        "jupiter": None,
-        "pluto": None,
-        "asc": chart.get("ascendant_sign", None),
-        "houses": houses,
-        "aspects": aspects,
+    "sun": None,
+    "moon": None,
+    "venus": None,
+    "mars": None,
+    "saturn": None,
+    "jupiter": None,
+    "pluto": None,
+    "north_node": chart.get("north_node", None),   # ← این خط را اضافه کن
+    "asc": chart.get("ascendant_sign", None),
+    "houses": houses,
+    "aspects": aspects,
     }
+    
 
     for p in planets:
         name = p["name"].lower()
