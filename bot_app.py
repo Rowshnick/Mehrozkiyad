@@ -13,6 +13,7 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
+from datetime import date, timedelta
 
 # -----------------------------
 # فایل‌های داخلی پروژه
@@ -20,6 +21,7 @@ from aiogram.enums import ParseMode
 from astro_engine import calculate_natal_chart
 from interpretations_natal_pro import generate_natal_pro_full
 from report_builder import build_natal_pdf_report
+from transits_engine import analyze_transits_for_range
 
 
 # -----------------------------
@@ -154,6 +156,40 @@ async def ask_city(msg: types.Message):
         logger.error(f"خطا در پردازش ناتال: {e}")
         await msg.answer("❌ خطایی رخ داد. لطفاً دوباره تلاش کن.")
 
+
+# ----------------------------
+#  محاسبه ترانزیت   
+# ----------------------------
+
+@dp.message_handler(commands=["transits"])
+async def cmd_transits(message: types.Message):
+    try:
+        # ۱) گرفتن چارت ناتال کاربر از دیتابیس / فایل / حافظه
+        # اگر چارت را در جایی ذخیره می‌کنی، اینجا لودش کن
+        # مثال:
+        user_id = message.from_user.id
+        natal_chart = load_user_chart(user_id)  # ← اگر تابع داری
+        if not natal_chart:
+            await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+            return
+
+        # ۲) بازهٔ زمانی ترانزیت‌ها
+        start = date.today()
+        end = start + timedelta(days=30)
+
+        # ۳) اجرای موتور ترانزیت
+        result_text = analyze_transits_for_range(natal_chart, start, end)
+
+        # ۴) اگر ترانزیت مهمی نبود
+        if not result_text.strip():
+            await message.reply("✨ در ۳۰ روز آینده ترانزیت مهمی برای شما ثبت نشده است.")
+            return
+
+        # ۵) ارسال خروجی
+        await message.reply(result_text)
+
+    except Exception as e:
+        await message.reply(f"❌ خطا در پردازش ترانزیت‌ها: {e}")
 
 # -----------------------------
 # اجرای ربات
