@@ -275,3 +275,173 @@ def calculate_aspects(planets_list):
                     })
 
     return aspects
+
+# =============================================================================
+# موتور ترانزیت Swiss Ephemeris – نسخهٔ کامل و عملیاتی
+# =============================================================================
+
+from datetime import date, timedelta
+
+# -----------------------------------------------------------------------------
+# ابزار کمکی: اختلاف زاویه
+# -----------------------------------------------------------------------------
+
+def _angle_diff(a: float, b: float) -> float:
+    """اختلاف دو درجه را در بازهٔ 0 تا 180 برمی‌گرداند."""
+    diff = abs(a - b) % 360
+    return diff if diff <= 180 else 360 - diff
+
+
+# -----------------------------------------------------------------------------
+# تعریف زوایا و اورب‌ها
+# -----------------------------------------------------------------------------
+
+TRANSIT_ASPECTS = {
+    "conjunction": 0,
+    "sextile": 60,
+    "square": 90,
+    "trine": 120,
+    "opposition": 180,
+}
+
+TRANSIT_ORBS = {
+    "conjunction": 6,
+    "sextile": 4,
+    "square": 5,
+    "trine": 5,
+    "opposition": 6,
+}
+
+
+# -----------------------------------------------------------------------------
+# تشخیص نوع زاویه
+# -----------------------------------------------------------------------------
+
+def _detect_transit_aspect(transit_deg: float, natal_deg: float):
+    diff = _angle_diff(transit_deg, natal_deg)
+
+    for asp, exact in TRANSIT_ASPECTS.items():
+        if abs(diff - exact) <= TRANSIT_ORBS[asp]:
+            return asp, abs(diff - exact)
+
+    return None, None
+
+
+# -----------------------------------------------------------------------------
+# محاسبه موقعیت سیارات ترانزیت در یک تاریخ
+# -----------------------------------------------------------------------------
+
+def calculate_transit_positions_for_date(d: date) -> Dict[str, float]:
+    """
+    خروجی:
+    {
+        "sun": 123.4,
+        "moon": 250.1,
+        "venus": 87.2,
+        ...
+    }
+    """
+
+    # تبدیل تاریخ میلادی → Julian Day
+    tjd_ut = se.julday(d.year, d.month, d.day, 0.0)
+
+    positions = {}
+
+    for name, pid in PLANETS.items():
+        try:
+            pos, _ = se.calc_ut(tjd_ut, pid, FLAGS)
+            positions[name] = float(pos[0])
+        except Exception as e:
+            logging.error(f"❌ خطا در محاسبه ترانزیت {name}: {e}")
+
+    return positions
+
+
+# -----------------------------------------------------------------------------
+# تابع اصلی: محاسبه ترانزیت‌ها در یک بازهٔ زمانی
+# -----------------------------------------------------------------------------
+
+def calculate_transits_for_range(
+    natal_chart: Dict[str, Any],
+    start_date: date,
+    end_date: date,
+) -> List[Dict[str, Any]]:
+    """
+    خروجی:
+    [
+        {
+            "date": date,
+            "transit_planet": "saturn",
+            "natal_point": "moon",
+            "aspect": "square",
+            "orb": 1.2,
+        },
+        ...
+    ]
+    """
+
+    # -----------------------------
+    # ۱) استخراج نقاط ناتال
+    # -----------------------------
+    natal_positions = {}
+
+    for p in natal_chart.get("planets_list", []):
+        natal_positions[p["name"].lower()] = p["degree"]
+
+    # ASC و MC
+    if "ascendant" in natal_chart:
+        natal_positions["asc"] = natal_chart["ascendant"]
+
+    if "mc" in natal_chart:
+        natal_positions["mc"] = natal_chart["mc"]
+
+    # -----------------------------
+    # ۲) سیارات ترانزیت
+    # -----------------------------
+    transit_planets = [
+        "sun", "moon", "mercury", "venus", "mars",
+        "jupiter", "saturn", "uranus", "neptune", "pluto"
+    ]
+
+    natal_points = [
+        "sun", "moon", "venus", "mars",
+        "asc", "mc"
+    ]
+
+    # -----------------------------
+    # ۳) حلقهٔ روزانه
+    # -----------------------------
+    results = []
+    d = start_date
+
+    while d <= end_date:
+
+        transit_positions = calculate_transit_positions_for_date(d)
+
+        for tplanet in transit_planets:
+            if tplanet not in transit_positions:
+                continue
+
+            t_deg = transit_positions[tplanet]
+
+            for npoint in natal_points:
+                if npoint not in natal_positions:
+                    continue
+
+                n_deg = natal_positions[npoint]
+
+                aspect, orb = _detect_transit_aspect(t_deg, n_deg)
+                if aspect is None:
+                    continue
+
+                results.append({
+                    "date": d,
+                    "transit_planet": tplanet,
+                    "natal_point": npoint,
+                    "aspect": aspect,
+                    "orb": orb,
+                })
+
+        d += timedelta(days=1)
+
+    return results
