@@ -14,7 +14,17 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
 from datetime import date, timedelta
+from aiogram import types
 
+# ایمپورت منوها از فایل keyboards.py
+from keyboards import (
+    transits_main_menu,
+    submenu_general,
+    submenu_love,
+    submenu_karmic,
+    submenu_job,
+    submenu_challenge,
+)
 # -----------------------------
 # فایل‌های داخلی پروژه
 # -----------------------------
@@ -157,39 +167,242 @@ async def ask_city(msg: types.Message):
         await msg.answer("❌ خطایی رخ داد. لطفاً دوباره تلاش کن.")
 
 
-# ----------------------------
-#  محاسبه ترانزیت   
-# ----------------------------
+# =========================
+#   تابع لود چارت کاربر
+# =========================
+
+def load_user_chart(user_id):
+    # نسخه واقعی را خودت داری
+    return None
+
+
+
+# =========================
+#   دستورات اصلی ترانزیت‌ها
+# =========================
 
 @dp.message_handler(commands=["transits"])
 async def cmd_transits(message: types.Message):
-    try:
-        # ۱) گرفتن چارت ناتال کاربر از دیتابیس / فایل / حافظه
-        # اگر چارت را در جایی ذخیره می‌کنی، اینجا لودش کن
-        # مثال:
-        user_id = message.from_user.id
-        natal_chart = load_user_chart(user_id)  # ← اگر تابع داری
-        if not natal_chart:
-            await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
-            return
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
 
-        # ۲) بازهٔ زمانی ترانزیت‌ها
-        start = date.today()
-        end = start + timedelta(days=30)
+    start = date.today()
+    end = start + timedelta(days=30)
+    result = analyze_transits_for_range(natal_chart, start, end)
 
-        # ۳) اجرای موتور ترانزیت
-        result_text = analyze_transits_for_range(natal_chart, start, end)
+    await message.reply(result or "✨ ترانزیت مهمی یافت نشد.")
 
-        # ۴) اگر ترانزیت مهمی نبود
-        if not result_text.strip():
-            await message.reply("✨ در ۳۰ روز آینده ترانزیت مهمی برای شما ثبت نشده است.")
-            return
 
-        # ۵) ارسال خروجی
-        await message.reply(result_text)
 
-    except Exception as e:
-        await message.reply(f"❌ خطا در پردازش ترانزیت‌ها: {e}")
+@dp.message_handler(commands=["transits_today"])
+async def cmd_transits_today(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    today = date.today()
+    result = analyze_transits_for_range(natal_chart, today, today)
+
+    await message.reply(result or "✨ امروز ترانزیت مهمی یافت نشد.")
+
+
+
+# =========================
+#   عشق
+# =========================
+
+@dp.message_handler(commands=["transits_love"])
+async def cmd_transits_love(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    start = date.today()
+    end = start + timedelta(days=30)
+    full = analyze_transits_for_range(natal_chart, start, end)
+    love = [l for l in full.split("\n") if "عشق" in l]
+
+    await message.reply("💞 ترانزیت‌های عاشقانه:\n\n" + "\n".join(love) if love else "💞 ترانزیت عاشقانه‌ای یافت نشد.")
+
+
+
+@dp.message_handler(commands=["transits_love_today"])
+async def cmd_transits_love_today(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    today = date.today()
+    full = analyze_transits_for_range(natal_chart, today, today)
+    love = [l for l in full.split("\n") if "عشق" in l]
+
+    await message.reply("💞 ترانزیت‌های عاشقانه امروز:\n\n" + "\n".join(love) if love else "💞 امروز ترانزیت عاشقانه‌ای نیست.")
+
+
+
+# =========================
+#   کارما
+# =========================
+
+@dp.message_handler(commands=["transits_karmic"])
+async def cmd_transits_karmic(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    start = date.today()
+    end = start + timedelta(days=30)
+    full = analyze_transits_for_range(natal_chart, start, end)
+    karmic = [l for l in full.split("\n") if "کارما" in l]
+
+    await message.reply("🜂 ترانزیت‌های کارمایی:\n\n" + "\n".join(karmic) if karmic else "🜂 ترانزیت کارمایی یافت نشد.")
+
+
+
+@dp.message_handler(commands=["transits_karmic_today"])
+async def cmd_transits_karmic_today(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    today = date.today()
+    full = analyze_transits_for_range(natal_chart, today, today)
+    karmic = [l for l in full.split("\n") if "کارما" in l]
+
+    await message.reply("🜂 ترانزیت‌های کارمایی امروز:\n\n" + "\n".join(karmic) if karmic else "🜂 امروز ترانزیت کارمایی نیست.")
+
+
+
+# =========================
+#   شغل
+# =========================
+
+@dp.message_handler(commands=["transits_job"])
+async def cmd_transits_job(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    start = date.today()
+    end = start + timedelta(days=30)
+    full = analyze_transits_for_range(natal_chart, start, end)
+    job = [l for l in full.split("\n") if "شغل" in l or "MC" in l]
+
+    await message.reply("💼 ترانزیت‌های شغلی:\n\n" + "\n".join(job) if job else "💼 ترانزیت شغلی یافت نشد.")
+
+
+
+@dp.message_handler(commands=["transits_job_today"])
+async def cmd_transits_job_today(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    today = date.today()
+    full = analyze_transits_for_range(natal_chart, today, today)
+    job = [l for l in full.split("\n") if "شغل" in l or "MC" in l]
+
+    await message.reply("💼 ترانزیت‌های شغلی امروز:\n\n" + "\n".join(job) if job else "💼 امروز ترانزیت شغلی نیست.")
+
+
+
+# =========================
+#   چالش
+# =========================
+
+@dp.message_handler(commands=["transits_challenge"])
+async def cmd_transits_challenge(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    start = date.today()
+    end = start + timedelta(days=30)
+    full = analyze_transits_for_range(natal_chart, start, end)
+    challenge = [l for l in full.split("\n") if "چالش" in l]
+
+    await message.reply("⚠️ ترانزیت‌های چالشی:\n\n" + "\n".join(challenge) if challenge else "⚠️ ترانزیت چالشی یافت نشد.")
+
+
+
+@dp.message_handler(commands=["transits_challenge_today"])
+async def cmd_transits_challenge_today(message: types.Message):
+    user_id = message.from_user.id
+    natal_chart = load_user_chart(user_id)
+    if not natal_chart:
+        await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
+        return
+
+    today = date.today()
+    full = analyze_transits_for_range(natal_chart, today, today)
+    challenge = [l for l in full.split("\n") if "چالش" in l]
+
+    await message.reply("⚠️ ترانزیت‌های چالشی امروز:\n\n" + "\n".join(challenge) if challenge else "⚠️ امروز ترانزیت چالشی نیست.")
+
+
+
+# =========================
+#   منوی حرفه‌ای
+# =========================
+
+@dp.message_handler(commands=["menu_transits"])
+async def cmd_menu_transits(message: types.Message):
+    await message.reply("📜 **منوی ترانزیت‌ها:**", reply_markup=transits_main_menu())
+
+
+
+# =========================
+#   Callback Handlers
+# =========================
+
+@dp.callback_query_handler(lambda c: c.data == "menu_general")
+async def cb_general(callback: types.CallbackQuery):
+    await callback.message.edit_text("🔮 **ترانزیت‌های کلی:**", reply_markup=submenu_general())
+
+
+@dp.callback_query_handler(lambda c: c.data == "menu_love")
+async def cb_love(callback: types.CallbackQuery):
+    await callback.message.edit_text("💞 **ترانزیت‌های عاشقانه:**", reply_markup=submenu_love())
+
+
+@dp.callback_query_handler(lambda c: c.data == "menu_karmic")
+async def cb_karmic(callback: types.CallbackQuery):
+    await callback.message.edit_text("🜂 **ترانزیت‌های کارمایی:**", reply_markup=submenu_karmic())
+
+
+@dp.callback_query_handler(lambda c: c.data == "menu_job")
+async def cb_job(callback: types.CallbackQuery):
+    await callback.message.edit_text("💼 **ترانزیت‌های شغلی:**", reply_markup=submenu_job())
+
+
+@dp.callback_query_handler(lambda c: c.data == "menu_challenge")
+async def cb_challenge(callback: types.CallbackQuery):
+    await callback.message.edit_text("⚠️ **ترانزیت‌های چالشی:**", reply_markup=submenu_challenge())
+
+
+@dp.callback_query_handler(lambda c: c.data == "back_to_main")
+async def cb_back(callback: types.CallbackQuery):
+    await callback.message.edit_text("📜 **منوی ترانزیت‌ها:**", reply_markup=transits_main_menu())
+
 
 # -----------------------------
 # اجرای ربات
