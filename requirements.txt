@@ -18,3 +18,4 @@ jdatetime
 arabic-reshaper
 python-bidi
 fpdf2
+aiogram==3.4.1
