@@ -47,6 +47,8 @@ logger = logging.getLogger(__name__)
 # -----------------------------
 # توکن ربات
 # -----------------------------
+import os
+print("BOT_TOKEN:", repr(os.getenv("BOT_TOKEN")))
 BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
