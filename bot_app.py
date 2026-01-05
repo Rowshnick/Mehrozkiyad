@@ -28,7 +28,7 @@ from keyboards import (
 # -----------------------------
 # فایل‌های داخلی پروژه
 # -----------------------------
-from astro_engine import calculate_natal_chart
+from astrology_core import calculate_natal_chart
 from interpretations_natal_pro import generate_natal_pro_full
 from report_builder import build_natal_pdf_report
 from transits_engine import analyze_transits_for_range
