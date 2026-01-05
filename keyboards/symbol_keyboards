@@ -1,0 +1,54 @@
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+GOALS = {
+    "wealth": "ثروت",
+    "love": "عشق",
+    "calm": "آرامش",
+    "success": "موفقیت",
+    "protection": "محافظت",
+    "spiritual": "معنویت",
+    "general": "عمومی",
+}
+
+CULTURES = {
+    "iranian": "ایران",
+    "chinese": "چین",
+    "egyptian": "مصر",
+    "hindu": "هند",
+    "celtic": "سلتی",
+    "global": "جهانی",
+    "none": "فرقی ندارد",
+}
+
+ENERGIES = {
+    "power": "قدرت",
+    "calm": "آرامش",
+    "growth": "رشد",
+    "balance": "تعادل",
+    "light": "نور",
+    "none": "فرقی ندارد",
+}
+
+
+def goal_keyboard():
+    kb = InlineKeyboardBuilder()
+    for key, label in GOALS.items():
+        kb.button(text=label, callback_data=f"goal:{key}")
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+def culture_keyboard(goal: str):
+    kb = InlineKeyboardBuilder()
+    for key, label in CULTURES.items():
+        kb.button(text=label, callback_data=f"culture:{goal}:{key}")
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+def energy_keyboard(goal: str, culture: str):
+    kb = InlineKeyboardBuilder()
+    for key, label in ENERGIES.items():
+        kb.button(text=label, callback_data=f"energy:{goal}:{culture}:{key}")
+    kb.adjust(2)
+    return kb.as_markup()
