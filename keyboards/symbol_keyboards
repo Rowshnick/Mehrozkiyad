@@ -1,3 +1,6 @@
+#====================================
+#symbol_keyboards
+#====================================
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 GOALS = {
