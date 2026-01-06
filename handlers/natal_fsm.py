@@ -6,7 +6,7 @@ from astrology_core import calculate_natal_chart
 from interpretations_natal_pro import generate_natal_pro_full
 from report_builder import build_natal_pdf_report
 
-from bot.states.natal_states import NatalStates
+from states.natal_states import NatalStates
 
 router = Router()
 
@@ -85,9 +85,7 @@ async def natal_ask_city(message: types.Message, state: FSMContext):
             caption="📄 گزارش کامل ناتال PRO + Composite",
         )
 
-    except Exception as e:
-        # این‌جا اگر logger سراسری داری می‌توانی لاگ بگیری
+    except Exception:
         await message.answer("❌ خطایی رخ داد. لطفاً دوباره تلاش کن.")
-
     finally:
         await state.clear()
