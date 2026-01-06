@@ -1,24 +1,14 @@
 # bot_app.py
 # =============================================================================
-# نسخهٔ اصلاح‌شده، ماژولار و سازگار با aiogram 3.x
+# نسخهٔ نهایی، ماژولار و سازگار با aiogram 3.x
 # =============================================================================
 
 import asyncio
 import logging
 import os
-from datetime import date, timedelta
 
-from aiogram import Bot, Dispatcher, types
-from aiogram.enums import ParseMode
-from aiogram.filters import Command
-
-# -----------------------------
-# فایل‌های داخلی پروژه
-# -----------------------------
-from astrology_core import calculate_natal_chart
-from interpretations_natal_pro import generate_natal_pro_full
-from report_builder import build_natal_pdf_report
-
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 
 # -----------------------------
 # تنظیمات لاگ
@@ -35,118 +25,45 @@ logger = logging.getLogger(__name__)
 # -----------------------------
 print("BOT_TOKEN:", repr(os.getenv("BOT_TOKEN")))
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN is not set in environment variables")
+
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+
+# 🔹 فعال‌سازی FSM با MemoryStorage
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 
 
-# =============================================================================
-#   حافظهٔ ساده برای state ناتال
-# =============================================================================
-
-user_state = {}
-user_birth_data = {}
-
-
-# =============================================================================
-#   هندلرهای ناتال (فقط وقتی کاربر از منوی اصلی انتخاب کند)
-# =============================================================================
-
-@dp.message(lambda m: user_state.get(m.chat.id) == "ASK_NAME")
-async def natal_ask_name(msg: types.Message):
-    chat_id = msg.chat.id
-    user_birth_data[chat_id] = {"name": msg.text.strip()}
-    user_state[chat_id] = "ASK_DATE"
-
-    await msg.answer("تاریخ تولد را وارد کن (مثال: 1375/05/21):")
-
-
-@dp.message(lambda m: user_state.get(m.chat.id) == "ASK_DATE")
-async def natal_ask_date(msg: types.Message):
-    chat_id = msg.chat.id
-    user_birth_data[chat_id]["jalali_date"] = msg.text.strip()
-    user_state[chat_id] = "ASK_TIME"
-
-    await msg.answer("ساعت تولد را وارد کن (مثال: 14:35):")
-
-
-@dp.message(lambda m: user_state.get(m.chat.id) == "ASK_TIME")
-async def natal_ask_time(msg: types.Message):
-    chat_id = msg.chat.id
-    user_birth_data[chat_id]["time"] = msg.text.strip()
-    user_state[chat_id] = "ASK_CITY"
-
-    await msg.answer("شهر تولد را وارد کن (مثال: تهران):")
-
-
-@dp.message(lambda m: user_state.get(m.chat.id) == "ASK_CITY")
-async def natal_ask_city(msg: types.Message):
-    chat_id = msg.chat.id
-    user_birth_data[chat_id]["city"] = msg.text.strip()
-
-    await msg.answer("⏳ در حال محاسبهٔ چارت تولد... لطفاً صبر کن.")
-
-    try:
-        # محاسبه چارت
-        chart_data = calculate_natal_chart(
-            name=user_birth_data[chat_id]["name"],
-            jalali_date=user_birth_data[chat_id]["jalali_date"],
-            time=user_birth_data[chat_id]["time"],
-            city=user_birth_data[chat_id]["city"]
-        )
-
-        logger.info("چارت تولد محاسبه شد.")
-
-        # تفسیر حرفه‌ای
-        final_text = generate_natal_pro_full(chart_data)
-
-        await msg.answer(
-            "🌟 **گزارش ناتال حرفه‌ای شما آماده شد!**",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        await msg.answer(final_text, parse_mode=ParseMode.MARKDOWN)
-
-        # ساخت PDF
-        pdf_bytes = build_natal_pdf_report(chart_data, final_text)
-
-        await bot.send_document(
-            chat_id,
-            document=types.BufferedInputFile(pdf_bytes, filename="natal_report_pro.pdf"),
-            caption="📄 گزارش کامل ناتال PRO + Composite"
-        )
-
-        # پاک‌سازی state
-        user_state.pop(chat_id, None)
-        user_birth_data.pop(chat_id, None)
-
-    except Exception as e:
-        logger.error(f"خطا در پردازش ناتال: {e}")
-        await msg.answer("❌ خطایی رخ داد. لطفاً دوباره تلاش کن.")
-
-
-# =============================================================================
-#   اضافه کردن Routerهای ماژولار
-# =============================================================================
-
-# منوی اصلی + Back + شروع ناتال/ترانزیت/سمبل
+# -----------------------------
+# اضافه کردن Routerهای ماژولار
+# -----------------------------
+# /start + منوی اصلی + شروع ناتال/ترانزیت/سمبل + Back
 from bot.handlers.start import router as start_router
 
 # Symbol Menu (هدف → فرهنگ → انرژی + Back)
 from bot.handlers.symbol_inline import router as symbol_router
 
-# ترانزیت‌ها (فایل جدید و تمیز)
+# ترانزیت‌ها (تمام دستورات transits_*)
 from bot.handlers.transits import router as transits_router
+
+# FSM ناتال (نام، تاریخ، ساعت، شهر، محاسبه و PDF)
+from bot.handlers.natal_fsm import router as natal_router
 
 dp.include_router(start_router)
 dp.include_router(symbol_router)
 dp.include_router(transits_router)
+dp.include_router(natal_router)
 
 
-# =============================================================================
-#   اجرای ربات
-# =============================================================================
-
+# -----------------------------
+# اجرای ربات
+# -----------------------------
 async def main():
+    logger.info("Starting bot polling...")
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
