@@ -1,7 +1,11 @@
 from aiogram import Router, types
+from aiogram.fsm.context import FSMContext
+
 from bot.keyboards.start_menu import start_main_menu, back_to_main_menu
+from bot.states.natal_states import NatalStates
 
 router = Router()
+
 
 # -----------------------------
 # /start → منوی اصلی
@@ -17,15 +21,11 @@ async def start_cmd(message: types.Message):
 
 
 # -----------------------------
-# شروع گزارش ناتال
+# شروع گزارش ناتال → ورود به FSM
 # -----------------------------
 @router.callback_query(lambda c: c.data == "start_natal")
-async def start_natal(callback: types.CallbackQuery):
-    chat_id = callback.message.chat.id
-
-    from bot_app import user_state, user_birth_data
-    user_state[chat_id] = "ASK_NAME"
-    user_birth_data[chat_id] = {}
+async def start_natal(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(NatalStates.ASK_NAME)
 
     await callback.message.edit_text(
         "🔮 **گزارش ناتال حرفه‌ای**\n"
@@ -66,7 +66,10 @@ async def start_symbol(callback: types.CallbackQuery):
 # دکمهٔ Back → بازگشت به منوی اصلی
 # -----------------------------
 @router.callback_query(lambda c: c.data == "back_main")
-async def back_main(callback: types.CallbackQuery):
+async def back_main(callback: types.CallbackQuery, state: FSMContext):
+    # اگر کاربر وسط ناتال Back بزند، state ناتال را پاک می‌کنیم
+    await state.clear()
+
     await callback.message.edit_text(
         "سلام دوباره! 🌟\n"
         "از منوی زیر یکی از سرویس‌ها را انتخاب کن:",
