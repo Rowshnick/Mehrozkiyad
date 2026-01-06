@@ -6,7 +6,7 @@ from aiogram import Router, types
 from generator.symbol_engine import select_symbols
 from generator.output_builder import format_symbol_list
 
-from bot.keyboards.symbol_keyboards import (
+from keyboards.symbol_keyboards import (
     goal_keyboard,
     culture_keyboard,
     energy_keyboard,
