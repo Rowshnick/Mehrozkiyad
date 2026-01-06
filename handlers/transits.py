@@ -14,7 +14,7 @@ router = Router()
 # لود چارت کاربر (نسخهٔ ساده)
 # -----------------------------
 def load_user_chart(user_id):
-    # نسخه واقعی را خودت داری
+    # نسخهٔ واقعی را خودت پیاده‌سازی می‌کنی
     return None
 
 
@@ -73,7 +73,10 @@ async def cmd_transits_love(message: types.Message):
     full = analyze_transits_for_range(natal_chart, start, end)
     love = [l for l in full.split("\n") if "عشق" in l]
 
-    await message.reply("💞 ترانزیت‌های عاشقانه:\n\n" + "\n".join(love) if love else "💞 ترانزیت عاشقانه‌ای یافت نشد.")
+    await message.reply(
+        "💞 ترانزیت‌های عاشقانه:\n\n" + "\n".join(love)
+        if love else "💞 ترانزیت عاشقانه‌ای یافت نشد."
+    )
 
 
 # -----------------------------
@@ -92,7 +95,10 @@ async def cmd_transits_love_today(message: types.Message):
     full = analyze_transits_for_range(natal_chart, today, today)
     love = [l for l in full.split("\n") if "عشق" in l]
 
-    await message.reply("💞 ترانزیت‌های عاشقانه امروز:\n\n" + "\n".join(love) if love else "💞 امروز ترانزیت عاشقانه‌ای نیست.")
+    await message.reply(
+        "💞 ترانزیت‌های عاشقانه امروز:\n\n" + "\n".join(love)
+        if love else "💞 امروز ترانزیت عاشقانه‌ای نیست."
+    )
 
 
 # -----------------------------
@@ -113,7 +119,10 @@ async def cmd_transits_karmic(message: types.Message):
     full = analyze_transits_for_range(natal_chart, start, end)
     karmic = [l for l in full.split("\n") if "کارما" in l]
 
-    await message.reply("🜂 ترانزیت‌های کارمایی:\n\n" + "\n".join(karmic) if karmic else "🜂 ترانزیت کارمایی یافت نشد.")
+    await message.reply(
+        "🜂 ترانزیت‌های کارمایی:\n\n" + "\n".join(karmic)
+        if karmic else "🜂 ترانزیت کارمایی یافت نشد."
+    )
 
 
 # -----------------------------
@@ -132,7 +141,10 @@ async def cmd_transits_karmic_today(message: types.Message):
     full = analyze_transits_for_range(natal_chart, today, today)
     karmic = [l for l in full.split("\n") if "کارما" in l]
 
-    await message.reply("🜂 ترانزیت‌های کارمایی امروز:\n\n" + "\n".join(karmic) if karmic else "🜂 امروز ترانزیت کارمایی نیست.")
+    await message.reply(
+        "🜂 ترانزیت‌های کارمایی امروز:\n\n" + "\n".join(karmic)
+        if karmic else "🜂 امروز ترانزیت کارمایی نیست."
+    )
 
 
 # -----------------------------
@@ -153,7 +165,10 @@ async def cmd_transits_job(message: types.Message):
     full = analyze_transits_for_range(natal_chart, start, end)
     job = [l for l in full.split("\n") if "شغل" in l or "MC" in l]
 
-    await message.reply("💼 ترانزیت‌های شغلی:\n\n" + "\n".join(job) if job else "💼 ترانزیت شغلی یافت نشد.")
+    await message.reply(
+        "💼 ترانزیت‌های شغلی:\n\n" + "\n".join(job)
+        if job else "💼 ترانزیت شغلی یافت نشد."
+    )
 
 
 # -----------------------------
@@ -172,7 +187,10 @@ async def cmd_transits_job_today(message: types.Message):
     full = analyze_transits_for_range(natal_chart, today, today)
     job = [l for l in full.split("\n") if "شغل" in l or "MC" in l]
 
-    await message.reply("💼 ترانزیت‌های شغلی امروز:\n\n" + "\n".join(job) if job else "💼 امروز ترانزیت شغلی نیست.")
+    await message.reply(
+        "💼 ترانزیت‌های شغلی امروز:\n\n" + "\n".join(job)
+        if job else "💼 امروز ترانزیت شغلی نیست."
+    )
 
 
 # -----------------------------
@@ -193,7 +211,10 @@ async def cmd_transits_challenge(message: types.Message):
     full = analyze_transits_for_range(natal_chart, start, end)
     challenge = [l for l in full.split("\n") if "چالش" in l]
 
-    await message.reply("⚠️ ترانزیت‌های چالشی:\n\n" + "\n".join(challenge) if challenge else "⚠️ ترانزیت چالشی یافت نشد.")
+    await message.reply(
+        "⚠️ ترانزیت‌های چالشی:\n\n" + "\n".join(challenge)
+        if challenge else "⚠️ ترانزیت چالشی یافت نشد."
+    )
 
 
 # -----------------------------
@@ -212,4 +233,7 @@ async def cmd_transits_challenge_today(message: types.Message):
     full = analyze_transits_for_range(natal_chart, today, today)
     challenge = [l for l in full.split("\n") if "چالش" in l]
 
-    await message.reply("⚠️ ترانزیت‌های چالشی امروز:\n\n" + "\n".join(challenge) if challenge else "⚠️ امروز ترانزیت چالشی نیست.")
+    await message.reply(
+        "⚠️ ترانزیت‌های چالشی امروز:\n\n" + "\n".join(challenge)
+        if challenge else "⚠️ امروز ترانزیت چالشی نیست."
+    )
