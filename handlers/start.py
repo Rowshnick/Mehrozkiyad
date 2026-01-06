@@ -1,9 +1,8 @@
 from aiogram import Router, types
 from aiogram.fsm.context import FSMContext
 
-from bot.keyboards.start_menu import start_main_menu, back_to_main_menu
-from bot.states.natal_states import NatalStates
-
+from keyboards.start_menu import start_main_menu, back_to_main_menu
+from states.natal_states import NatalStates
 router = Router()
 
 
