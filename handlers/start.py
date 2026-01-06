@@ -1,15 +1,17 @@
 from aiogram import Router, types
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 from keyboards.start_menu import start_main_menu, back_to_main_menu
 from states.natal_states import NatalStates
+
 router = Router()
 
 
 # -----------------------------
 # /start → منوی اصلی
 # -----------------------------
-@router.message(commands=["start"])
+@router.message(Command("start"))
 async def start_cmd(message: types.Message):
     await message.answer(
         "سلام! 🌟\n"
@@ -52,7 +54,7 @@ async def start_transits(callback: types.CallbackQuery):
 # -----------------------------
 @router.callback_query(lambda c: c.data == "start_symbol")
 async def start_symbol(callback: types.CallbackQuery):
-    from bot.keyboards.symbol_keyboards import goal_keyboard
+    from keyboards.symbol_keyboards import goal_keyboard
 
     await callback.message.edit_text(
         "✨ **Symbol Menu**\n"
