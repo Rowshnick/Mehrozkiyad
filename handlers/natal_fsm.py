@@ -2,9 +2,9 @@ from aiogram import Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.enums import ParseMode
 
-from astrology_core import calculate_natal_chart
-from interpretations_natal_pro import generate_natal_pro_full
-from report_builder import build_natal_pdf_report
+from core.astrology_core import calculate_natal_chart
+from core.interpretations_natal_pro import generate_natal_pro_full
+from core.report_builder import build_natal_pdf_report
 
 from states.natal_states import NatalStates
 
