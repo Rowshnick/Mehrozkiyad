@@ -1,26 +1,19 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 
 def start_main_menu():
-    kb = InlineKeyboardBuilder()
-
-    kb.button(
-        text="🔮 گزارش ناتال حرفه‌ای\n— چارت + تفسیر + PDF —",
-        callback_data="start_natal"
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("🔮 گزارش ناتال", callback_data="start_natal"),
+        InlineKeyboardButton("📜 ترانزیت‌ها", callback_data="start_transits"),
+        InlineKeyboardButton("✨ Symbol Menu", callback_data="start_symbol"),
     )
-    kb.button(
-        text="📜 ترانزیت‌ها\n— ۳۰ روز آینده + دسته‌بندی —",
-        callback_data="start_transits"
-    )
-    kb.button(
-        text="✨ Symbol Menu\n— انتخاب نماد انرژی —",
-        callback_data="start_symbol"
-    )
-
-    kb.adjust(1)
-    return kb.as_markup()
+    return kb
 
 
 def back_to_main_menu():
-    kb = InlineKeyboardBuilder()
-    kb.button(text="⬅ بازگشت به منوی اصلی", callback_data="back_main")
-    return kb.as_markup()
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="back_main")
+    )
+    return kb
