@@ -5,7 +5,7 @@ from aiogram import Router, types
 from aiogram.filters import Command
 from datetime import date, timedelta
 
-from transits_engine import analyze_transits_for_range
+from core.transits_engine import analyze_transits_for_range
 
 router = Router()
 
