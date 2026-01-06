@@ -1,6 +1,6 @@
-# # bot_app.py
+# bot_app.py
 # =============================================================================
-# نسخهٔ اصلاح‌شده و ماژولار ربات
+# نسخهٔ اصلاح‌شده، ماژولار و سازگار با aiogram 3.x
 # =============================================================================
 
 import asyncio
@@ -10,6 +10,7 @@ from datetime import date, timedelta
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
+from aiogram.filters import Command
 
 # -----------------------------
 # فایل‌های داخلی پروژه
@@ -17,7 +18,7 @@ from aiogram.enums import ParseMode
 from astrology_core import calculate_natal_chart
 from interpretations_natal_pro import generate_natal_pro_full
 from report_builder import build_natal_pdf_report
-from transits_engine import analyze_transits_for_range
+
 
 # -----------------------------
 # تنظیمات لاگ
@@ -28,6 +29,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 # -----------------------------
 # توکن ربات
 # -----------------------------
@@ -36,14 +38,17 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# -----------------------------
-# حافظهٔ ساده برای state ناتال
-# -----------------------------
+
+# =============================================================================
+#   حافظهٔ ساده برای state ناتال
+# =============================================================================
+
 user_state = {}
 user_birth_data = {}
 
+
 # =============================================================================
-#   هندلرهای ناتال (فقط زمانی فعال می‌شوند که کاربر از منوی اصلی انتخاب کند)
+#   هندلرهای ناتال (فقط وقتی کاربر از منوی اصلی انتخاب کند)
 # =============================================================================
 
 @dp.message(lambda m: user_state.get(m.chat.id) == "ASK_NAME")
@@ -119,36 +124,22 @@ async def natal_ask_city(msg: types.Message):
 
 
 # =============================================================================
-#   هندلرهای ترانزیت‌ها
+#   اضافه کردن Routerهای ماژولار
 # =============================================================================
 
-def load_user_chart(user_id):
-    return None  # نسخه واقعی را خودت داری
-
-
-@dp.message(commands=["transits"])
-async def cmd_transits(message: types.Message):
-    user_id = message.from_user.id
-    natal_chart = load_user_chart(user_id)
-    if not natal_chart:
-        return await message.reply("❗ ابتدا باید چارت ناتال خود را ثبت کنید.")
-
-    start = date.today()
-    end = start + timedelta(days=30)
-    result = analyze_transits_for_range(natal_chart, start, end)
-
-    await message.reply(result or "✨ ترانزیت مهمی یافت نشد.")
-
-
-# =============================================================================
-#   اضافه کردن Routerهای منوی اصلی و Symbol Menu
-# =============================================================================
-
+# منوی اصلی + Back + شروع ناتال/ترانزیت/سمبل
 from bot.handlers.start import router as start_router
+
+# Symbol Menu (هدف → فرهنگ → انرژی + Back)
 from bot.handlers.symbol_inline import router as symbol_router
+
+# ترانزیت‌ها (فایل جدید و تمیز)
+from bot.handlers.transits import router as transits_router
 
 dp.include_router(start_router)
 dp.include_router(symbol_router)
+dp.include_router(transits_router)
+
 
 # =============================================================================
 #   اجرای ربات
