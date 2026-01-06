@@ -3,104 +3,67 @@
 #================================
 from aiogram import Router, types
 
-from generator.symbol_engine import select_symbols
-from generator.output_builder import format_symbol_list
-
 from keyboards.symbol_keyboards import (
     goal_keyboard,
     culture_keyboard,
     energy_keyboard,
-    GOALS,
-    CULTURES,
-    ENERGIES,
+    symbol_keyboard,
 )
 
 router = Router()
 
 
 # -----------------------------
-# مرحله ۱: شروع
-# -----------------------------
-@router.message(commands=["symbol_menu"])
-async def symbol_menu_start(message: types.Message):
-    await message.answer("🎯 لطفاً هدف خود را انتخاب کن:", reply_markup=goal_keyboard())
-
-
-# -----------------------------
-# مرحله ۲: انتخاب فرهنگ
+# انتخاب هدف (این در start.py با start_symbol شروع می‌شود)
 # -----------------------------
 @router.callback_query(lambda c: c.data.startswith("goal:"))
-async def select_culture(callback: types.CallbackQuery):
-    goal = callback.data.split(":")[1]
+async def choose_goal(callback: types.CallbackQuery):
+    goal_id = callback.data.split(":", 1)[1]
 
     await callback.message.edit_text(
-        f"🎯 هدف انتخاب شد: {GOALS[goal]}\n\n🌍 حالا فرهنگ را انتخاب کن:",
-        reply_markup=culture_keyboard(goal)
+        "🌍 حالا فرهنگ/فضای نماد را انتخاب کن:",
+        reply_markup=culture_keyboard(goal_id)
     )
 
 
 # -----------------------------
-# مرحله Back از فرهنگ → هدف
-# -----------------------------
-@router.callback_query(lambda c: c.data == "back:goal")
-async def back_to_goal(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "🎯 لطفاً هدف خود را انتخاب کن:",
-        reply_markup=goal_keyboard()
-    )
-
-
-# -----------------------------
-# مرحله ۳: انتخاب انرژی
+# انتخاب فرهنگ
 # -----------------------------
 @router.callback_query(lambda c: c.data.startswith("culture:"))
-async def select_energy(callback: types.CallbackQuery):
-    _, goal, culture = callback.data.split(":")
+async def choose_culture(callback: types.CallbackQuery):
+    # مثال: culture:<goal_id>:<culture_id>
+    _, goal_id, culture_id = callback.data.split(":", 2)
 
     await callback.message.edit_text(
-        f"🎯 هدف: {GOALS[goal]}\n"
-        f"🌍 فرهنگ: {CULTURES[culture]}\n\n"
-        f"✨ حالا انرژی را انتخاب کن:",
-        reply_markup=energy_keyboard(goal, culture)
+        "⚡ حالا نوع انرژی را انتخاب کن:",
+        reply_markup=energy_keyboard(goal_id, culture_id)
     )
 
 
 # -----------------------------
-# Back از انرژی → فرهنگ
-# -----------------------------
-@router.callback_query(lambda c: c.data.startswith("back:culture"))
-async def back_to_culture(callback: types.CallbackQuery):
-    _, _, goal = callback.data.split(":")
-    await callback.message.edit_text(
-        f"🎯 هدف انتخاب شد: {GOALS[goal]}\n\n🌍 حالا فرهنگ را انتخاب کن:",
-        reply_markup=culture_keyboard(goal)
-    )
-
-
-# -----------------------------
-# مرحله ۴: انتخاب نهایی نماد
+# انتخاب انرژی
 # -----------------------------
 @router.callback_query(lambda c: c.data.startswith("energy:"))
-async def final_symbol(callback: types.CallbackQuery):
-    _, goal, culture, energy = callback.data.split(":")
-
-    culture = None if culture == "none" else culture
-    energies = None if energy == "none" else [ENERGIES[energy]]
-
-    symbols = select_symbols(
-        goal=goal,
-        count=3,
-        primary_culture=culture,
-        energies=energies,
-        randomness=0.25,
-    )
-
-    output = format_symbol_list(symbols)
+async def choose_energy(callback: types.CallbackQuery):
+    # مثال: energy:<goal_id>:<culture_id>:<energy_id>
+    _, goal_id, culture_id, energy_id = callback.data.split(":", 3)
 
     await callback.message.edit_text(
-        f"🎯 هدف: {GOALS[goal]}\n"
-        f"🌍 فرهنگ: {CULTURES.get(culture, '—')}\n"
-        f"✨ انرژی: {ENERGIES.get(energy, '—')}\n\n"
-        f"{output}",
-        parse_mode="Markdown"
-    )  
+        "✨ بر اساس انتخاب تو، این نمادها پیشنهاد می‌شوند:",
+        reply_markup=symbol_keyboard(goal_id, culture_id, energy_id)
+    )
+
+
+# -----------------------------
+# نمایش نماد نهایی
+# -----------------------------
+@router.callback_query(lambda c: c.data.startswith("symbol:"))
+async def show_symbol(callback: types.CallbackQuery):
+    # مثال: symbol:<symbol_id>
+    _, symbol_id = callback.data.split(":", 1)
+
+    # این‌جا می‌توانی توضیح نماد را از یک دیکشنری/فایل بخوانی
+    await callback.message.edit_text(
+        f"🔯 نماد انتخابی تو: {symbol_id}\n\n"
+        "اگر خواستی می‌توانی دوباره از منوی اصلی شروع کنی یا نماد دیگری را تست کنی."
+    )
