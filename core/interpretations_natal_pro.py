@@ -564,8 +564,7 @@ def format_natal_pro_for_user(interpretations: List[InterpretationRule]) -> str:
 # ۵) ادغام نسخهٔ PRO با Composite Interpretation
 # -----------------------------------------------------------------------------
 
-from interpretations_composite import generate_composite_text
-
+from core.interpretations_composite import generate_composite_text
 def generate_natal_pro_full(chart_data: Dict[str, Any]) -> str:
     """
     خروجی نهایی نسخهٔ PRO:
