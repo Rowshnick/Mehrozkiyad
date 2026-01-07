@@ -1,4 +1,5 @@
-from states.natal_states import NatalStates
+from aiogram.fsm.state import State, StatesGroup
+
 
 class NatalStates(StatesGroup):
     ASK_NAME = State()
