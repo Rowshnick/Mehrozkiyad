@@ -47,4 +47,4 @@ EXPOSE 10000
 # -----------------------------
 # Start FastAPI app
 # -----------------------------
-CMD ["uvicorn", "bot_app:app", "--host", "0.0.0.0", "--port", "10000"]
+ENTRYPOINT ["python", "bot_app.py"]
