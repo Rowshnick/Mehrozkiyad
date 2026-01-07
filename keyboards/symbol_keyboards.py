@@ -1,61 +1,66 @@
 #====================================
 #symbol_keyboards
 #====================================
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-
-GOALS = {
-    "wealth": "ثروت",
-    "love": "عشق",
-    "calm": "آرامش",
-    "success": "موفقیت",
-    "protection": "محافظت",
-    "spiritual": "معنویت",
-    "general": "عمومی",
-}
-
-CULTURES = {
-    "iranian": "ایران",
-    "chinese": "چین",
-    "egyptian": "مصر",
-    "hindu": "هند",
-    "celtic": "سلتی",
-    "global": "جهانی",
-    "none": "فرقی ندارد",
-}
-
-ENERGIES = {
-    "power": "قدرت",
-    "calm": "آرامش",
-    "growth": "رشد",
-    "balance": "تعادل",
-    "light": "نور",
-    "none": "فرقی ندارد",
-}
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
+# -----------------------------
+# مرحله ۱: انتخاب هدف
+# -----------------------------
 def goal_keyboard():
-    kb = InlineKeyboardBuilder()
-    for key, label in GOALS.items():
-        kb.button(text=label, callback_data=f"goal:{key}")
-    kb.adjust(2)
-    return kb.as_markup()
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("🎯 هدف ۱", callback_data="goal:1"),
+        InlineKeyboardButton("🎯 هدف ۲", callback_data="goal:2"),
+        InlineKeyboardButton("🎯 هدف ۳", callback_data="goal:3"),
+        InlineKeyboardButton("⬅️ بازگشت", callback_data="back_main"),
+    )
+    return kb
 
 
-def culture_keyboard(goal: str):
-    kb = InlineKeyboardBuilder()
-    for key, label in CULTURES.items():
-        kb.button(text=label, callback_data=f"culture:{goal}:{key}")
+# -----------------------------
+# مرحله ۲: انتخاب فرهنگ
+# -----------------------------
+def culture_keyboard(goal_id: str):
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("🌍 فرهنگ ایرانی", callback_data=f"culture:{goal_id}:iran"),
+        InlineKeyboardButton("🌍 فرهنگ یونانی", callback_data=f"culture:{goal_id}:greek"),
+        InlineKeyboardButton("🌍 فرهنگ مصری", callback_data=f"culture:{goal_id}:egypt"),
+        InlineKeyboardButton("⬅️ بازگشت", callback_data="start_symbol"),
+    )
+    return kb
 
-    kb.button(text="⬅ بازگشت", callback_data="back:goal")
-    kb.adjust(2)
-    return kb.as_markup()
+
+# -----------------------------
+# مرحله ۳: انتخاب انرژی
+# -----------------------------
+def energy_keyboard(goal_id: str, culture_id: str):
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("⚡ انرژی مثبت", callback_data=f"energy:{goal_id}:{culture_id}:positive"),
+        InlineKeyboardButton("⚡ انرژی محافظ", callback_data=f"energy:{goal_id}:{culture_id}:protective"),
+        InlineKeyboardButton("⚡ انرژی تحول", callback_data=f"energy:{goal_id}:{culture_id}:transform"),
+        InlineKeyboardButton("⬅️ بازگشت", callback_data=f"culture:{goal_id}"),
+    )
+    return kb
 
 
-def energy_keyboard(goal: str, culture: str):
-    kb = InlineKeyboardBuilder()
-    for key, label in ENERGIES.items():
-        kb.button(text=label, callback_data=f"energy:{goal}:{culture}:{key}")
+# -----------------------------
+# مرحله ۴: انتخاب نماد نهایی
+# -----------------------------
+def symbol_keyboard(goal_id: str, culture_id: str, energy_id: str):
+    kb = InlineKeyboardMarkup(row_width=1)
 
-    kb.button(text="⬅ بازگشت", callback_data=f"back:culture:{goal}")
-    kb.adjust(2)
-    return kb.as_markup()
+    # این بخش را می‌توانی بعداً با دیتابیس یا فایل نمادها پر کنی
+    kb.add(
+        InlineKeyboardButton("🔯 نماد ۱", callback_data=f"symbol:{goal_id}:{culture_id}:{energy_id}:1"),
+        InlineKeyboardButton("🔯 نماد ۲", callback_data=f"symbol:{goal_id}:{culture_id}:{energy_id}:2"),
+        InlineKeyboardButton("🔯 نماد ۳", callback_data=f"symbol:{goal_id}:{culture_id}:{energy_id}:3"),
+    )
+
+    kb.add(
+        InlineKeyboardButton("⬅️ بازگشت", callback_data=f"energy:{goal_id}:{culture_id}")
+    )
+
+    return kb
