@@ -14,3 +14,15 @@ def start_main_menu():
             ]
         ]
     )
+
+def back_to_main_menu():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="⬅️ بازگشت به منوی اصلی",
+                    callback_data="back_to_main"
+                )
+            ]
+        ]
+    )
