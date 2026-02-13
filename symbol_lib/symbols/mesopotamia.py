@@ -1,4 +1,4 @@
-MESOPOTAMIAN_SYMBOLS = {
+MESOPOTAMIA_SYMBOLS = {
     "dingir": {
         "name": "دینگیر (𒀭)",
         "culture": "سومر/بین‌النهرین",
