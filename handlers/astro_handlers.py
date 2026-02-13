@@ -12,10 +12,16 @@
 #   6) state را به منوی اصلی برمی‌گرداند
 # =============================================================================
 
+from aiogram import Router, types
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+
 from core import utils
 from core.astrology_core import calculate_natal_chart
 from core.interpret_natal_chart import interpret_natal_chart
 from core.chart_drawer_fa import draw_chart_advanced_fa
+
+router = Router()
 
 
 # =============================================================================
