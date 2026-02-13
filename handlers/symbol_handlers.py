@@ -2,8 +2,8 @@
 #symbol_handlers.py
 #============≈===============
 from aiogram import Router, types
-from generator.symbol_engine import select_symbols
-from generator.output_builder import format_symbol_list
+from symbol_lib.generator.symbol_engine import select_symbols
+from symbol_lib.generator.output_builder import format_symbol_list
 
 router = Router()
 
