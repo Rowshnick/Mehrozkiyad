@@ -6,10 +6,12 @@
 import asyncio
 import logging
 import os
-
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from handlers import all_routers
 
+for r in all_routers:
+    dp.include_router(r)
 # -----------------------------
 # تنظیمات لاگ
 # -----------------------------
