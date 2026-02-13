@@ -19,7 +19,7 @@ from .symbols.chinese import CHINESE_SYMBOLS
 from .symbols.ottoman import OTTOMAN_SYMBOLS
 from .symbols.kabbalah import KABBALAH_SYMBOLS
 from .symbols.egyptian import EGYPTIAN_SYMBOLS
-from .symbols.mesopotamian import MESOPOTAMIAN_SYMBOLS
+from .symbols.mesopotamia import MESOPOTAMIA_SYMBOLS
 from .symbols.celtic import CELTIC_SYMBOLS
 from .symbols.buddhist import BUDDHIST_TIBETAN_SYMBOLS
 from .symbols.shamanic import SHAMANIC_SYMBOLS
