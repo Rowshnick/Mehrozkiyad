@@ -12,11 +12,10 @@
 #   6) state را به منوی اصلی برمی‌گرداند
 # =============================================================================
 
-
 from core import utils
 from core.astrology_core import calculate_natal_chart
 from core.interpret_natal_chart import interpret_natal_chart
-from core.chart_drawer_fa import draw_chart_wheel_fa
+from core.chart_drawer_fa import draw_chart_advanced_fa
 
 
 # =============================================================================
@@ -83,7 +82,7 @@ async def run_astrology_workflow(chat_id: int, state: dict, save_state_func):
     # -------------------------------------------------------------------------
     # ۳) رسم چارت تصویری
     # -------------------------------------------------------------------------
-    chart_image = draw_chart_wheel_fa(chart)
+    chart_image = draw_chart_advanced_fa(chart)
 
     # -------------------------------------------------------------------------
     # ۴) ارسال تصویر + تفسیر
