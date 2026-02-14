@@ -2,6 +2,7 @@
 #symbol_handlers.py
 #============≈===============
 from aiogram import Router, types
+from aiogram.filters import Command
 from symbol_lib.generator.symbol_engine import select_symbols
 from symbol_lib.generator.output_builder import format_symbol_list
 
@@ -42,9 +43,6 @@ def parse_symbol_command(text: str) -> dict:
                 params[key] = value
 
     return params
-
-
-from aiogram.filters import Command
 
 @router.message(Command("symbol"))
 async def symbol_handler(message: types.Message):
