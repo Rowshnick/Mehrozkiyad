@@ -10,11 +10,18 @@
 #   - state را به منوی اصلی برمی‌گرداند
 # =============================================================================
 
+from aiogram import Router, types
+from aiogram.filters import Command
+
 from typing import List, Dict, Any
-import utils
+
+# اصلاح مسیر utils
+from core import utils
 
 from sajil_part_one import sajil_part_one_validate
 from sajil_part_two import sajil_part_two_process
+
+router = Router()
 
 
 # =============================================================================
