@@ -1,81 +1,114 @@
-#============================
-#symbol_handlers.py
-#============≈===============
+# ================================
+#   symbol_handlers.py
+#   بازنویسی‌شده برای Aiogram 3.x
+# ================================
+
 from aiogram import Router, types
 from aiogram.filters import Command
+from aiogram.utils.markdown import escape_md
+
 from symbol_lib.generator.symbol_engine import select_symbols
 from symbol_lib.generator.output_builder import format_symbol_list
 
 router = Router()
 
 
+# ================================
+#   توابع کمکی
+# ================================
+
 def parse_symbol_command(text: str) -> dict:
     """
-    پارس کردن ورودی کاربر برای دستور /symbol
-    مثال ورودی:
-    /symbol goal=wealth culture=iran energy=قدرت,فراوانی count=5 randomness=0.2
+    پارس‌کردن دستور /symbol
+    مثال:
+        /symbol goal=love count=3 culture=iran
     """
+    params = {
+        "goal": None,
+        "count": 1,
+        "primary_culture": None,
+        "preferred_cultures": None,
+        "energies": None,
+    }
 
     parts = text.split()
-    params = {}
-
-    # اگر فقط /symbol نوشته شده باشد
-    if len(parts) == 1:
-        return params
-
-    # پردازش پارامترها
     for p in parts[1:]:
         if "=" in p:
             key, value = p.split("=", 1)
             key = key.strip().lower()
             value = value.strip()
 
-            # انرژی‌ها می‌توانند لیستی باشند
-            if key == "energy":
-                params["energies"] = [e.strip() for e in value.split(",") if e.strip()]
-            # count باید عدد باشد
+            if key == "goal":
+                params["goal"] = value
+
             elif key == "count":
-                params["count"] = int(value)
-            # randomness باید float باشد
-            elif key == "randomness":
-                params["randomness"] = float(value)
-            else:
-                params[key] = value
+                try:
+                    params["count"] = int(value)
+                except:
+                    pass
+
+            elif key == "culture":
+                params["primary_culture"] = value
+
+            elif key == "cultures":
+                params["preferred_cultures"] = value.split(",")
+
+            elif key == "energies":
+                params["energies"] = value.split(",")
 
     return params
+
+
+# ================================
+#   هندلر اصلی دستور /symbol
+# ================================
 
 @router.message(Command("symbol"))
 async def symbol_handler(message: types.Message):
     params = parse_symbol_command(message.text)
 
-    # goal ضروری است
     goal = params.get("goal")
+    count = params.get("count", 1)
+    primary_culture = params.get("primary_culture")
+    preferred_cultures = params.get("preferred_cultures")
+    energies = params.get("energies")
+
     if not goal:
         await message.answer(
-            "لطفاً هدف را مشخص کن. مثال:\n"
-            "/symbol goal=wealth\n\n"
-            "پارامترهای قابل استفاده:\n"
-            "goal=wealth/love/calm/... \n"
-            "culture=iran/chinese/egyptian/... \n"
-            "energy=قدرت,آرامش \n"
-            "count=3 \n"
-            "randomness=0.3"
+            "❗ لطفاً هدف را مشخص کنید.\n"
+            "مثال:\n"
+            "`/symbol goal=love count=3`",
+            parse_mode="Markdown"
         )
         return
 
+    # انتخاب نمادها
     symbols = select_symbols(
         goal=goal,
-        count=params.get("count", 3),
-        primary_culture=params.get("culture"),
-        preferred_cultures=None,
-        energies=params.get("energies"),
-        randomness=params.get("randomness", 0.25),
-        exclude_ids=None,
+        count=count,
+        primary_culture=primary_culture,
+        preferred_cultures=preferred_cultures,
+        energies=energies,
     )
 
-    if not symbols:
-        await message.answer("هیچ نمادی پیدا نشد.")
+    # ساخت خروجی
+    output = format_symbol_list(symbols)
+    await message.answer(output, parse_mode="Markdown")
+
+
+# ================================
+#   هندلر ساده‌تر: /symbol_simple
+# ================================
+
+@router.message(Command("symbol_simple"))
+async def symbol_simple_handler(message: types.Message):
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("❗ مثال:\n`/symbol_simple love`", parse_mode="Markdown")
         return
 
+    goal = parts[1]
+    symbols = select_symbols(goal=goal, count=1)
     output = format_symbol_list(symbols)
+
     await message.answer(output, parse_mode="Markdown")
