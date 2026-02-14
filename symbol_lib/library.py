@@ -16,11 +16,10 @@ from .symbols.kabbalah import KABBALAH_SYMBOLS
 from .symbols.egyptian import EGYPTIAN_SYMBOLS
 from .symbols.mesopotamia import MESOPOTAMIA_SYMBOLS
 from .symbols.celtics import CELTIC_SYMBOLS
-from .symbols.buddhist import BUDDHIST_SYMBOLS
+from .symbols.buddhist import BUDDHIST_TIBETAN_SYMBOLS
 from .symbols.shamanic import SHAMANIC_SYMBOLS
 from .symbols.sacred_geometry import SACRED_GEOMETRY_SYMBOLS
 from .symbols.global_archetypes import GLOBAL_ARCHETYPES
-
 
 # -----------------------------
 #   دیکشنری مرکزی
@@ -37,7 +36,7 @@ SYMBOLS.update(KABBALAH_SYMBOLS)
 SYMBOLS.update(EGYPTIAN_SYMBOLS)
 SYMBOLS.update(MESOPOTAMIA_SYMBOLS)
 SYMBOLS.update(CELTIC_SYMBOLS)
-SYMBOLS.update(BUDDHIST_SYMBOLS)
+SYMBOLS.update(BUDDHIST_TIBETAN_SYMBOLS)
 SYMBOLS.update(SHAMANIC_SYMBOLS)
 SYMBOLS.update(SACRED_GEOMETRY_SYMBOLS)
 SYMBOLS.update(GLOBAL_ARCHETYPES)
@@ -53,3 +52,4 @@ def get_symbol(symbol_id: str) -> dict | None:
 
 def list_symbols() -> list[str]:
     return list(SYMBOLS.keys())
+
