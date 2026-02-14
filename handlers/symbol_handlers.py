@@ -1,11 +1,13 @@
 # ================================
 #   symbol_handlers.py
-#   بازنویسی‌شده برای Aiogram 3.x
+#   نسخهٔ اصلاح‌شده برای Aiogram 3.x
 # ================================
 
 from aiogram import Router, types
 from aiogram.filters import Command
-from aiogram.utils.markdown import escape_md
+
+# escape_md در Aiogram 3.x وجود ندارد → حذف شد
+# از Markdown خود تلگرام استفاده می‌کنیم
 
 from symbol_lib.generator.symbol_engine import select_symbols
 from symbol_lib.generator.output_builder import format_symbol_list
