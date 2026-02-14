@@ -44,7 +44,9 @@ def parse_symbol_command(text: str) -> dict:
     return params
 
 
-@router.message(commands=["symbol"])
+from aiogram.filters import Command
+
+@router.message(Command("symbol"))
 async def symbol_handler(message: types.Message):
     params = parse_symbol_command(message.text)
 
