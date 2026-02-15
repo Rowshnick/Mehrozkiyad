@@ -1,3 +1,5 @@
+# handlers/__init__.py
+
 from .start import router as start_router
 from .symbol_handlers import router as symbol_handlers_router
 from .symbol_inline import router as symbol_inline_router
