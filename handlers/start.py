@@ -1,4 +1,6 @@
-from aiogram import Router, types
+# handlers/start.py
+
+from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
@@ -8,9 +10,9 @@ from states.natal_states import NatalStates
 router = Router()
 
 
-# -----------------------------
-# /start → منوی اصلی
-# -----------------------------
+# ----------------------------------------------------
+# /start → نمایش منوی اصلی
+# ----------------------------------------------------
 @router.message(Command("start"))
 async def start_cmd(message: types.Message):
     await message.answer(
@@ -21,10 +23,10 @@ async def start_cmd(message: types.Message):
     )
 
 
-# -----------------------------
+# ----------------------------------------------------
 # شروع گزارش ناتال → ورود به FSM
-# -----------------------------
-@router.callback_query(lambda c: c.data == "start_natal")
+# ----------------------------------------------------
+@router.callback_query(F.data == "start_natal")
 async def start_natal(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(NatalStates.ASK_NAME)
 
@@ -35,10 +37,10 @@ async def start_natal(callback: types.CallbackQuery, state: FSMContext):
     )
 
 
-# -----------------------------
+# ----------------------------------------------------
 # شروع ترانزیت‌ها
-# -----------------------------
-@router.callback_query(lambda c: c.data == "start_transits")
+# ----------------------------------------------------
+@router.callback_query(F.data == "start_transits")
 async def start_transits(callback: types.CallbackQuery):
     from keyboards import transits_main_menu
 
@@ -49,10 +51,10 @@ async def start_transits(callback: types.CallbackQuery):
     )
 
 
-# -----------------------------
+# ----------------------------------------------------
 # شروع Symbol Menu
-# -----------------------------
-@router.callback_query(lambda c: c.data == "start_symbol")
+# ----------------------------------------------------
+@router.callback_query(F.data == "start_symbol")
 async def start_symbol(callback: types.CallbackQuery):
     from keyboards.symbol_keyboards import goal_keyboard
 
@@ -63,12 +65,11 @@ async def start_symbol(callback: types.CallbackQuery):
     )
 
 
-# -----------------------------
+# ----------------------------------------------------
 # دکمهٔ Back → بازگشت به منوی اصلی
-# -----------------------------
-@router.callback_query(lambda c: c.data == "back_main")
+# ----------------------------------------------------
+@router.callback_query(F.data == "back_main")
 async def back_main(callback: types.CallbackQuery, state: FSMContext):
-    # اگر کاربر وسط ناتال Back بزند، state ناتال را پاک می‌کنیم
     await state.clear()
 
     await callback.message.edit_text(
