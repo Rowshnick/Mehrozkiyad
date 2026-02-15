@@ -1,64 +1,100 @@
-# bot_app.py
-# =============================================================================
-# نسخهٔ نهایی، ماژولار و سازگار با aiogram 3.x
-# =============================================================================
+# bot_app.py — نسخهٔ کامل، حرفه‌ای و سازگار با Aiogram 3.4.1
 
 import asyncio
 import logging
 import os
+import signal
+
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramRetryAfter, TelegramNetworkError
+
 from handlers import all_routers
 
-for r in all_routers:
-    dp.include_router(r)
-# -----------------------------
-# تنظیمات لاگ
-# -----------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
-logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------
+#  تنظیمات لاگ حرفه‌ای
+# ---------------------------------------------------------
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
+    logging.getLogger("aiogram.event").setLevel(logging.WARNING)
+    logging.info("📘 Logging initialized.")
 
 
-# -----------------------------
-# توکن ربات
-# -----------------------------
-print("BOT_TOKEN:", repr(os.getenv("BOT_TOKEN")))
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+# ---------------------------------------------------------
+#  ساخت Bot و Dispatcher
+# ---------------------------------------------------------
+def create_bot_and_dispatcher():
+    bot = Bot(
+        token=os.environ.get("BOT_TOKEN"),
+        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
+    )
 
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN is not set in environment variables")
+    dp = Dispatcher()
 
-bot = Bot(token=BOT_TOKEN)
+    # اضافه کردن همهٔ روتِرها
+    for router in all_routers:
+        dp.include_router(router)
 
-# 🔹 فعال‌سازی FSM
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
-
-
-# -----------------------------
-# اضافه کردن Routerهای ماژولار
-# -----------------------------
-from handlers.start import router as start_router
-from handlers.symbol_inline import router as symbol_router
-from handlers.transits import router as transits_router
-from handlers.natal_fsm import router as natal_router
-
-dp.include_router(start_router)
-dp.include_router(symbol_router)
-dp.include_router(transits_router)
-dp.include_router(natal_router)
+    return bot, dp
 
 
-# -----------------------------
-# اجرای ربات
-# -----------------------------
+# ---------------------------------------------------------
+#  مدیریت graceful shutdown
+# ---------------------------------------------------------
+async def shutdown(bot: Bot):
+    logging.info("🛑 Shutting down bot gracefully...")
+    await bot.session.close()
+    logging.info("🔚 Bot shutdown complete.")
+
+
+# ---------------------------------------------------------
+#  اجرای Polling با مدیریت خطا
+# ---------------------------------------------------------
+async def run_polling(bot: Bot, dp: Dispatcher):
+    while True:
+        try:
+            logging.info("🤖 Bot polling started...")
+            await dp.start_polling(bot)
+
+        except TelegramRetryAfter as e:
+            logging.warning(f"⏳ Flood control: sleeping for {e.retry_after} seconds...")
+            await asyncio.sleep(e.retry_after)
+
+        except TelegramNetworkError:
+            logging.warning("🌐 Network error. Retrying in 5 seconds...")
+            await asyncio.sleep(5)
+
+        except Exception as e:
+            logging.error(f"❌ Unexpected error in polling: {e}", exc_info=True)
+            await asyncio.sleep(3)
+
+
+# ---------------------------------------------------------
+#  تابع اصلی
+# ---------------------------------------------------------
 async def main():
-    logger.info("Starting bot polling...")
-    await dp.start_polling(bot)
+    setup_logging()
+
+    bot, dp = create_bot_and_dispatcher()
+
+    # مدیریت سیگنال‌های سیستم (برای سرورهای واقعی)
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown(bot)))
+
+    await run_polling(bot, dp)
 
 
+# ---------------------------------------------------------
+#  اجرای برنامه
+# ---------------------------------------------------------
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Bot stopped manually.")
