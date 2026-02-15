@@ -21,7 +21,6 @@ async def sajil_start(message: types.Message):
 
 @router.message()
 async def sajil_process(message: types.Message):
-    # ورودی ساده: "نام، تاریخ، شهر"
     try:
         parts = [p.strip() for p in message.text.split("،")]
         if len(parts) < 2:
