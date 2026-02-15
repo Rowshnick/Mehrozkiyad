@@ -1,10 +1,17 @@
-# handlers/start.py
+#--------‐-------------------‐-----------
+#start.py
+#--------‐-------------------‐-----------
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from keyboards.start_menu import start_main_menu, back_to_main_menu
+from keyboards.start_menu.main_menu import start_main_menu, back_to_main_menu
+from keyboards.start_menu.astrology_menu import astrology_menu
+from keyboards.start_menu.symbol_menu import symbol_main_menu
+from keyboards.start_menu.sajil_menu import sajil_menu
+from keyboards.start_menu.tools_menu import tools_menu
+
 from states.natal_states import NatalStates
 
 router = Router()
@@ -16,64 +23,69 @@ router = Router()
 @router.message(Command("start"))
 async def start_cmd(message: types.Message):
     await message.answer(
-        "سلام! 🌟\n"
-        "به مرکز تحلیل‌های نجومی خوش آمدی.\n\n"
+        "سلام رُوشینا 🌙\n"
+        "به مرکز تحلیل‌های نجومی خوش آمدی.\n"
         "از منوی زیر یکی از سرویس‌ها را انتخاب کن:",
         reply_markup=start_main_menu()
     )
 
 
 # ----------------------------------------------------
-# شروع گزارش ناتال → ورود به FSM
+# منوی تحلیل‌های نجومی
 # ----------------------------------------------------
-@router.callback_query(F.data == "start_natal")
-async def start_natal(callback: types.CallbackQuery, state: FSMContext):
-    await state.set_state(NatalStates.ASK_NAME)
-
+@router.callback_query(F.data == "menu_astrology")
+async def menu_astrology(callback: types.CallbackQuery):
     await callback.message.edit_text(
-        "🔮 **گزارش ناتال حرفه‌ای**\n"
-        "برای شروع لطفاً نام خود را وارد کن:",
-        reply_markup=back_to_main_menu()
+        "🔮 *تحلیل‌های نجومی*\n"
+        "یکی از گزینه‌ها را انتخاب کن:",
+        reply_markup=astrology_menu()
     )
 
 
 # ----------------------------------------------------
-# شروع ترانزیت‌ها
+# منوی نمادشناسی
 # ----------------------------------------------------
-@router.callback_query(F.data == "start_transits")
-async def start_transits(callback: types.CallbackQuery):
-    from keyboards import transits_main_menu
-
+@router.callback_query(F.data == "menu_symbols")
+async def menu_symbols(callback: types.CallbackQuery):
     await callback.message.edit_text(
-        "📜 **منوی ترانزیت‌ها**\n"
-        "ترانزیت‌های ۳۰ روز آینده را انتخاب کن:",
-        reply_markup=transits_main_menu()
+        "✨ *نمادشناسی*\n"
+        "هدف خود را انتخاب کن:",
+        reply_markup=symbol_main_menu()
     )
 
 
 # ----------------------------------------------------
-# شروع Symbol Menu
+# منوی سجیل
 # ----------------------------------------------------
-@router.callback_query(F.data == "start_symbol")
-async def start_symbol(callback: types.CallbackQuery):
-    from keyboards.symbol_keyboards import goal_keyboard
-
+@router.callback_query(F.data == "menu_sajil")
+async def menu_sajil(callback: types.CallbackQuery):
     await callback.message.edit_text(
-        "✨ **Symbol Menu**\n"
-        "لطفاً هدف خود را انتخاب کن:",
-        reply_markup=goal_keyboard()
+        "🧿 *سجیل شخصی*\n"
+        "چه کاری می‌خواهی انجام دهی؟",
+        reply_markup=sajil_menu()
     )
 
 
 # ----------------------------------------------------
-# دکمهٔ Back → بازگشت به منوی اصلی
+# منوی ابزارها
+# ----------------------------------------------------
+@router.callback_query(F.data == "menu_tools")
+async def menu_tools_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "⚙️ *ابزارهای کمکی*\n"
+        "یکی از ابزارهای زیر را انتخاب کن:",
+        reply_markup=tools_menu()
+    )
+
+
+# ----------------------------------------------------
+# بازگشت به منوی اصلی
 # ----------------------------------------------------
 @router.callback_query(F.data == "back_main")
 async def back_main(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
-
     await callback.message.edit_text(
-        "سلام دوباره! 🌟\n"
+        "سلام دوباره رُوشینا 🌟\n"
         "از منوی زیر یکی از سرویس‌ها را انتخاب کن:",
         reply_markup=start_main_menu()
     )
