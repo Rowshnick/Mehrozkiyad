@@ -1,5 +1,5 @@
 #--------‐-------------------‐-----------
-# astrology_menu
+# astrology_menu.py
 #--------‐-------------------‐-----------
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
