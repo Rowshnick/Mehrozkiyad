@@ -1,5 +1,6 @@
+#--------‐-------------------‐-----------
 # handlers/sajil_handlers.py
-
+#--------‐-------------------‐-----------
 from aiogram import Router, types
 from aiogram.filters import Command
 
@@ -19,6 +20,8 @@ async def sajil_start(message: types.Message):
     )
 
 
+# توجه: این هندلر عمومی است و ممکن است هر متنی را بگیرد؛
+# چون گفتی چیزی حذف نشود، منطق را نگه می‌داریم.
 @router.message()
 async def sajil_process(message: types.Message):
     try:
