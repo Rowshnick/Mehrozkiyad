@@ -1,8 +1,8 @@
 #========≈===========================
-#transits.py
+# transits.py
 #========≈===========================
 
-from aiogram import Router, types
+from aiogram import Router, types, F
 from aiogram.filters import Command
 from datetime import date, timedelta
 
@@ -11,11 +11,17 @@ from core.transits_engine import analyze_transits_for_range
 router = Router()
 
 
+# -----------------------------
+# لود چارت کاربر (نسخهٔ ساده)
+# -----------------------------
 def load_user_chart(user_id):
     # نسخهٔ واقعی را خودت پیاده‌سازی می‌کنی
     return None
 
 
+# -----------------------------
+# ترانزیت کلی ۳۰ روز آینده (دستور متنی)
+# -----------------------------
 @router.message(Command("transits"))
 async def cmd_transits(message: types.Message):
     user_id = message.from_user.id
@@ -32,6 +38,9 @@ async def cmd_transits(message: types.Message):
     await message.reply(result or "✨ ترانزیت مهمی یافت نشد.")
 
 
+# -----------------------------
+# ترانزیت امروز (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_today"))
 async def cmd_transits_today(message: types.Message):
     user_id = message.from_user.id
@@ -47,6 +56,9 @@ async def cmd_transits_today(message: types.Message):
     await message.reply(result or "✨ امروز ترانزیت مهمی یافت نشد.")
 
 
+# -----------------------------
+# ترانزیت‌های عاشقانه (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_love"))
 async def cmd_transits_love(message: types.Message):
     user_id = message.from_user.id
@@ -68,6 +80,9 @@ async def cmd_transits_love(message: types.Message):
     )
 
 
+# -----------------------------
+# ترانزیت‌های عاشقانه امروز (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_love_today"))
 async def cmd_transits_love_today(message: types.Message):
     user_id = message.from_user.id
@@ -87,6 +102,9 @@ async def cmd_transits_love_today(message: types.Message):
     )
 
 
+# -----------------------------
+# ترانزیت‌های کارمایی (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_karmic"))
 async def cmd_transits_karmic(message: types.Message):
     user_id = message.from_user.id
@@ -108,6 +126,9 @@ async def cmd_transits_karmic(message: types.Message):
     )
 
 
+# -----------------------------
+# ترانزیت‌های کارمایی امروز (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_karmic_today"))
 async def cmd_transits_karmic_today(message: types.Message):
     user_id = message.from_user.id
@@ -127,6 +148,9 @@ async def cmd_transits_karmic_today(message: types.Message):
     )
 
 
+# -----------------------------
+# ترانزیت‌های شغلی (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_job"))
 async def cmd_transits_job(message: types.Message):
     user_id = message.from_user.id
@@ -148,6 +172,9 @@ async def cmd_transits_job(message: types.Message):
     )
 
 
+# -----------------------------
+# ترانزیت‌های شغلی امروز (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_job_today"))
 async def cmd_transits_job_today(message: types.Message):
     user_id = message.from_user.id
@@ -167,6 +194,9 @@ async def cmd_transits_job_today(message: types.Message):
     )
 
 
+# -----------------------------
+# ترانزیت‌های چالشی (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_challenge"))
 async def cmd_transits_challenge(message: types.Message):
     user_id = message.from_user.id
@@ -188,6 +218,9 @@ async def cmd_transits_challenge(message: types.Message):
     )
 
 
+# -----------------------------
+# ترانزیت‌های چالشی امروز (دستور متنی)
+# -----------------------------
 @router.message(Command("transits_challenge_today"))
 async def cmd_transits_challenge_today(message: types.Message):
     user_id = message.from_user.id
@@ -205,10 +238,10 @@ async def cmd_transits_challenge_today(message: types.Message):
         "⚠️ ترانزیت‌های چالشی امروز:\n\n" + "\n".join(challenge)
         if challenge else "⚠️ امروز ترانزیت چالشی نیست."
     )
-    from aiogram import F
+
 
 # -----------------------------
-# ترانزیت ۳۰ روز آینده از منو
+# ترانزیت ۳۰ روز آینده از منو (callback)
 # -----------------------------
 @router.callback_query(F.data == "transits_30")
 async def cb_transits_30(callback: types.CallbackQuery):
@@ -227,7 +260,7 @@ async def cb_transits_30(callback: types.CallbackQuery):
 
 
 # -----------------------------
-# ترانزیت امروز از منو
+# ترانزیت امروز از منو (callback)
 # -----------------------------
 @router.callback_query(F.data == "transits_today")
 async def cb_transits_today(callback: types.CallbackQuery):
@@ -245,7 +278,7 @@ async def cb_transits_today(callback: types.CallbackQuery):
 
 
 # -----------------------------
-# ترانزیت‌های عاشقانه از منو
+# ترانزیت‌های عاشقانه از منو (callback)
 # -----------------------------
 @router.callback_query(F.data == "transits_love")
 async def cb_transits_love(callback: types.CallbackQuery):
@@ -269,7 +302,7 @@ async def cb_transits_love(callback: types.CallbackQuery):
 
 
 # -----------------------------
-# ترانزیت‌های کارمایی از منو
+# ترانزیت‌های کارمایی از منو (callback)
 # -----------------------------
 @router.callback_query(F.data == "transits_karmic")
 async def cb_transits_karmic(callback: types.CallbackQuery):
@@ -293,7 +326,7 @@ async def cb_transits_karmic(callback: types.CallbackQuery):
 
 
 # -----------------------------
-# ترانزیت‌های شغلی از منو
+# ترانزیت‌های شغلی از منو (callback)
 # -----------------------------
 @router.callback_query(F.data == "transits_job")
 async def cb_transits_job(callback: types.CallbackQuery):
@@ -317,7 +350,7 @@ async def cb_transits_job(callback: types.CallbackQuery):
 
 
 # -----------------------------
-# ترانزیت‌های چالشی از منو
+# ترانزیت‌های چالشی از منو (callback)
 # -----------------------------
 @router.callback_query(F.data == "transits_challenge")
 async def cb_transits_challenge(callback: types.CallbackQuery):
