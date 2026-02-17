@@ -1,6 +1,7 @@
 #========≈===========================
 #transits.py
 #========≈===========================
+
 from aiogram import Router, types
 from aiogram.filters import Command
 from datetime import date, timedelta
@@ -10,17 +11,11 @@ from core.transits_engine import analyze_transits_for_range
 router = Router()
 
 
-# -----------------------------
-# لود چارت کاربر (نسخهٔ ساده)
-# -----------------------------
 def load_user_chart(user_id):
     # نسخهٔ واقعی را خودت پیاده‌سازی می‌کنی
     return None
 
 
-# -----------------------------
-# ترانزیت کلی ۳۰ روز آینده
-# -----------------------------
 @router.message(Command("transits"))
 async def cmd_transits(message: types.Message):
     user_id = message.from_user.id
@@ -37,9 +32,6 @@ async def cmd_transits(message: types.Message):
     await message.reply(result or "✨ ترانزیت مهمی یافت نشد.")
 
 
-# -----------------------------
-# ترانزیت امروز
-# -----------------------------
 @router.message(Command("transits_today"))
 async def cmd_transits_today(message: types.Message):
     user_id = message.from_user.id
@@ -55,9 +47,6 @@ async def cmd_transits_today(message: types.Message):
     await message.reply(result or "✨ امروز ترانزیت مهمی یافت نشد.")
 
 
-# -----------------------------
-# ترانزیت‌های عاشقانه
-# -----------------------------
 @router.message(Command("transits_love"))
 async def cmd_transits_love(message: types.Message):
     user_id = message.from_user.id
@@ -79,9 +68,6 @@ async def cmd_transits_love(message: types.Message):
     )
 
 
-# -----------------------------
-# ترانزیت‌های عاشقانه امروز
-# -----------------------------
 @router.message(Command("transits_love_today"))
 async def cmd_transits_love_today(message: types.Message):
     user_id = message.from_user.id
@@ -101,9 +87,6 @@ async def cmd_transits_love_today(message: types.Message):
     )
 
 
-# -----------------------------
-# ترانزیت‌های کارمایی
-# -----------------------------
 @router.message(Command("transits_karmic"))
 async def cmd_transits_karmic(message: types.Message):
     user_id = message.from_user.id
@@ -125,9 +108,6 @@ async def cmd_transits_karmic(message: types.Message):
     )
 
 
-# -----------------------------
-# ترانزیت‌های کارمایی امروز
-# -----------------------------
 @router.message(Command("transits_karmic_today"))
 async def cmd_transits_karmic_today(message: types.Message):
     user_id = message.from_user.id
@@ -147,9 +127,6 @@ async def cmd_transits_karmic_today(message: types.Message):
     )
 
 
-# -----------------------------
-# ترانزیت‌های شغلی
-# -----------------------------
 @router.message(Command("transits_job"))
 async def cmd_transits_job(message: types.Message):
     user_id = message.from_user.id
@@ -171,9 +148,6 @@ async def cmd_transits_job(message: types.Message):
     )
 
 
-# -----------------------------
-# ترانزیت‌های شغلی امروز
-# -----------------------------
 @router.message(Command("transits_job_today"))
 async def cmd_transits_job_today(message: types.Message):
     user_id = message.from_user.id
@@ -193,9 +167,6 @@ async def cmd_transits_job_today(message: types.Message):
     )
 
 
-# -----------------------------
-# ترانزیت‌های چالشی
-# -----------------------------
 @router.message(Command("transits_challenge"))
 async def cmd_transits_challenge(message: types.Message):
     user_id = message.from_user.id
@@ -217,9 +188,6 @@ async def cmd_transits_challenge(message: types.Message):
     )
 
 
-# -----------------------------
-# ترانزیت‌های چالشی امروز
-# -----------------------------
 @router.message(Command("transits_challenge_today"))
 async def cmd_transits_challenge_today(message: types.Message):
     user_id = message.from_user.id
