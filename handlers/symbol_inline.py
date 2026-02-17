@@ -1,7 +1,7 @@
 #================================
 #symbol_inline.py
 #================================
-from aiogram import Router, types
+from aiogram import Router, types, F
 
 from keyboards.symbol_keyboards import (
     goal_keyboard,
@@ -14,9 +14,21 @@ router = Router()
 
 
 # -----------------------------
-# انتخاب هدف (این در start.py با start_symbol شروع می‌شود)
+# شروع نمادشناسی از دکمهٔ قدیمی start_symbol (اگر جایی استفاده شود)
 # -----------------------------
-@router.callback_query(lambda c: c.data.startswith("goal:"))
+@router.callback_query(F.data == "start_symbol")
+async def start_symbol(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "✨ **Symbol Menu**\n"
+        "لطفاً هدف خود را انتخاب کن:",
+        reply_markup=goal_keyboard()
+    )
+
+
+# -----------------------------
+# انتخاب هدف (الگوی قدیمی goal:...)
+# -----------------------------
+@router.callback_query(F.data.startswith("goal:"))
 async def choose_goal(callback: types.CallbackQuery):
     goal_id = callback.data.split(":", 1)[1]
 
@@ -27,9 +39,23 @@ async def choose_goal(callback: types.CallbackQuery):
 
 
 # -----------------------------
+# انتخاب هدف از منوی جدید (symbol_goal_...)
+# -----------------------------
+@router.callback_query(F.data.startswith("symbol_goal_"))
+async def choose_goal_from_new_menu(callback: types.CallbackQuery):
+    # مثال: symbol_goal_love → love
+    goal_id = callback.data.replace("symbol_goal_", "", 1)
+
+    await callback.message.edit_text(
+        "🌍 حالا فرهنگ/فضای نماد را انتخاب کن:",
+        reply_markup=culture_keyboard(goal_id)
+    )
+
+
+# -----------------------------
 # انتخاب فرهنگ
 # -----------------------------
-@router.callback_query(lambda c: c.data.startswith("culture:"))
+@router.callback_query(F.data.startswith("culture:"))
 async def choose_culture(callback: types.CallbackQuery):
     # مثال: culture:<goal_id>:<culture_id>
     _, goal_id, culture_id = callback.data.split(":", 2)
@@ -43,7 +69,7 @@ async def choose_culture(callback: types.CallbackQuery):
 # -----------------------------
 # انتخاب انرژی
 # -----------------------------
-@router.callback_query(lambda c: c.data.startswith("energy:"))
+@router.callback_query(F.data.startswith("energy:"))
 async def choose_energy(callback: types.CallbackQuery):
     # مثال: energy:<goal_id>:<culture_id>:<energy_id>
     _, goal_id, culture_id, energy_id = callback.data.split(":", 3)
@@ -57,12 +83,10 @@ async def choose_energy(callback: types.CallbackQuery):
 # -----------------------------
 # نمایش نماد نهایی
 # -----------------------------
-@router.callback_query(lambda c: c.data.startswith("symbol:"))
+@router.callback_query(F.data.startswith("symbol:"))
 async def show_symbol(callback: types.CallbackQuery):
-    # مثال: symbol:<symbol_id>
     _, symbol_id = callback.data.split(":", 1)
 
-    # این‌جا می‌توانی توضیح نماد را از یک دیکشنری/فایل بخوانی
     await callback.message.edit_text(
         f"🔯 نماد انتخابی تو: {symbol_id}\n\n"
         "اگر خواستی می‌توانی دوباره از منوی اصلی شروع کنی یا نماد دیگری را تست کنی."
