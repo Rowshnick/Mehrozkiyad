@@ -6,18 +6,11 @@
 from aiogram import Router, types
 from aiogram.filters import Command
 
-# escape_md در Aiogram 3.x وجود ندارد → حذف شد
-# از Markdown خود تلگرام استفاده می‌کنیم
-
 from symbol_lib.generator.symbol_engine import select_symbols
 from symbol_lib.generator.output_builder import format_symbol_list
 
 router = Router()
 
-
-# ================================
-#   توابع کمکی
-# ================================
 
 def parse_symbol_command(text: str) -> dict:
     """
@@ -61,10 +54,6 @@ def parse_symbol_command(text: str) -> dict:
     return params
 
 
-# ================================
-#   هندلر اصلی دستور /symbol
-# ================================
-
 @router.message(Command("symbol"))
 async def symbol_handler(message: types.Message):
     params = parse_symbol_command(message.text)
@@ -84,7 +73,6 @@ async def symbol_handler(message: types.Message):
         )
         return
 
-    # انتخاب نمادها
     symbols = select_symbols(
         goal=goal,
         count=count,
@@ -93,14 +81,9 @@ async def symbol_handler(message: types.Message):
         energies=energies,
     )
 
-    # ساخت خروجی
     output = format_symbol_list(symbols)
     await message.answer(output, parse_mode="Markdown")
 
-
-# ================================
-#   هندلر ساده‌تر: /symbol_simple
-# ================================
 
 @router.message(Command("symbol_simple"))
 async def symbol_simple_handler(message: types.Message):
