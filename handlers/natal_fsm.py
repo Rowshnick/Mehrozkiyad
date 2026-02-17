@@ -1,4 +1,6 @@
+#--------‐-------------------‐-----------
 #handlers/natal_fsm.py
+#--------‐-------------------‐-----------
 
 from aiogram import Router, types
 from aiogram.fsm.context import FSMContext
