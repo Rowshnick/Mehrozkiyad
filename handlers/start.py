@@ -8,7 +8,7 @@ from keyboards.start_menu.symbol_menu import symbol_main_menu
 from keyboards.start_menu.sajil_menu import sajil_menu
 from keyboards.start_menu.tools_menu import tools_menu
 
-from keyboards import transits_main_menu
+from keyboards.transits_main_menu import transits_main_menu
 from keyboards.symbol_keyboards import goal_keyboard
 
 from states.natal_states import NatalStates
