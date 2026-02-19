@@ -1,7 +1,3 @@
-
-
-
-
 def ecliptic_lon_lat(body, t):
     astrometric = eph['earth'].at(t).observe(body).apparent()
     ra, dec, distance = astrometric.radec()
