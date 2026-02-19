@@ -1,5 +1,4 @@
 from skyfield.api import load, wgs84
-from skyfield.framelib import ecliptic_frame
 import numpy as np
 
 eph = load('de440.bsp')
@@ -8,23 +7,46 @@ ts = load.timescale()
 def normalize(angle):
     return angle % 360
 
-def fix_time(t):
-    # تبدیل زمان به حالت کامل برای nutation و obliquity
-    return eph['earth'].at(t).time
-
 def get_ascendant(t, lat, lon):
-    t = fix_time(t)
+    """
+    محاسبهٔ ASC با روش استاندارد Skyfield:
+    - تبدیل افق به مختصات استوایی
+    - تبدیل استوایی به دایرةالبروجی
+    """
     observer = wgs84.latlon(lat, lon)
     astrometric = observer.at(t).from_altaz(alt_degrees=0, az_degrees=90)
-    eclip = astrometric.frame_latlon(ecliptic_frame)
-    return normalize(eclip[1].degrees)
+
+    ra, dec, _ = astrometric.radec()
+
+    eps = np.radians(23.4392911)
+
+    ra_rad = ra.radians
+    dec_rad = dec.radians
+
+    lon = np.degrees(
+        np.arctan2(
+            np.sin(ra_rad) * np.cos(eps) + np.tan(dec_rad) * np.sin(eps),
+            np.cos(ra_rad)
+        )
+    ) % 360
+
+    return lon
 
 def get_mc(t, lon):
-    t = fix_time(t)
-    earth = eph["earth"]
-    astrometric = earth.at(t).observe(eph["sun"])
-    eclip = astrometric.frame_latlon(ecliptic_frame)
-    return normalize(eclip[1].degrees + lon)
+    """
+    MC = RA of meridian converted to ecliptic longitude
+    """
+    gst = t.gast  # Greenwich Apparent Sidereal Time
+    lst = (gst + lon / 15) % 24  # Local Sidereal Time
+
+    ra_mc = lst * 15  # degrees
+
+    eps = np.radians(23.4392911)
+    ra_rad = np.radians(ra_mc)
+
+    lon_mc = np.degrees(np.arctan2(np.sin(ra_rad) * np.cos(eps), np.cos(ra_rad))) % 360
+
+    return lon_mc
 
 def placidus_houses(t, lat, lon):
     asc = get_ascendant(t, lat, lon)
@@ -38,3 +60,4 @@ def placidus_houses(t, lat, lon):
         houses[i] = normalize(asc + i * 30)
 
     return houses
+
