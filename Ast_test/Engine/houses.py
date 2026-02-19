@@ -7,6 +7,8 @@ ts = load.timescale()
 def normalize(angle):
     return angle % 360
 
+# ------------------ ASC & MC ------------------
+
 def get_ascendant(t, lat, lon):
     observer = wgs84.latlon(lat, lon)
     astrometric = observer.at(t).from_altaz(alt_degrees=0, az_degrees=90)
@@ -34,23 +36,16 @@ def get_mc(t, lon):
     lon_mc = np.degrees(np.arctan2(np.sin(ra_rad) * np.cos(eps), np.cos(ra_rad))) % 360
     return lon_mc
 
-# ---------- سیستم‌های مختلف خانه ----------
+# ------------------ سیستم‌های ساده ------------------
 
 def houses_equal(asc):
-    cusps = []
-    for i in range(12):
-        cusps.append(normalize(asc + i * 30))
-    return cusps
+    return [normalize(asc + i * 30) for i in range(12)]
 
 def houses_whole_sign(asc):
     sign_start = int(asc // 30) * 30
-    cusps = []
-    for i in range(12):
-        cusps.append(normalize(sign_start + i * 30))
-    return cusps
+    return [normalize(sign_start + i * 30) for i in range(12)]
 
 def houses_porphyry(asc, mc):
-    # Porphyry: تقسیم قوس بین ASC و MC و بین MC و DSC به سه قسمت مساوی
     dsc = normalize(asc + 180)
     ic = normalize(mc + 180)
 
@@ -58,19 +53,14 @@ def houses_porphyry(asc, mc):
         arc = (end - start) % 360
         return [normalize(start + arc * i / 3) for i in range(3)]
 
-    # 1–4–7–10
     c1 = asc
     c10 = mc
     c7 = dsc
     c4 = ic
 
-    # بین 1 و 10 → خانه‌های 12 و 11
     seg_1_10 = divide_arc(c1, c10)
-    # بین 10 و 7 → خانه‌های 9 و 8
     seg_10_7 = divide_arc(c10, c7)
-    # بین 7 و 4 → خانه‌های 6 و 5
     seg_7_4 = divide_arc(c7, c4)
-    # بین 4 و 1 → خانه‌های 3 و 2
     seg_4_1 = divide_arc(c4, c1)
 
     cusps = [0]*12
@@ -86,13 +76,20 @@ def houses_porphyry(asc, mc):
 
     return cusps
 
-# ---------- رابط اصلی ----------
+# ------------------ سیستم‌های حرفه‌ای (در حال توسعه) ------------------
+
+def houses_placidus(t, lat, lon, asc, mc):
+    raise NotImplementedError("Placidus در مرحلهٔ بعدی پیاده‌سازی می‌شود.")
+
+def houses_koch(t, lat, lon, asc, mc):
+    raise NotImplementedError("Koch در مرحلهٔ بعدی پیاده‌سازی می‌شود.")
+
+def houses_regiomontanus(t, lat, lon, asc, mc):
+    raise NotImplementedError("Regiomontanus در مرحلهٔ بعدی پیاده‌سازی می‌شود.")
+
+# ------------------ رابط اصلی ------------------
 
 def compute_houses(t, lat, lon, system="placidus", asc=None, mc=None):
-    """
-    system: "equal", "whole_sign", "porphyry", "placidus", "koch", "regiomontanus"
-    (فعلاً equal / whole_sign / porphyry پیاده شده‌اند)
-    """
     if asc is None:
         asc = get_ascendant(t, lat, lon)
     if mc is None:
@@ -106,9 +103,12 @@ def compute_houses(t, lat, lon, system="placidus", asc=None, mc=None):
         cusps = houses_whole_sign(asc)
     elif system == "porphyry":
         cusps = houses_porphyry(asc, mc)
-    elif system in ("placidus", "koch", "regiomontanus"):
-        # جای خالی برای پیاده‌سازی دقیق
-        raise NotImplementedError(f"House system '{system}' هنوز پیاده‌سازی نشده است.")
+    elif system == "placidus":
+        cusps = houses_placidus(t, lat, lon, asc, mc)
+    elif system == "koch":
+        cusps = houses_koch(t, lat, lon, asc, mc)
+    elif system == "regiomontanus":
+        cusps = houses_regiomontanus(t, lat, lon, asc, mc)
     else:
         raise ValueError(f"سیستم خانه ناشناخته: {system}")
 
