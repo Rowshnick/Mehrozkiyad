@@ -1,68 +1,51 @@
-#%%writefile Mehrozkiyad/astrology_engine/engine/aspects.py
-import itertools
 import numpy as np
 
+# تعریف جنبه‌ها و زاویهٔ دقیق آن‌ها
 ASPECTS = {
-    "conjunction": 0.0,
-    "opposition": 180.0,
-    "trine": 120.0,
-    "square": 90.0,
-    "sextile": 60.0,
+    "Conjunction": 0,
+    "Opposition": 180,
+    "Trine": 120,
+    "Square": 90,
+    "Sextile": 60,
 }
 
-ORB = 6.0  # درجه
+# اورب استاندارد
+ORB = 6
 
-def _angle_diff(a, b):
-    diff = (a - b + 540.0) % 360.0 - 180.0
-    return abs(diff)
-
-def _detect_between_two(lon1, lon2):
-    results = []
-    angle = _angle_diff(lon1, lon2)
-    for name, exact in ASPECTS.items():
-        orb = abs(angle - exact)
-        if orb <= ORB:
-            results.append((name, angle, orb))
-    return results
-
-def detect_aspects(points):
+def angle_diff(a, b):
     """
-    points: dict مثل {"Sun": {"lon": ...}, "Moon": {...}, ...}
+    اختلاف زاویه‌ای بین دو نقطه روی دایره (۰ تا ۱۸۰ درجه)
+    """
+    d = abs(a - b) % 360
+    return min(d, 360 - d)
+
+def detect_aspects(objects):
+    """
+    objects باید دیکشنری‌ای باشد که هر کلید یک سیاره/نقطه و مقدار آن:
+    {"lon": ..., "lat": ...}
+
+    خروجی: لیستی از جنبه‌ها
     """
     aspects = []
-    keys = list(points.keys())
-    for a, b in itertools.combinations(keys, 2):
-        lon1 = points[a]["lon"]
-        lon2 = points[b]["lon"]
-        hits = _detect_between_two(lon1, lon2)
-        for name, angle, orb in hits:
-            aspects.append({
-                "p1": a,
-                "p2": b,
-                "type": name,
-                "angle": float(angle),
-                "orb": float(orb),
-            })
-    return aspects
+    keys = list(objects.keys())
 
-def detect_inter_aspects(points_a, points_b):
-    """
-    جنبه‌ها بین دو مجموعه نقاط:
-    points_a: dict
-    points_b: dict
-    """
-    aspects = []
-    for name_a, pa in points_a.items():
-        for name_b, pb in points_b.items():
-            lon1 = pa["lon"]
-            lon2 = pb["lon"]
-            hits = _detect_between_two(lon1, lon2)
-            for name, angle, orb in hits:
-                aspects.append({
-                    "p1": name_a,
-                    "p2": name_b,
-                    "type": name,
-                    "angle": float(angle),
-                    "orb": float(orb),
-                })
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            p1 = keys[i]
+            p2 = keys[j]
+
+            lon1 = objects[p1]["lon"]
+            lon2 = objects[p2]["lon"]
+
+            diff = angle_diff(lon1, lon2)
+
+            for asp_name, asp_angle in ASPECTS.items():
+                if abs(diff - asp_angle) <= ORB:
+                    aspects.append({
+                        "p1": p1,
+                        "p2": p2,
+                        "aspect": asp_name,
+                        "orb": abs(diff - asp_angle)
+                    })
+
     return aspects
