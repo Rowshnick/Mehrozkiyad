@@ -1,6 +1,3 @@
-FILE = "Mehrozkiyad/astrology_engine/engine/planets.py"
-
-correct_code = """
 from skyfield.api import load
 import numpy as np
 
@@ -8,7 +5,7 @@ import numpy as np
 eph = load('de440.bsp')
 ts = load.timescale()
 
-# نگاشت سیارات به آبجکت‌های Skyfield (نسخهٔ صحیح DE440)
+# نگاشت سیارات به آبجکت‌های Skyfield
 PLANETS = {
     "Sun": eph["sun"],
     "Moon": eph["moon"],
@@ -22,22 +19,27 @@ PLANETS = {
     "Pluto": eph["pluto barycenter"],
 }
 
-def get_time(year, month, day, hour, minute, tz_offset=0):
-    return ts.utc(year, month, day, hour - tz_offset, minute)
+def get_time(year, month, day, hour, minute, second=0, tz_offset=0):
+    """
+    ساخت زمان Skyfield با امکان تنظیم اختلاف ساعت
+    """
+    return ts.utc(year, month, day, hour - tz_offset, minute, second)
 
 def ecliptic_lon_lat(body, t):
-    # موقعیت سیاره نسبت به زمین
+    """
+    محاسبه طول و عرض دایرةالبروجی سیاره نسبت به زمین
+    """
     astrometric = eph['earth'].at(t).observe(body).apparent()
 
-    # مختصات استوایی (RA/Dec)
+    # مختصات استوایی
     ra, dec, distance = astrometric.radec()
     ra_rad = ra.radians
     dec_rad = dec.radians
 
-    # میل محور زمین (اوبلیکویتی)
+    # اوبلیکویتی زمین
     eps = np.radians(23.4392911)
 
-    # تبدیل دستی از استوایی به دایرةالبروجی
+    # تبدیل استوایی → دایرةالبروجی
     lon = np.degrees(
         np.arctan2(
             np.sin(ra_rad) * np.cos(eps) + np.tan(dec_rad) * np.sin(eps),
@@ -55,6 +57,9 @@ def ecliptic_lon_lat(body, t):
     return float(lon), float(lat)
 
 def get_all_planets(t):
+    """
+    خروجی کامل سیارات با طول و عرض دایرةالبروجی
+    """
     result = {}
     for name, body in PLANETS.items():
         lon, lat = ecliptic_lon_lat(body, t)
@@ -63,9 +68,3 @@ def get_all_planets(t):
             "lat": lat
         }
     return result
-"""
-
-with open(FILE, "w", encoding="utf-8") as f:
-    f.write(correct_code)
-
-print("✔ planets.py با نام‌های صحیح DE440 بازنویسی شد.")
