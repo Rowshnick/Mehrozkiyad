@@ -1,5 +1,4 @@
 #%%writefile Mehrozkiyad/astrology_engine/engine/transits.py
-from Mehrozkiyad.astrology_engine.engine.transits import compute_transits_to_natal
 from .planets import get_all_planets, get_time
 from .aspects import detect_inter_aspects
 
