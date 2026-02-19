@@ -20,11 +20,9 @@ PLANETS = {
 }
 
 def get_time(year, month, day, hour, minute, second=0, tz_offset=0):
-    """
-    ساخت زمان Skyfield با امکان تنظیم اختلاف ساعت
-    """
-    return ts.utc(year, month, day, hour - tz_offset, minute, second)
-
+    t = ts.utc(year, month, day, hour - tz_offset, minute, second)
+    return t
+    
 def ecliptic_lon_lat(body, t):
     """
     محاسبه طول و عرض دایرةالبروجی سیاره نسبت به زمین
