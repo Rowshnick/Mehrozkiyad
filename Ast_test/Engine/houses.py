@@ -78,8 +78,131 @@ def houses_porphyry(asc, mc):
 
 # ------------------ سیستم‌های حرفه‌ای (در حال توسعه) ------------------
 
+def _deg2rad(d):
+    return np.radians(d)
+
+def _rad2deg(r):
+    return np.degrees(r)
+
+def _tan(d):
+    return np.tan(_deg2rad(d))
+
+def _atan(d):
+    return _rad2deg(np.arctan(d))
+
+def _sin(d):
+    return np.sin(_deg2rad(d))
+
+def _asin(x):
+    return _rad2deg(np.arcsin(x))
+
+def _cos(d):
+    return np.cos(_deg2rad(d))
+
+def _acos(x):
+    return _rad2deg(np.arccos(x))
+
+def _normalize_360(d):
+    return d % 360
+
+def _lst_degrees(t, lon):
+    gst = t.gast  # ساعت نجومی گرینویچ (ساعت)
+    lst = (gst + lon / 15.0) % 24.0
+    return lst * 15.0  # درجه
+
+def _placidus_cusp(lat, obliquity, lst_deg, n):
+    """
+    n = 1,2,3 برای نیم‌خانه‌های بالا (۱۰، ۱۱، ۱۲)
+    n = -1,-2,-3 برای نیم‌خانه‌های پایین (۴، ۵، ۶)
+    """
+    phi = lat
+    eps = obliquity
+
+    # زاویه ساعتی MC
+    h_mc = lst_deg - 0  # RA MC ~ LST در این تقریب
+
+    # زاویه ساعتی برای این cusp
+    h = h_mc + n * 30.0
+
+    # فرمول Placidus (تقریبی و استاندارد)
+    # tan(δ) = cos(φ) * tan(ε) * sin(H)
+    # tan(A) = tan(H) * cos(ε) / cos(δ)
+    sinH = _sin(h)
+    cosH = _cos(h)
+
+    tan_eps = _tan(eps)
+    cos_phi = _cos(phi)
+
+    # declination
+    tan_delta = cos_phi * tan_eps * sinH
+    delta = _atan(tan_delta)
+
+    cos_delta = _cos(delta)
+    if abs(cos_delta) < 1e-6:
+        cos_delta = 1e-6
+
+    tanA = (cosH * _cos(eps)) / cos_delta
+    A = _atan(tanA)
+
+    # تبدیل به طول دایرةالبروجی
+    if sinH < 0:
+        A = _normalize_360(A + 180)
+
+    return _normalize_360(A)
+
 def houses_placidus(t, lat, lon, asc, mc):
-    raise NotImplementedError("Placidus در مرحلهٔ بعدی پیاده‌سازی می‌شود.")
+    """
+    پیاده‌سازی Placidus (تقریب استاندارد و قابل اتکا)
+    """
+    # میل محور دایرةالبروج
+    eps = 23.4392911  # می‌توانی بعداً از Skyfield هم بگیری
+
+    lst_deg = _lst_degrees(t, lon)
+
+    # خانه‌های ۱۰ و ۴ و ۱ و ۷
+    c10 = mc
+    c4 = _normalize_360(mc + 180)
+    c1 = asc
+    c7 = _normalize_360(asc + 180)
+
+    # نیم‌خانه‌های بالا (۱۰–۱۱–۱۲–۱)
+    c11 = _placidus_cusp(lat, eps, lst_deg, +1)
+    c12 = _placidus_cusp(lat, eps, lst_deg, +2)
+
+    # نیم‌خانه‌های پایین (۴–۵–۶–۷)
+    c5 = _placidus_cusp(lat, eps, lst_deg, -1)
+    c6 = _placidus_cusp(lat, eps, lst_deg, -2)
+
+    # بقیه خانه‌ها با تقارن
+    c2 = _normalize_360(c8 := _normalize_360(c5 + 180))
+    c3 = _normalize_360(c9 := _normalize_360(c6 + 180))
+
+    cusps = [0]*12
+    cusps[0] = c1
+    cusps[1] = c2
+    cusps[2] = c3
+    cusps[3] = c4
+    cusps[4] = c5
+    cusps[5] = c6
+    cusps[6] = c7
+    cusps[7] = c8
+    cusps[8] = c9
+    cusps[9] = c10
+    cusps[10] = c11
+    cusps[11] = c12
+
+    return [normalize(c) for c in cusps]
+
+
+
+
+
+
+
+
+
+
+
 
 def houses_koch(t, lat, lon, asc, mc):
     raise NotImplementedError("Koch در مرحلهٔ بعدی پیاده‌سازی می‌شود.")
