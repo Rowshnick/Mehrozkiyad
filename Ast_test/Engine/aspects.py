@@ -1,3 +1,5 @@
+#aspects.py
+
 import numpy as np
 
 # تعریف جنبه‌ها و زاویهٔ دقیق آن‌ها
