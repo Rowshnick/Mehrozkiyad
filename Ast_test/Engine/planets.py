@@ -324,6 +324,8 @@ def get_aspect_engine(planets, orb_lon_major=6.0, orb_lon_minor=3.0, orb_dec=1.0
     return aspects
 
 
+
+
 def normalize_aspect(aspect):
     """
     استانداردسازی ساختار جنبه‌ها
@@ -354,7 +356,6 @@ def normalize_aspect(aspect):
 
     return base
 
-
 def get_aspect_engine(
     planets,
     orb_lon_major=6.0,
@@ -366,7 +367,10 @@ def get_aspect_engine(
     include_lat=True
 ):
     """
-    موتور کامل جنبه‌ها با ساختار استاندارد
+    موتور کامل جنبه‌ها:
+    - جنبه‌های طولی
+    - جنبه‌های Declination
+    - جنبه‌های Latitude
     """
 
     aspects = []
@@ -393,5 +397,3 @@ def get_aspect_engine(
             aspects.append(normalize_aspect(a))
 
     return aspects
-    
-    
