@@ -202,5 +202,48 @@ def get_oob_planets(planets):
             })
 
     return oob_list
+
+def get_latitude_aspects(planets, orb=1.0):
+    """
+    محاسبه Parallel و Contra-Parallel بر اساس عرض دایرةالبروجی (Latitude)
+
+    ورودی:
+        planets = خروجی get_all_planets
+        orb = حداکثر اختلاف عرض (درجه)
+
+    خروجی:
+        لیست جنبه‌ها
+    """
+
+    names = list(planets.keys())
+    aspects = []
+
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            p1 = names[i]
+            p2 = names[j]
+
+            lat1 = planets[p1]["lat"]
+            lat2 = planets[p2]["lat"]
+
+            # Parallel (Latitude)
+            if (lat1 * lat2 > 0) and (abs(lat1 - lat2) <= orb):
+                aspects.append({
+                    "type": "Lat-Parallel",
+                    "p1": p1,
+                    "p2": p2,
+                    "orb": abs(lat1 - lat2)
+                })
+
+            # Contra-Parallel (Latitude)
+            if (lat1 * lat2 < 0) and (abs(lat1 + lat2) <= orb):
+                aspects.append({
+                    "type": "Lat-Contra-Parallel",
+                    "p1": p1,
+                    "p2": p2,
+                    "orb": abs(lat1 + lat2)
+                })
+
+    return aspects
     
     
