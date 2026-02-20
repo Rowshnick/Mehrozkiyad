@@ -322,5 +322,76 @@ def get_aspect_engine(planets, orb_lon_major=6.0, orb_lon_minor=3.0, orb_dec=1.0
         aspects.append(a)
 
     return aspects
+
+
+def normalize_aspect(aspect):
+    """
+    استانداردسازی ساختار جنبه‌ها
+    """
+
+    base = {
+        "type": aspect.get("type"),
+        "category": aspect.get("category"),
+        "p1": aspect.get("p1"),
+        "p2": aspect.get("p2"),
+        "orb": aspect.get("orb"),
+        "angle": None,
+        "lat_diff": None,
+        "dec_diff": None,
+    }
+
+    # Longitude
+    if aspect.get("category") == "Longitude":
+        base["angle"] = aspect.get("angle")
+
+    # Declination
+    if aspect.get("category") == "Declination":
+        base["dec_diff"] = aspect.get("orb")
+
+    # Latitude
+    if aspect.get("category") == "Latitude":
+        base["lat_diff"] = aspect.get("orb")
+
+    return base
+
+
+def get_aspect_engine(
+    planets,
+    orb_lon_major=6.0,
+    orb_lon_minor=3.0,
+    orb_dec=1.0,
+    orb_lat=1.0,
+    include_lon=True,
+    include_dec=True,
+    include_lat=True
+):
+    """
+    موتور کامل جنبه‌ها با ساختار استاندارد
+    """
+
+    aspects = []
+
+    # Longitude
+    if include_lon:
+        lon_aspects = get_longitude_aspects(planets, orb_lon_major, orb_lon_minor)
+        for a in lon_aspects:
+            a["category"] = "Longitude"
+            aspects.append(normalize_aspect(a))
+
+    # Declination
+    if include_dec:
+        dec_aspects = get_declination_aspects(planets, orb_dec)
+        for a in dec_aspects:
+            a["category"] = "Declination"
+            aspects.append(normalize_aspect(a))
+
+    # Latitude
+    if include_lat:
+        lat_aspects = get_latitude_aspects(planets, orb_lat)
+        for a in lat_aspects:
+            a["category"] = "Latitude"
+            aspects.append(normalize_aspect(a))
+
+    return aspects
     
     
