@@ -22,7 +22,7 @@ PLANETS = {
 def get_time(year, month, day, hour, minute, second=0, tz_offset=0):
     t = ts.utc(year, month, day, hour - tz_offset, minute, second)
     return t
-    
+
 def ecliptic_lon_lat(body, t):
     """
     محاسبه طول و عرض دایرةالبروجی سیاره نسبت به زمین
@@ -54,15 +54,64 @@ def ecliptic_lon_lat(body, t):
 
     return float(lon), float(lat)
 
+# ---------------------------------------------------------
+# ⭐ تابع جدید: محاسبه سرعت و Retrograde
+# ---------------------------------------------------------
+
+def compute_speed_and_retrograde(body, t):
+    """
+    محاسبه سرعت طولی، سرعت عرضی و وضعیت Retrograde
+    بدون تغییر در ساختار قبلی فایل
+    """
+
+    dt = 0.5  # نیم‌روز برای دقت بهتر
+
+    t_prev = t - dt
+    t_next = t + dt
+
+    # موقعیت قبل
+    lon_prev, lat_prev = ecliptic_lon_lat(body, t_prev)
+
+    # موقعیت بعد
+    lon_next, lat_next = ecliptic_lon_lat(body, t_next)
+
+    # سرعت طولی
+    speed_lon = (lon_next - lon_prev) / (2 * dt)
+
+    # اصلاح عبور از 360
+    if speed_lon > 180:
+        speed_lon -= 360
+    if speed_lon < -180:
+        speed_lon += 360
+
+    # سرعت عرضی
+    speed_lat = (lat_next - lat_prev) / (2 * dt)
+
+    # retrograde؟
+    retrograde = speed_lon < 0
+
+    return speed_lon, speed_lat, retrograde
+
+# ---------------------------------------------------------
+# ⭐ اصلاح تابع اصلی: افزودن سرعت و retrograde
+# ---------------------------------------------------------
+
 def get_all_planets(t):
     """
-    خروجی کامل سیارات با طول و عرض دایرةالبروجی
+    خروجی کامل سیارات با طول و عرض دایرةالبروجی + سرعت + retrograde
     """
     result = {}
     for name, body in PLANETS.items():
         lon, lat = ecliptic_lon_lat(body, t)
+
+        # محاسبه سرعت و R/D
+        speed_lon, speed_lat, retrograde = compute_speed_and_retrograde(body, t)
+
         result[name] = {
             "lon": lon,
-            "lat": lat
+            "lat": lat,
+            "speed_lon": speed_lon,
+            "speed_lat": speed_lat,
+            "retrograde": retrograde
         }
     return result
