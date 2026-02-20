@@ -97,3 +97,156 @@ def assign_planets_to_houses(planets: dict, houses: list):
         h = get_house_index(lon, houses)
         result[name] = h
     return result
+
+
+# ---------------------------------------------------------
+# Whole Sign House System
+# ---------------------------------------------------------
+
+def build_whole_sign_houses(asc_lon: float):
+    """
+    ساخت خانه‌ها به روش Whole Sign:
+    - خانه ۱ = درجهٔ صفر نشانهٔ Asc
+    - هر خانه = ۳۰ درجه
+    - Asc داخل خانهٔ ۱ قرار می‌گیرد
+    """
+
+    # نشانهٔ Asc (هر نشانه ۳۰ درجه)
+    asc_sign = int(asc_lon // 30)  # 0 تا 11
+
+    houses = []
+    for i in range(12):
+        # شروع هر خانه = شروع نشانه
+        cusp = ((asc_sign + i) % 12) * 30
+        houses.append(cusp)
+
+    return houses
+
+
+def get_house_index_whole_sign(point_lon: float, houses: list):
+    """
+    تعیین شمارهٔ خانه در Whole Sign:
+    - هر خانه دقیقاً ۳۰ درجه است
+    - houses = شروع هر خانه (۰، ۳۰، ۶۰، ...)
+    """
+
+    for i in range(12):
+        start = houses[i]
+        end = houses[(i + 1) % 12]
+
+        if start < end:
+            if start <= point_lon < end:
+                return i + 1
+        else:
+            # عبور از 360
+            if point_lon >= start or point_lon < end:
+                return i + 1
+
+    return None
+
+
+def assign_planets_to_whole_sign_houses(planets: dict, houses: list):
+    """
+    نسبت دادن سیارات به خانه‌ها در Whole Sign.
+    """
+
+    result = {}
+    for name, data in planets.items():
+        lon = data["lon"]
+        h = get_house_index_whole_sign(lon, houses)
+        result[name] = h
+
+    return result
+
+
+# ---------------------------------------------------------
+# Placidus House System
+# ---------------------------------------------------------
+
+def placidus_cusp(t, latitude_deg, longitude_deg, house_number):
+    """
+    محاسبهٔ یک کاسپ Placidus برای خانهٔ مشخص.
+    house_number = 1 تا 12
+    """
+
+    # تبدیل به رادیان
+    lat = np.radians(latitude_deg)
+    lon = np.radians(longitude_deg)
+    eps = np.radians(23.4392911)
+
+    # زمان اختری محلی
+    gast_hours = t.gast
+    theta = np.radians(gast_hours * 15.0) + lon
+    theta = theta % (2 * np.pi)
+
+    # MC
+    num_mc = np.sin(theta) * np.cos(eps) + np.tan(lat) * np.sin(eps)
+    den_mc = np.cos(theta)
+    mc = np.arctan2(num_mc, den_mc)
+
+    # RA of MC
+    ra_mc = np.arctan2(np.sin(theta), np.cos(theta))
+
+    # جدول تقسیم Placidus
+    if house_number in [11, 12]:
+        factor = 3
+    elif house_number in [2, 3]:
+        factor = 1
+    else:
+        # خانه‌های 1، 4، 7، 10 مستقیم هستند
+        if house_number == 10:
+            return np.degrees(mc) % 360
+        if house_number == 4:
+            return (np.degrees(mc) + 180) % 360
+        if house_number == 1:
+            asc, _ = get_asc_mc(t, latitude_deg, longitude_deg)
+            return asc
+        if house_number == 7:
+            asc, _ = get_asc_mc(t, latitude_deg, longitude_deg)
+            return (asc + 180) % 360
+
+    # زاویهٔ تقسیم
+    h = np.radians(30 * factor)
+
+    # RA هدف
+    ra_target = ra_mc + h
+    ra_target = (ra_target + 2 * np.pi) % (2 * np.pi)
+
+    # تبدیل RA به طول دایرةالبروجی
+    lon_cusp = np.degrees(
+        np.arctan2(
+            np.sin(ra_target) * np.cos(eps) - np.tan(lat) * np.sin(eps),
+            np.cos(ra_target)
+        )
+    ) % 360
+
+    return lon_cusp
+
+
+def build_placidus_houses(t, latitude_deg, longitude_deg):
+    """
+    ساخت ۱۲ کاسپ Placidus
+    """
+
+    houses = []
+    for h in range(1, 13):
+        cusp = placidus_cusp(t, latitude_deg, longitude_deg, h)
+        houses.append(cusp)
+
+    return houses
+
+
+def assign_planets_to_placidus(planets: dict, houses: list):
+    """
+    نسبت دادن سیارات به خانه‌های Placidus
+    """
+
+    result = {}
+    for name, data in planets.items():
+        lon = data["lon"]
+        h = get_house_index(lon, houses)
+        result[name] = h
+
+    return result
+
+
