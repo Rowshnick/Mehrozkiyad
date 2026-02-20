@@ -205,7 +205,91 @@ def houses_placidus(t, lat, lon, asc, mc):
 
 
 def houses_koch(t, lat, lon, asc, mc):
-    raise NotImplementedError("Koch در مرحلهٔ بعدی پیاده‌سازی می‌شود.")
+    """
+    پیاده‌سازی کامل سیستم Koch
+    """
+
+    # تبدیل‌ها
+    phi = lat
+    eps = 23.4392911  # میل دایرةالبروج
+
+    # زمان نجومی محلی (درجه)
+    lst_deg = _lst_degrees(t, lon)
+
+    # RA MC = LST
+    ra_mc = lst_deg
+    ra_ic = _normalize_360(ra_mc + 180)
+
+    # تابع زمان صعود (Ascensional Time)
+    def ascensional_time(ra):
+        # tan(AT) = tan(RA) * cos(phi)
+        return _atan(_tan(ra) * _cos(phi))
+
+    # نیم‌خانه‌های بالا (۱۰–۱۱–۱۲–۱)
+    at_mc = ascensional_time(ra_mc)
+
+    ra_11 = _normalize_360(ra_mc + at_mc / 3)
+    ra_12 = _normalize_360(ra_mc + 2 * at_mc / 3)
+
+    # نیم‌خانه‌های پایین (۴–۵–۶–۷)
+    at_ic = ascensional_time(ra_ic)
+
+    ra_5 = _normalize_360(ra_ic + at_ic / 3)
+    ra_6 = _normalize_360(ra_ic + 2 * at_ic / 3)
+
+    # تبدیل RA → طول دایرةالبروجی
+    def ra_to_ecliptic(ra):
+        ra_rad = _deg2rad(ra)
+        eps_rad = _deg2rad(eps)
+        lon = np.degrees(np.arctan2(np.sin(ra_rad) * np.cos(eps_rad),
+                                    np.cos(ra_rad)))
+        return _normalize_360(lon)
+
+    c10 = mc
+    c4 = _normalize_360(mc + 180)
+    c1 = asc
+    c7 = _normalize_360(asc + 180)
+
+    c11 = ra_to_ecliptic(ra_11)
+    c12 = ra_to_ecliptic(ra_12)
+    c5 = ra_to_ecliptic(ra_5)
+    c6 = ra_to_ecliptic(ra_6)
+
+    # تقارن
+    c2 = _normalize_360(c8 := _normalize_360(c5 + 180))
+    c3 = _normalize_360(c9 := _normalize_360(c6 + 180))
+
+    cusps = [0]*12
+    cusps[0] = c1
+    cusps[1] = c2
+    cusps[2] = c3
+    cusps[3] = c4
+    cusps[4] = c5
+    cusps[5] = c6
+    cusps[6] = c7
+    cusps[7] = c8
+    cusps[8] = c9
+    cusps[9] = c10
+    cusps[10] = c11
+    cusps[11] = c12
+
+    return [normalize(c) for c in cusps]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def houses_regiomontanus(t, lat, lon, asc, mc):
     raise NotImplementedError("Regiomontanus در مرحلهٔ بعدی پیاده‌سازی می‌شود.")
