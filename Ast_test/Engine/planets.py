@@ -55,13 +55,24 @@ def ecliptic_lon_lat(body, t):
     return float(lon), float(lat)
 
 # ---------------------------------------------------------
-# ⭐ تابع جدید: محاسبه سرعت و Retrograde
+# ⭐ تابع جدید: Declination
+# ---------------------------------------------------------
+
+def get_declination(body, t):
+    """
+    محاسبه Declination (میل) سیاره نسبت به زمین
+    """
+    astrometric = eph['earth'].at(t).observe(body).apparent()
+    ra, dec, distance = astrometric.radec()
+    return float(dec.degrees)
+
+# ---------------------------------------------------------
+# ⭐ تابع جدید: سرعت و Retrograde
 # ---------------------------------------------------------
 
 def compute_speed_and_retrograde(body, t):
     """
     محاسبه سرعت طولی، سرعت عرضی و وضعیت Retrograde
-    بدون تغییر در ساختار قبلی فایل
     """
 
     dt = 0.5  # نیم‌روز برای دقت بهتر
@@ -93,16 +104,25 @@ def compute_speed_and_retrograde(body, t):
     return speed_lon, speed_lat, retrograde
 
 # ---------------------------------------------------------
-# ⭐ اصلاح تابع اصلی: افزودن سرعت و retrograde
+# ⭐ تابع اصلی: خروجی کامل سیارات
 # ---------------------------------------------------------
 
 def get_all_planets(t):
     """
-    خروجی کامل سیارات با طول و عرض دایرةالبروجی + سرعت + retrograde
+    خروجی کامل سیارات با:
+    - طول دایرةالبروجی
+    - عرض دایرةالبروجی
+    - Declination
+    - سرعت طولی
+    - سرعت عرضی
+    - Retrograde
     """
     result = {}
     for name, body in PLANETS.items():
         lon, lat = ecliptic_lon_lat(body, t)
+
+        # محاسبه Declination
+        dec = get_declination(body, t)
 
         # محاسبه سرعت و R/D
         speed_lon, speed_lat, retrograde = compute_speed_and_retrograde(body, t)
@@ -110,8 +130,10 @@ def get_all_planets(t):
         result[name] = {
             "lon": lon,
             "lat": lat,
+            "declination": dec,
             "speed_lon": speed_lon,
             "speed_lat": speed_lat,
             "retrograde": retrograde
         }
+
     return result
