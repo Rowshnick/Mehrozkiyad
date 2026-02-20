@@ -245,5 +245,82 @@ def get_latitude_aspects(planets, orb=1.0):
                 })
 
     return aspects
+
+def get_longitude_aspects(planets, orb_major=6.0, orb_minor=3.0):
+    """
+    محاسبه جنبه‌های طولی (Ecliptic Longitude Aspects)
+    """
+
+    ASPECTS = {
+        "Conjunction": 0,
+        "Semi-Sextile": 30,
+        "Semi-Square": 45,
+        "Sextile": 60,
+        "Square": 90,
+        "Trine": 120,
+        "Quincunx": 150,
+        "Sesquiquadrate": 135,
+        "Opposition": 180,
+    }
+
+    names = list(planets.keys())
+    results = []
+
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            p1 = names[i]
+            p2 = names[j]
+
+            lon1 = planets[p1]["lon"]
+            lon2 = planets[p2]["lon"]
+
+            diff = abs(lon1 - lon2)
+            if diff > 180:
+                diff = 360 - diff
+
+            for asp_name, asp_angle in ASPECTS.items():
+                orb = orb_major if asp_name in ["Conjunction", "Opposition", "Square", "Trine"] else orb_minor
+
+                if abs(diff - asp_angle) <= orb:
+                    results.append({
+                        "type": asp_name,
+                        "p1": p1,
+                        "p2": p2,
+                        "orb": abs(diff - asp_angle),
+                        "angle": diff
+                    })
+
+    return results
+
+
+def get_aspect_engine(planets, orb_lon_major=6.0, orb_lon_minor=3.0, orb_dec=1.0, orb_lat=1.0):
+    """
+    موتور کامل جنبه‌ها:
+    - جنبه‌های طولی
+    - جنبه‌های Declination
+    - جنبه‌های Latitude
+    """
+
+    aspects = []
+
+    # جنبه‌های طولی
+    lon_aspects = get_longitude_aspects(planets, orb_lon_major, orb_lon_minor)
+    for a in lon_aspects:
+        a["category"] = "Longitude"
+        aspects.append(a)
+
+    # جنبه‌های Declination
+    dec_aspects = get_declination_aspects(planets, orb_dec)
+    for a in dec_aspects:
+        a["category"] = "Declination"
+        aspects.append(a)
+
+    # جنبه‌های Latitude
+    lat_aspects = get_latitude_aspects(planets, orb_lat)
+    for a in lat_aspects:
+        a["category"] = "Latitude"
+        aspects.append(a)
+
+    return aspects
     
     
