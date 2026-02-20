@@ -1,11 +1,15 @@
 from skyfield.api import load
 import numpy as np
 
-# بارگذاری ephemeris دقیق JPL DE440
+# ---------------------------------------------------------
+# بارگذاری Ephemeris دقیق JPL DE440
+# ---------------------------------------------------------
 eph = load('de440.bsp')
 ts = load.timescale()
 
+# ---------------------------------------------------------
 # نگاشت سیارات به آبجکت‌های Skyfield
+# ---------------------------------------------------------
 PLANETS = {
     "Sun": eph["sun"],
     "Moon": eph["moon"],
@@ -19,25 +23,24 @@ PLANETS = {
     "Pluto": eph["pluto barycenter"],
 }
 
+# ---------------------------------------------------------
+# ساخت زمان Skyfield با درنظر گرفتن اختلاف ساعت
+# ---------------------------------------------------------
 def get_time(year, month, day, hour, minute, second=0, tz_offset=0):
-    t = ts.utc(year, month, day, hour - tz_offset, minute, second)
-    return t
+    return ts.utc(year, month, day, hour - tz_offset, minute, second)
 
+# ---------------------------------------------------------
+# محاسبه طول و عرض دایرةالبروجی (Ecliptic Lon/Lat)
+# ---------------------------------------------------------
 def ecliptic_lon_lat(body, t):
-    """
-    محاسبه طول و عرض دایرةالبروجی سیاره نسبت به زمین
-    """
     astrometric = eph['earth'].at(t).observe(body).apparent()
 
-    # مختصات استوایی
     ra, dec, distance = astrometric.radec()
     ra_rad = ra.radians
     dec_rad = dec.radians
 
-    # اوبلیکویتی زمین
-    eps = np.radians(23.4392911)
+    eps = np.radians(23.4392911)  # اوبلیکویتی زمین
 
-    # تبدیل استوایی → دایرةالبروجی
     lon = np.degrees(
         np.arctan2(
             np.sin(ra_rad) * np.cos(eps) + np.tan(dec_rad) * np.sin(eps),
@@ -55,38 +58,25 @@ def ecliptic_lon_lat(body, t):
     return float(lon), float(lat)
 
 # ---------------------------------------------------------
-# ⭐ تابع جدید: Declination
+# محاسبه Declination (میل)
 # ---------------------------------------------------------
-
 def get_declination(body, t):
-    """
-    محاسبه Declination (میل) سیاره نسبت به زمین
-    """
     astrometric = eph['earth'].at(t).observe(body).apparent()
     ra, dec, distance = astrometric.radec()
     return float(dec.degrees)
 
 # ---------------------------------------------------------
-# ⭐ تابع جدید: سرعت و Retrograde
+# محاسبه سرعت طولی/عرضی و Retrograde
 # ---------------------------------------------------------
-
 def compute_speed_and_retrograde(body, t):
-    """
-    محاسبه سرعت طولی، سرعت عرضی و وضعیت Retrograde
-    """
-
-    dt = 0.5  # نیم‌روز برای دقت بهتر
+    dt = 0.5  # نیم‌روز
 
     t_prev = t - dt
     t_next = t + dt
 
-    # موقعیت قبل
     lon_prev, lat_prev = ecliptic_lon_lat(body, t_prev)
-
-    # موقعیت بعد
     lon_next, lat_next = ecliptic_lon_lat(body, t_next)
 
-    # سرعت طولی
     speed_lon = (lon_next - lon_prev) / (2 * dt)
 
     # اصلاح عبور از 360
@@ -95,36 +85,20 @@ def compute_speed_and_retrograde(body, t):
     if speed_lon < -180:
         speed_lon += 360
 
-    # سرعت عرضی
     speed_lat = (lat_next - lat_prev) / (2 * dt)
 
-    # retrograde؟
     retrograde = speed_lon < 0
 
     return speed_lon, speed_lat, retrograde
 
 # ---------------------------------------------------------
-# ⭐ تابع اصلی: خروجی کامل سیارات
+# خروجی کامل سیارات
 # ---------------------------------------------------------
-
 def get_all_planets(t):
-    """
-    خروجی کامل سیارات با:
-    - طول دایرةالبروجی
-    - عرض دایرةالبروجی
-    - Declination
-    - سرعت طولی
-    - سرعت عرضی
-    - Retrograde
-    """
     result = {}
     for name, body in PLANETS.items():
         lon, lat = ecliptic_lon_lat(body, t)
-
-        # محاسبه Declination
         dec = get_declination(body, t)
-
-        # محاسبه سرعت و R/D
         speed_lon, speed_lat, retrograde = compute_speed_and_retrograde(body, t)
 
         result[name] = {
@@ -138,119 +112,86 @@ def get_all_planets(t):
 
     return result
 
+# ---------------------------------------------------------
+# جنبه‌های Declination (Parallel / Contra-Parallel)
+# ---------------------------------------------------------
 def get_declination_aspects(planets, orb=1.0):
-    """
-    محاسبه Parallel و Contra-Parallel بین سیارات
-    ورودی:
-        planets = خروجی get_all_planets
-        orb = حداکثر اختلاف میل (درجه)
-    خروجی:
-        لیست جنبه‌ها
-    """
-
     names = list(planets.keys())
     aspects = []
 
     for i in range(len(names)):
         for j in range(i + 1, len(names)):
-            p1 = names[i]
-            p2 = names[j]
-
+            p1, p2 = names[i], names[j]
             dec1 = planets[p1]["declination"]
             dec2 = planets[p2]["declination"]
 
-            # Parallel
             if (dec1 * dec2 > 0) and (abs(dec1 - dec2) <= orb):
                 aspects.append({
                     "type": "Parallel",
-                    "p1": p1,
-                    "p2": p2,
+                    "p1": p1, "p2": p2,
                     "orb": abs(dec1 - dec2)
                 })
 
-            # Contra-Parallel
             if (dec1 * dec2 < 0) and (abs(dec1 + dec2) <= orb):
                 aspects.append({
                     "type": "Contra-Parallel",
-                    "p1": p1,
-                    "p2": p2,
+                    "p1": p1, "p2": p2,
                     "orb": abs(dec1 + dec2)
                 })
 
     return aspects
 
+# ---------------------------------------------------------
+# تشخیص سیارات Out-Of-Bounds
+# ---------------------------------------------------------
 def get_oob_planets(planets):
-    """
-    تشخیص سیارات Out-Of-Bounds بر اساس Declination
-    ورودی:
-        planets = خروجی get_all_planets
-    خروجی:
-        لیست سیارات OOB
-    """
-
-    OBB_LIMIT = 23.44  # حد میل خورشید
-
+    OBB_LIMIT = 23.44
     oob_list = []
 
     for name, data in planets.items():
-        dec = abs(data["declination"])
-        if dec > OBB_LIMIT:
+        dec_abs = abs(data["declination"])
+        if dec_abs > OBB_LIMIT:
             oob_list.append({
                 "planet": name,
                 "declination": data["declination"],
-                "amount": dec - OBB_LIMIT
+                "amount": dec_abs - OBB_LIMIT
             })
 
     return oob_list
 
+# ---------------------------------------------------------
+# جنبه‌های Latitude (Lat-Parallel / Lat-Contra-Parallel)
+# ---------------------------------------------------------
 def get_latitude_aspects(planets, orb=1.0):
-    """
-    محاسبه Parallel و Contra-Parallel بر اساس عرض دایرةالبروجی (Latitude)
-
-    ورودی:
-        planets = خروجی get_all_planets
-        orb = حداکثر اختلاف عرض (درجه)
-
-    خروجی:
-        لیست جنبه‌ها
-    """
-
     names = list(planets.keys())
     aspects = []
 
     for i in range(len(names)):
         for j in range(i + 1, len(names)):
-            p1 = names[i]
-            p2 = names[j]
-
+            p1, p2 = names[i], names[j]
             lat1 = planets[p1]["lat"]
             lat2 = planets[p2]["lat"]
 
-            # Parallel (Latitude)
             if (lat1 * lat2 > 0) and (abs(lat1 - lat2) <= orb):
                 aspects.append({
                     "type": "Lat-Parallel",
-                    "p1": p1,
-                    "p2": p2,
+                    "p1": p1, "p2": p2,
                     "orb": abs(lat1 - lat2)
                 })
 
-            # Contra-Parallel (Latitude)
             if (lat1 * lat2 < 0) and (abs(lat1 + lat2) <= orb):
                 aspects.append({
                     "type": "Lat-Contra-Parallel",
-                    "p1": p1,
-                    "p2": p2,
+                    "p1": p1, "p2": p2,
                     "orb": abs(lat1 + lat2)
                 })
 
     return aspects
 
+# ---------------------------------------------------------
+# جنبه‌های طولی (Longitude Aspects)
+# ---------------------------------------------------------
 def get_longitude_aspects(planets, orb_major=6.0, orb_minor=3.0):
-    """
-    محاسبه جنبه‌های طولی (Ecliptic Longitude Aspects)
-    """
-
     ASPECTS = {
         "Conjunction": 0,
         "Semi-Sextile": 30,
@@ -268,9 +209,7 @@ def get_longitude_aspects(planets, orb_major=6.0, orb_minor=3.0):
 
     for i in range(len(names)):
         for j in range(i + 1, len(names)):
-            p1 = names[i]
-            p2 = names[j]
-
+            p1, p2 = names[i], names[j]
             lon1 = planets[p1]["lon"]
             lon2 = planets[p2]["lon"]
 
@@ -284,53 +223,17 @@ def get_longitude_aspects(planets, orb_major=6.0, orb_minor=3.0):
                 if abs(diff - asp_angle) <= orb:
                     results.append({
                         "type": asp_name,
-                        "p1": p1,
-                        "p2": p2,
+                        "p1": p1, "p2": p2,
                         "orb": abs(diff - asp_angle),
                         "angle": diff
                     })
 
     return results
 
-
-def get_aspect_engine(planets, orb_lon_major=6.0, orb_lon_minor=3.0, orb_dec=1.0, orb_lat=1.0):
-    """
-    موتور کامل جنبه‌ها:
-    - جنبه‌های طولی
-    - جنبه‌های Declination
-    - جنبه‌های Latitude
-    """
-
-    aspects = []
-
-    # جنبه‌های طولی
-    lon_aspects = get_longitude_aspects(planets, orb_lon_major, orb_lon_minor)
-    for a in lon_aspects:
-        a["category"] = "Longitude"
-        aspects.append(a)
-
-    # جنبه‌های Declination
-    dec_aspects = get_declination_aspects(planets, orb_dec)
-    for a in dec_aspects:
-        a["category"] = "Declination"
-        aspects.append(a)
-
-    # جنبه‌های Latitude
-    lat_aspects = get_latitude_aspects(planets, orb_lat)
-    for a in lat_aspects:
-        a["category"] = "Latitude"
-        aspects.append(a)
-
-    return aspects
-
-
-
-
+# ---------------------------------------------------------
+# استانداردسازی ساختار جنبه‌ها
+# ---------------------------------------------------------
 def normalize_aspect(aspect):
-    """
-    استانداردسازی ساختار جنبه‌ها
-    """
-
     base = {
         "type": aspect.get("type"),
         "category": aspect.get("category"),
@@ -342,20 +245,20 @@ def normalize_aspect(aspect):
         "dec_diff": None,
     }
 
-    # Longitude
-    if aspect.get("category") == "Longitude":
+    if aspect["category"] == "Longitude":
         base["angle"] = aspect.get("angle")
 
-    # Declination
-    if aspect.get("category") == "Declination":
+    if aspect["category"] == "Declination":
         base["dec_diff"] = aspect.get("orb")
 
-    # Latitude
-    if aspect.get("category") == "Latitude":
+    if aspect["category"] == "Latitude":
         base["lat_diff"] = aspect.get("orb")
 
     return base
 
+# ---------------------------------------------------------
+# موتور کامل جنبه‌ها (Aspect Engine)
+# ---------------------------------------------------------
 def get_aspect_engine(
     planets,
     orb_lon_major=6.0,
@@ -366,33 +269,20 @@ def get_aspect_engine(
     include_dec=True,
     include_lat=True
 ):
-    """
-    موتور کامل جنبه‌ها:
-    - جنبه‌های طولی
-    - جنبه‌های Declination
-    - جنبه‌های Latitude
-    """
-
     aspects = []
 
-    # Longitude
     if include_lon:
-        lon_aspects = get_longitude_aspects(planets, orb_lon_major, orb_lon_minor)
-        for a in lon_aspects:
+        for a in get_longitude_aspects(planets, orb_lon_major, orb_lon_minor):
             a["category"] = "Longitude"
             aspects.append(normalize_aspect(a))
 
-    # Declination
     if include_dec:
-        dec_aspects = get_declination_aspects(planets, orb_dec)
-        for a in dec_aspects:
+        for a in get_declination_aspects(planets, orb_dec):
             a["category"] = "Declination"
             aspects.append(normalize_aspect(a))
 
-    # Latitude
     if include_lat:
-        lat_aspects = get_latitude_aspects(planets, orb_lat)
-        for a in lat_aspects:
+        for a in get_latitude_aspects(planets, orb_lat):
             a["category"] = "Latitude"
             aspects.append(normalize_aspect(a))
 
