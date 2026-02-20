@@ -312,12 +312,12 @@ def houses_regiomontanus(t, lat, lon, asc, mc):
     cusps[3] = _normalize_360(mc + 180)
 
     # خانه‌های 11 و 12 و 1
-    for i in range(1, 4):
+    for i in range(1, 3+1):
         ra = _normalize_360(ra_mc + i * 30)
         cusps[(9 + i) % 12] = ra_to_ecliptic(ra)
 
     # خانه‌های 5 و 6 و 7
-    for i in range(1, 4):
+    for i in range(1, 3+1):
         ra = _normalize_360(ra_mc + 180 + i * 30)
         cusps[(3 + i) % 12] = ra_to_ecliptic(ra)
 
@@ -328,13 +328,6 @@ def houses_regiomontanus(t, lat, lon, asc, mc):
     cusps[6] = _normalize_360(asc + 180)
 
     return [normalize(c) for c in cusps]
-
-
-
-
-
-
-
 
 
 
