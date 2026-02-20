@@ -178,4 +178,29 @@ def get_declination_aspects(planets, orb=1.0):
                 })
 
     return aspects
+
+def get_oob_planets(planets):
+    """
+    تشخیص سیارات Out-Of-Bounds بر اساس Declination
+    ورودی:
+        planets = خروجی get_all_planets
+    خروجی:
+        لیست سیارات OOB
+    """
+
+    OBB_LIMIT = 23.44  # حد میل خورشید
+
+    oob_list = []
+
+    for name, data in planets.items():
+        dec = abs(data["declination"])
+        if dec > OBB_LIMIT:
+            oob_list.append({
+                "planet": name,
+                "declination": data["declination"],
+                "amount": dec - OBB_LIMIT
+            })
+
+    return oob_list
+    
     
