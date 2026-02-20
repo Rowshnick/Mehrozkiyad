@@ -339,7 +339,6 @@ def houses_regiomontanus(t, lat, lon, asc, mc):
 
 
 
-
 # ------------------ رابط اصلی ------------------
 
 def compute_houses(t, lat, lon, system="placidus", asc=None, mc=None):
