@@ -137,3 +137,45 @@ def get_all_planets(t):
         }
 
     return result
+
+def get_declination_aspects(planets, orb=1.0):
+    """
+    محاسبه Parallel و Contra-Parallel بین سیارات
+    ورودی:
+        planets = خروجی get_all_planets
+        orb = حداکثر اختلاف میل (درجه)
+    خروجی:
+        لیست جنبه‌ها
+    """
+
+    names = list(planets.keys())
+    aspects = []
+
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            p1 = names[i]
+            p2 = names[j]
+
+            dec1 = planets[p1]["declination"]
+            dec2 = planets[p2]["declination"]
+
+            # Parallel
+            if (dec1 * dec2 > 0) and (abs(dec1 - dec2) <= orb):
+                aspects.append({
+                    "type": "Parallel",
+                    "p1": p1,
+                    "p2": p2,
+                    "orb": abs(dec1 - dec2)
+                })
+
+            # Contra-Parallel
+            if (dec1 * dec2 < 0) and (abs(dec1 + dec2) <= orb):
+                aspects.append({
+                    "type": "Contra-Parallel",
+                    "p1": p1,
+                    "p2": p2,
+                    "orb": abs(dec1 + dec2)
+                })
+
+    return aspects
+    
