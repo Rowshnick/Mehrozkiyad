@@ -1,3 +1,0 @@
-skyfield
-jplephem
-numpy
