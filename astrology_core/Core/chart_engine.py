@@ -100,7 +100,7 @@ def build_chart(
         raise ValueError(f"سیستم خانه‌ها ناشناخته است: {house_system}")
 
     # 5) نقاط اضافی
-    extra_points = get_extra_points(t, asc, mc, latitude_deg, longitude_deg)
+    extra_points = get_extra_points(t, asc, mc, latitude_deg, longitude_deg, planets)
     # فرض: extra_points[name]["lon"]
 
     # 6) ساخت مجموعهٔ کامل نقاط برای Aspect Engine
