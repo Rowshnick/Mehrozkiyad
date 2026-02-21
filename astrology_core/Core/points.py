@@ -1,29 +1,57 @@
+# astrology_core/Core/points.py
+# نسخهٔ هماهنگ با chart_engine.py جدید
+
 import numpy as np
 
-def normalize(angle):
-    """نرمال‌سازی زاویه به بازه ۰ تا ۳۶۰ درجه"""
-    return angle % 360
+def norm_deg(a):
+    return a % 360.0
 
-def get_extra_points(t, lat, lon, asc, sun_lon, moon_lon):
+def get_extra_points(t, asc, mc, latitude_deg, longitude_deg, planets=None):
     """
-    محاسبهٔ نقاط اضافی:
-    - Midheaven (MC)
-    - Vertex
-    - Part of Fortune (POF)
+    نسخهٔ جدید: moon_lon را از دیکشنری planets می‌گیرد.
+    chart_engine.py این دیکشنری را ارسال می‌کند.
     """
 
-    points = {}
+    if planets is None:
+        raise ValueError("points.py: دیکشنری سیارات ارسال نشده است.")
 
-    # MC ساده (اگر از houses.py استفاده نشود)
-    mc = normalize(asc + 90)
-    points["MC"] = {"lon": mc, "lat": 0}
+    if "Moon" not in planets:
+        raise ValueError("points.py: سیاره Moon در دیکشنری وجود ندارد.")
 
-    # Vertex
-    vertex = normalize(asc + 180)
-    points["Vertex"] = {"lon": vertex, "lat": 0}
+    moon_lon = planets["Moon"]["lon"]
+    sun_lon  = planets["Sun"]["lon"]
 
+    # -------------------------
+    # Node (True Node ساده)
+    # -------------------------
+    node = norm_deg(moon_lon + 180.0)
+
+    # -------------------------
+    # Lilith (Mean Black Moon)
+    # -------------------------
+    lilith = norm_deg(moon_lon - 180.0)
+
+    # -------------------------
     # Part of Fortune
-    pof = normalize(asc + moon_lon - sun_lon)
-    points["POF"] = {"lon": pof, "lat": 0}
+    # -------------------------
+    # فرمول ناتال (روز):
+    fortune = norm_deg(asc + moon_lon - sun_lon)
 
-    return points
+    # -------------------------
+    # Vertex (تقریب استاندارد)
+    # -------------------------
+    # فرمول ساده‌شده: Vertex = Asc + (MC - Asc)/2
+    vertex = norm_deg(asc + (mc - asc) / 2.0)
+
+    # -------------------------
+    # East Point
+    # -------------------------
+    east_point = norm_deg(mc + 90.0)
+
+    return {
+        "Node": {"lon": node},
+        "Lilith": {"lon": lilith},
+        "Fortune": {"lon": fortune},
+        "Vertex": {"lon": vertex},
+        "East Point": {"lon": east_point},
+    }
