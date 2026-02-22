@@ -1,7 +1,13 @@
 # astrology_core/Render/advanced_renderer.py
 
 import math
+import os
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+# =========================
+#  CONSTANTS & SYMBOLS
+# =========================
 
 ZODIAC_SIGNS = [
     "♈", "♉", "♊", "♋", "♌", "♍",
@@ -35,6 +41,10 @@ ASPECT_COLORS = {
 MAJOR_ASPECTS = {"conjunction", "opposition", "square", "trine", "sextile"}
 
 
+# =========================
+#  HELPER FUNCTIONS
+# =========================
+
 def deg_to_rad(deg):
     return math.radians(deg)
 
@@ -57,6 +67,31 @@ def normalize_aspects(aspects_raw):
     return {"planet_aspects": []}
 
 
+# =========================
+#  SAVE FUNCTION
+# =========================
+
+def save_chart(
+    fig,
+    filename="chart_output",
+    directory="/content",
+    format="png",
+    dpi=300
+):
+    """
+    ذخیرهٔ چارت با فرمت دلخواه
+    format: png, pdf, svg, jpg, eps
+    """
+    os.makedirs(directory, exist_ok=True)
+    filepath = os.path.join(directory, f"{filename}.{format}")
+    fig.savefig(filepath, format=format, dpi=dpi)
+    return filepath
+
+
+# =========================
+#  MAIN RENDERER
+# =========================
+
 def render_chart_pretty(
     chart,
     show_aspects=True,
@@ -64,9 +99,9 @@ def render_chart_pretty(
     show_points=True,
     dpi=200,
     figsize=(8, 8),
-    save_as=None,        # ← NEW
-    save_dir="/content", # ← NEW
-    save_name="chart",   # ← NEW
+    save_as=None,
+    save_dir="/content",
+    save_name="chart",
 ):
 
     fig, ax = plt.subplots(
@@ -211,23 +246,33 @@ def render_chart_pretty(
 
     ax.set_rlim(0, 1.1)
     plt.tight_layout()
+
+    # ذخیره‌سازی
+    if save_as:
+        save_chart(
+            fig,
+            filename=save_name,
+            directory=save_dir,
+            format=save_as,
+            dpi=dpi
+        )
+
     return fig
 
 
-# ساخت انیمیشن  advanced_renderer.py
-
-from matplotlib.animation import FuncAnimation
+# =========================
+#  TRANSIT ANIMATION
+# =========================
 
 def animate_transits(
     natal_chart,
     transit_charts,
     dpi=150,
     figsize=(8, 8),
-    interval=200,  # میلی‌ثانیه بین فریم‌ها
+    interval=200,
 ):
     """
-    natal_chart: چارت ناتال (خروجی build_chart)
-    transit_charts: لیستی از چارت‌های ترانزیت (همان ساختار build_chart)
+    انیمیشن ترانزیت روی چارت ناتال
     """
 
     fig = render_chart_pretty(natal_chart, show_aspects=False)
@@ -235,7 +280,6 @@ def animate_transits(
 
     r_planets_transit = 0.55
 
-    # آماده‌سازی لایهٔ ترانزیت
     transit_scat = ax.scatter([], [], color="#d35400", s=18, zorder=6)
     transit_texts = []
 
@@ -258,13 +302,11 @@ def animate_transits(
             thetas.append(theta)
             rs.append(r_planets_transit)
 
-        # تبدیل به مختصات کارتزین برای scatter
         xs = [r * math.cos(t) for r, t in zip(rs, thetas)]
         ys = [r * math.sin(t) for r, t in zip(rs, thetas)]
         offsets = list(zip(xs, ys))
         transit_scat.set_offsets(offsets)
 
-        # متن‌ها را پاک و دوباره بساز
         for txt in transit_texts:
             txt.remove()
         transit_texts.clear()
@@ -296,30 +338,3 @@ def animate_transits(
     )
 
     return fig, anim
-
-# ذخیره فایل 
-import os
-
-def save_chart(
-    fig,
-    filename="chart_output",
-    directory="/content",
-    format="png",
-    dpi=300
-):
-    """
-    ذخیرهٔ چارت با فرمت دلخواه
-    format: png, pdf, svg, jpg, eps
-    """
-
-    # اطمینان از وجود پوشه
-    os.makedirs(directory, exist_ok=True)
-
-    # ساخت مسیر کامل
-    filepath = os.path.join(directory, f"{filename}.{format}")
-
-    # ذخیره
-    fig.savefig(filepath, format=format, dpi=dpi)
-
-    return filepath
-
