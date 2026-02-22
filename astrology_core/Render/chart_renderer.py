@@ -3,6 +3,10 @@
 import math
 import matplotlib.pyplot as plt
 
+# =========================
+#  SYMBOLS & CONSTANTS
+# =========================
+
 ZODIAC_SIGNS = [
     "♈", "♉", "♊", "♋", "♌", "♍",
     "♎", "♏", "♐", "♑", "♒", "♓"
@@ -35,6 +39,10 @@ ASPECT_COLORS = {
 MAJOR_ASPECTS = {"conjunction", "opposition", "square", "trine", "sextile"}
 
 
+# =========================
+#  ANGLE HELPERS
+# =========================
+
 def deg_to_rad(deg):
     return math.radians(deg)
 
@@ -42,10 +50,14 @@ def deg_to_rad(deg):
 def chart_angle(lon):
     """
     تبدیل طول دایرةالبروجی به زاویهٔ روی چارت.
-    اینجا 0° = سمت راست (شرق)، خلاف جهت عقربه‌های ساعت.
+    0° = شرق (راست)، خلاف جهت عقربه‌های ساعت.
     """
     return deg_to_rad(90 - lon)
 
+
+# =========================
+#  RENDERER
+# =========================
 
 def render_chart(
     chart,
@@ -62,10 +74,9 @@ def render_chart(
     """
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, subplot_kw={"projection": "polar"})
-    ax.set_theta_direction(-1)  # خلاف جهت عقربه‌های ساعت
-    ax.set_theta_zero_location("E")  # 0° در شرق (راست)
+    ax.set_theta_direction(-1)
+    ax.set_theta_zero_location("E")
 
-    # پس‌زمینه
     ax.set_facecolor("white")
     ax.set_xticks([])
     ax.set_yticks([])
@@ -76,66 +87,58 @@ def render_chart(
     r_planets = 0.70
     r_houses = 0.95
 
-    # 1) دایرهٔ زودیاک
+    # =========================
+    #  1) دایرهٔ زودیاک
+    # =========================
     circle = plt.Circle((0, 0), r_zodiac, transform=ax.transData._b, fill=False, color="gray", linewidth=1.0)
     ax.add_artist(circle)
 
-    # 2) نشانه‌ها (Signs)
+    # =========================
+    #  2) نشانه‌های زودیاک
+    # =========================
     for i in range(12):
-        lon = i * 30 + 15  # وسط هر نشانه
+        lon = i * 30 + 15
         theta = chart_angle(lon)
-        ax.text(
-            theta,
-            r_zodiac + 0.03,
-            ZODIAC_SIGNS[i],
-            ha="center",
-            va="center",
-            fontsize=14,
-        )
+        ax.text(theta, r_zodiac + 0.03, ZODIAC_SIGNS[i], ha="center", va="center", fontsize=14)
 
-    # 3) خانه‌ها (Houses)
-    houses = chart.get("houses", {})
+    # =========================
+    #  3) خانه‌ها (FIXED)
+    # =========================
+    houses_raw = chart.get("houses", {})
+
+    # اگر لیست بود → تبدیل به دیکشنری
+    if isinstance(houses_raw, list):
+        houses = {f"Cusp{i+1}": {"lon": houses_raw[i]} for i in range(len(houses_raw))}
+    else:
+        houses = houses_raw
+
     if show_houses and houses:
         for i in range(1, 13):
             cusp = houses.get(f"Cusp{i}")
             if cusp is None:
                 continue
+
             lon = cusp["lon"]
             theta = chart_angle(lon)
-            ax.plot([theta, theta], [0, r_houses], color="gray", linewidth=0.6)
-            ax.text(
-                theta,
-                r_houses + 0.02,
-                str(i),
-                ha="center",
-                va="center",
-                fontsize=8,
-                color="gray",
-            )
 
-    # 4) سیارات
+            ax.plot([theta, theta], [0, r_houses], color="gray", linewidth=0.6)
+            ax.text(theta, r_houses + 0.02, str(i), ha="center", va="center", fontsize=8, color="gray")
+
+    # =========================
+    #  4) سیارات
+    # =========================
     planets = chart.get("planets", {})
     for name, data in planets.items():
         lon = data["lon"]
         theta = chart_angle(lon)
-
         symbol = PLANET_SYMBOLS.get(name, "•")
 
-        # نقطه
         ax.scatter([theta], [r_planets], color="black", s=10, zorder=5)
+        ax.text(theta, r_planets + 0.05, symbol, ha="center", va="center", fontsize=12)
 
-        # نماد
-        ax.text(
-            theta,
-            r_planets + 0.05,
-            symbol,
-            ha="center",
-            va="center",
-            fontsize=12,
-            color="black",
-        )
-
-    # 5) نقاط اضافی (Node, Lilith, ...)
+    # =========================
+    #  5) نقاط اضافی (Node, Lilith, ...)
+    # =========================
     if show_points:
         points = chart.get("points", {})
         for name, data in points.items():
@@ -144,17 +147,11 @@ def render_chart(
             symbol = PLANET_SYMBOLS.get(name, "•")
 
             ax.scatter([theta], [r_planets - 0.08], color="black", s=8, zorder=4)
-            ax.text(
-                theta,
-                r_planets - 0.13,
-                symbol,
-                ha="center",
-                va="center",
-                fontsize=10,
-                color="black",
-            )
+            ax.text(theta, r_planets - 0.13, symbol, ha="center", va="center", fontsize=10)
 
-    # 6) جنبه‌ها
+    # =========================
+    #  6) جنبه‌ها
+    # =========================
     if show_aspects:
         aspects = chart.get("aspects", {}).get("planet_aspects", [])
         for asp in aspects:
@@ -178,14 +175,7 @@ def render_chart(
             strength = asp.get("strength", 0.5)
             lw = 0.5 + 2.0 * max(0.0, min(1.0, strength))
 
-            ax.plot(
-                [theta1, theta2],
-                [r_planets, r_planets],
-                color=color,
-                linewidth=lw,
-                alpha=0.8,
-                zorder=3,
-            )
+            ax.plot([theta1, theta2], [r_planets, r_planets], color=color, linewidth=lw, alpha=0.8, zorder=3)
 
     ax.set_rlim(0, 1.1)
     plt.tight_layout()
