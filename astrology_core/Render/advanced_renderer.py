@@ -338,3 +338,4 @@ def animate_transits(
     )
 
     return fig, anim
+    
