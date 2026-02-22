@@ -64,7 +64,11 @@ def render_chart_pretty(
     show_points=True,
     dpi=200,
     figsize=(8, 8),
+    save_as=None,        # ← NEW
+    save_dir="/content", # ← NEW
+    save_name="chart",   # ← NEW
 ):
+
     fig, ax = plt.subplots(
         figsize=figsize,
         dpi=dpi,
@@ -208,3 +212,114 @@ def render_chart_pretty(
     ax.set_rlim(0, 1.1)
     plt.tight_layout()
     return fig
+
+
+# ساخت انیمیشن  advanced_renderer.py
+
+from matplotlib.animation import FuncAnimation
+
+def animate_transits(
+    natal_chart,
+    transit_charts,
+    dpi=150,
+    figsize=(8, 8),
+    interval=200,  # میلی‌ثانیه بین فریم‌ها
+):
+    """
+    natal_chart: چارت ناتال (خروجی build_chart)
+    transit_charts: لیستی از چارت‌های ترانزیت (همان ساختار build_chart)
+    """
+
+    fig = render_chart_pretty(natal_chart, show_aspects=False)
+    ax = fig.axes[0]
+
+    r_planets_transit = 0.55
+
+    # آماده‌سازی لایهٔ ترانزیت
+    transit_scat = ax.scatter([], [], color="#d35400", s=18, zorder=6)
+    transit_texts = []
+
+    def init():
+        transit_scat.set_offsets([])
+        for txt in transit_texts:
+            txt.remove()
+        transit_texts.clear()
+        return [transit_scat]
+
+    def update(frame_idx):
+        chart_tr = transit_charts[frame_idx]
+        planets_tr = chart_tr.get("planets", {})
+
+        thetas = []
+        rs = []
+        for name, data in planets_tr.items():
+            lon = data["lon"]
+            theta = chart_angle(lon)
+            thetas.append(theta)
+            rs.append(r_planets_transit)
+
+        # تبدیل به مختصات کارتزین برای scatter
+        xs = [r * math.cos(t) for r, t in zip(rs, thetas)]
+        ys = [r * math.sin(t) for r, t in zip(rs, thetas)]
+        offsets = list(zip(xs, ys))
+        transit_scat.set_offsets(offsets)
+
+        # متن‌ها را پاک و دوباره بساز
+        for txt in transit_texts:
+            txt.remove()
+        transit_texts.clear()
+
+        for (name, data), theta in zip(planets_tr.items(), thetas):
+            symbol = PLANET_SYMBOLS.get(name, "•")
+            txt = ax.text(
+                theta,
+                r_planets_transit + 0.05,
+                symbol,
+                ha="center",
+                va="center",
+                fontsize=11,
+                color="#d35400",
+                zorder=7,
+            )
+            transit_texts.append(txt)
+
+        return [transit_scat] + transit_texts
+
+    anim = FuncAnimation(
+        fig,
+        update,
+        frames=len(transit_charts),
+        init_func=init,
+        blit=False,
+        interval=interval,
+        repeat=True,
+    )
+
+    return fig, anim
+
+# ذخیره فایل 
+import os
+
+def save_chart(
+    fig,
+    filename="chart_output",
+    directory="/content",
+    format="png",
+    dpi=300
+):
+    """
+    ذخیرهٔ چارت با فرمت دلخواه
+    format: png, pdf, svg, jpg, eps
+    """
+
+    # اطمینان از وجود پوشه
+    os.makedirs(directory, exist_ok=True)
+
+    # ساخت مسیر کامل
+    filepath = os.path.join(directory, f"{filename}.{format}")
+
+    # ذخیره
+    fig.savefig(filepath, format=format, dpi=dpi)
+
+    return filepath
+
