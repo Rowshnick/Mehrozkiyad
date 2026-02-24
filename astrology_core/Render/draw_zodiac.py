@@ -3,6 +3,8 @@
 #Fully rewritten by Roshina Project
 #============================================================
 
+# astrology_core/Render/draw_zodiac.py
+
 import math
 from .angle_utils import chart_angle
 from .theme import get_theme
@@ -12,16 +14,8 @@ ZODIAC_SIGNS = [
     "♎", "♏", "♐", "♑", "♒", "♓"
 ]
 
-
 def draw_zodiac_circle(ax, r_zodiac=0.85, theme_name="dark"):
     theme = get_theme(theme_name)
-
-    circle = ax.add_artist(
-        ax.figure.canvas.copy_from_bbox(
-            ax.bbox
-        )
-    )  # فقط برای سازگاری، استفادهٔ اصلی با plot است
-
     ax.plot(
         [0, 2 * math.pi],
         [r_zodiac, r_zodiac],
@@ -29,10 +23,8 @@ def draw_zodiac_circle(ax, r_zodiac=0.85, theme_name="dark"):
         linewidth=theme["zodiac_ring_width"],
     )
 
-
 def draw_zodiac_labels(ax, r_zodiac=0.85, theme_name="dark"):
     theme = get_theme(theme_name)
-
     for i in range(12):
         lon = i * 30 + 15
         theta = chart_angle(lon)
