@@ -1,11 +1,11 @@
 
-============================================================
+#============================================================
 
-DRAW_ZODIAC (THEME-DRIVEN VERSION)
+#DRAW_ZODIAC (THEME-DRIVEN VERSION)
 
-Fully rewritten by Roshina Project
+#Fully rewritten by Roshina Project
 
-============================================================
+#============================================================
 
 import math
 from .chart_renderer import chart_angle
