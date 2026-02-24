@@ -51,35 +51,37 @@ THEMES = {
     # --------------------------------------------------------
     #  DARK THEME (DEFAULT)
     # --------------------------------------------------------
+
     "dark": {
-        "background": "#000000",
-        "zodiac_circle": "#AAAAAA",
-        "zodiac_text": "#DDDDDD",
-        "house_lines": "#888888",
-        "house_numbers": "#BBBBBB",
+    "background": "#0B0C10",          # مشکی عمیق با ته‌مایه آبی
+    "zodiac_circle": "#9D4EDD",       # بنفش نئونی ملایم
+    "zodiac_text": "#E0B3FF",         # بنفش روشن برای خوانایی بالا
+    "house_lines": "#6A4FBF",         # بنفش تیره‌تر و ظریف
+    "house_numbers": "#C9A7FF",       # بنفش روشن‌تر
 
-        "planet_color": "#FFFFFF",
-        "planet_label_color": "#DDDDDD",
+    "planet_color": "#FFFFFF",        # سفید برای وضوح کامل
+    "planet_label_color": "#C77DFF",  # بنفش روشن برای هماهنگی
 
-        "aspect_colors": {
-            "conjunction": "#FFFFFF",
-            "sextile": "#66CCFF",
-            "square": "#FF6666",
-            "trine": "#66FF99",
-            "opposition": "#FF4444"
-        },
-
-        "font": "DejaVu Sans",
-        "planet_size": 16,
-        "planet_label_size": 10,
-        "zodiac_size": 18,
-        "house_number_size": 12,
-
-        "zodiac_ring_width": 1.4,
-        "house_line_width": 1.0,
-        "aspect_line_alpha": 0.90
+    "aspect_colors": {
+        "conjunction": "#FFFFFF",     # سفید
+        "opposition": "#FF4D6D",      # قرمز نئونی ملایم
+        "square": "#FF4D6D",          # همان رنگ برای هماهنگی
+        "trine": "#80FFEA",           # آبی-سبز نئونی
+        "sextile": "#8AFF80"          # سبز نئونی ملایم
     },
 
+    "font": "Vazirmatn-Regular",
+
+    "planet_size": 20,                # کمی بزرگ‌تر برای زیبایی
+    "planet_label_size": 11,
+    "zodiac_size": 22,
+    "house_number_size": 13,
+
+    "zodiac_ring_width": 2.0,         # کمی ضخیم‌تر برای وضوح
+    "house_line_width": 1.1,          # ظریف و مدرن
+    "aspect_line_alpha": 0.90         # کمی شفاف برای زیبایی
+}
+    
     # --------------------------------------------------------
     #  GOLD THEME (LUXURY)
     # --------------------------------------------------------
