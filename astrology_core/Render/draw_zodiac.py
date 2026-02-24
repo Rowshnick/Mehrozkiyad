@@ -1,4 +1,11 @@
-# astrology_core/Render/draw_zodiac.py
+
+============================================================
+
+DRAW_ZODIAC (THEME-DRIVEN VERSION)
+
+Fully rewritten by Roshina Project
+
+============================================================
 
 import math
 from .chart_renderer import chart_angle
