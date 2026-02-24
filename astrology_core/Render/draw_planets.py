@@ -1,10 +1,6 @@
-
 #============================================================
-
 #DRAW_PLANETS (THEME-DRIVEN VERSION)
-
 #Fully rewritten by Roshina Project
-
 #============================================================
 
 from .chart_renderer import chart_angle
