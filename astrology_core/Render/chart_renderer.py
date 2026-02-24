@@ -1,7 +1,17 @@
-# astrology_core/Render/chart_renderer.py
+# ============================================================
+#  CHART RENDERER (THEME-DRIVEN VERSION)
+#  Fully rewritten for Roshina Project
+# ============================================================
 
 import math
 import matplotlib.pyplot as plt
+
+from .theme import get_theme
+
+
+# ============================================================
+#  CONSTANTS & SYMBOLS
+# ============================================================
 
 ZODIAC_SIGNS = [
     "♈", "♉", "♊", "♋", "♌", "♍",
@@ -24,38 +34,64 @@ PLANET_SYMBOLS = {
     "Fortune": "⊗",
 }
 
-ASPECT_COLORS = {
-    "conjunction": "black",
-    "opposition": "red",
-    "square": "red",
-    "trine": "blue",
-    "sextile": "blue",
-}
-
 MAJOR_ASPECTS = {"conjunction", "opposition", "square", "trine", "sextile"}
 
+
+# ============================================================
+#  ANGLE HELPERS
+# ============================================================
 
 def deg_to_rad(deg):
     return math.radians(deg)
 
 
 def chart_angle(lon):
+    """Convert ecliptic longitude to polar angle."""
     return deg_to_rad(90 - lon)
 
 
+# ============================================================
+#  NORMALIZATION HELPERS
+# ============================================================
+
+def normalize_houses(houses_raw):
+    if isinstance(houses_raw, list):
+        return {f"Cusp{i+1}": {"lon": houses_raw[i]} for i in range(len(houses_raw))}
+    return houses_raw or {}
+
+
+def normalize_aspects(aspects_raw):
+    if isinstance(aspects_raw, list):
+        return {"planet_aspects": aspects_raw}
+    if isinstance(aspects_raw, dict):
+        return aspects_raw
+    return {"planet_aspects": []}
+
+
+# ============================================================
+#  BASIC RENDERER (THEME-DRIVEN)
+# ============================================================
+
 def render_chart(
     chart,
-    style="classic",
+    theme="dark",
     show_aspects=True,
     show_houses=True,
     show_points=True,
     dpi=150,
     figsize=(8, 8),
 ):
+    """
+    Simple chart renderer (Theme-driven)
+    Used for quick previews or lightweight rendering.
+    """
+
+    theme = get_theme(theme)
+
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, subplot_kw={"projection": "polar"})
     ax.set_theta_direction(-1)
     ax.set_theta_zero_location("E")
-    ax.set_facecolor("white")
+    ax.set_facecolor(theme["background"])
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -64,69 +100,125 @@ def render_chart(
     r_houses = 0.95
 
     # -------------------------
-    #  FIX 1: Normalize houses
+    #  Normalize data
     # -------------------------
-    houses_raw = chart.get("houses", {})
-    if isinstance(houses_raw, list):
-        houses = {f"Cusp{i+1}": {"lon": houses_raw[i]} for i in range(len(houses_raw))}
-    else:
-        houses = houses_raw
-
-    # -------------------------
-    #  FIX 2: Normalize aspects
-    # -------------------------
-    aspects_raw = chart.get("aspects", {})
-
-    if isinstance(aspects_raw, list):
-        aspects = {"planet_aspects": aspects_raw}
-    elif isinstance(aspects_raw, dict):
-        aspects = aspects_raw
-    else:
-        aspects = {"planet_aspects": []}
+    houses = normalize_houses(chart.get("houses"))
+    aspects = normalize_aspects(chart.get("aspects"))
+    planets = chart.get("planets", {})
+    points = chart.get("points", {})
 
     # -------------------------
     #  Zodiac circle
     # -------------------------
-    circle = plt.Circle((0, 0), r_zodiac, transform=ax.transData._b, fill=False, color="gray", linewidth=1.0)
+    circle = plt.Circle(
+        (0, 0),
+        r_zodiac,
+        transform=ax.transData._b,
+        fill=False,
+        color=theme["zodiac_circle"],
+        linewidth=theme["zodiac_ring_width"],
+    )
     ax.add_artist(circle)
 
     # Zodiac signs
     for i in range(12):
         lon = i * 30 + 15
         theta = chart_angle(lon)
-        ax.text(theta, r_zodiac + 0.03, ZODIAC_SIGNS[i], ha="center", va="center", fontsize=14)
+        ax.text(
+            theta,
+            r_zodiac + 0.03,
+            ZODIAC_SIGNS[i],
+            ha="center",
+            va="center",
+            fontsize=theme["zodiac_size"],
+            color=theme["zodiac_text"],
+            fontname=theme["font"],
+        )
 
-    # Houses
+    # -------------------------
+    #  Houses
+    # -------------------------
     if show_houses:
         for i in range(1, 13):
             cusp = houses.get(f"Cusp{i}")
             if not cusp:
                 continue
+
             lon = cusp["lon"]
             theta = chart_angle(lon)
-            ax.plot([theta, theta], [0, r_houses], color="gray", linewidth=0.6)
-            ax.text(theta, r_houses + 0.02, str(i), ha="center", va="center", fontsize=8, color="gray")
 
-    # Planets
-    planets = chart.get("planets", {})
+            ax.plot(
+                [theta, theta],
+                [0, r_houses],
+                color=theme["house_lines"],
+                linewidth=theme["house_line_width"],
+            )
+
+            ax.text(
+                theta,
+                r_houses + 0.02,
+                str(i),
+                ha="center",
+                va="center",
+                fontsize=theme["house_number_size"],
+                color=theme["house_numbers"],
+                fontname=theme["font"],
+            )
+
+    # -------------------------
+    #  Planets
+    # -------------------------
     for name, data in planets.items():
         lon = data["lon"]
         theta = chart_angle(lon)
         symbol = PLANET_SYMBOLS.get(name, "•")
-        ax.scatter([theta], [r_planets], color="black", s=10)
-        ax.text(theta, r_planets + 0.05, symbol, ha="center", va="center", fontsize=12)
 
-    # Points
+        ax.text(
+            theta,
+            r_planets,
+            symbol,
+            ha="center",
+            va="center",
+            fontsize=theme["planet_size"],
+            color=theme["planet_color"],
+            fontname=theme["font"],
+        )
+
+        deg = round(lon % 30, 1)
+        ax.text(
+            theta,
+            r_planets + 0.06,
+            f"{deg}°",
+            ha="center",
+            va="center",
+            fontsize=theme["planet_label_size"],
+            color=theme["planet_label_color"],
+            fontname=theme["font"],
+        )
+
+    # -------------------------
+    #  Points
+    # -------------------------
     if show_points:
-        points = chart.get("points", {})
         for name, data in points.items():
             lon = data["lon"]
             theta = chart_angle(lon)
             symbol = PLANET_SYMBOLS.get(name, "•")
-            ax.scatter([theta], [r_planets - 0.08], color="black", s=8)
-            ax.text(theta, r_planets - 0.13, symbol, ha="center", va="center", fontsize=10)
 
-    # Aspects
+            ax.text(
+                theta,
+                r_planets - 0.10,
+                symbol,
+                ha="center",
+                va="center",
+                fontsize=theme["planet_label_size"],
+                color=theme["planet_label_color"],
+                fontname=theme["font"],
+            )
+
+    # -------------------------
+    #  Aspects
+    # -------------------------
     if show_aspects:
         for asp in aspects.get("planet_aspects", []):
             a_type = asp.get("aspect")
@@ -135,7 +227,6 @@ def render_chart(
 
             p1 = asp.get("planet1")
             p2 = asp.get("planet2")
-
             if p1 not in planets or p2 not in planets:
                 continue
 
@@ -145,11 +236,17 @@ def render_chart(
             theta1 = chart_angle(lon1)
             theta2 = chart_angle(lon2)
 
-            color = ASPECT_COLORS.get(a_type, "black")
+            color = theme["aspect_colors"].get(a_type, "#888888")
             strength = asp.get("strength", 0.5)
             lw = 0.5 + 2.0 * max(0.0, min(1.0, strength))
 
-            ax.plot([theta1, theta2], [r_planets, r_planets], color=color, linewidth=lw, alpha=0.8)
+            ax.plot(
+                [theta1, theta2],
+                [r_planets, r_planets],
+                color=color,
+                linewidth=lw,
+                alpha=theme["aspect_line_alpha"],
+            )
 
     ax.set_rlim(0, 1.1)
     plt.tight_layout()
