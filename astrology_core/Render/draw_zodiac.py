@@ -4,7 +4,7 @@
 #============================================================
 
 import math
-from .chart_renderer import chart_angle
+from .angle_utils import chart_angle
 from .theme import get_theme
 
 ZODIAC_SIGNS = [
