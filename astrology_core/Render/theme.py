@@ -1,16 +1,6 @@
 # ============================================================
 #   Theme System for Astrology Chart Renderer
 #   Author: Roshina Project
-#   Description:
-#       Centralized theme definitions for rendering charts.
-#       Each theme controls:
-#           - Background colors
-#           - Zodiac ring colors
-#           - House line colors
-#           - Planet glyph colors
-#           - Aspect line colors
-#           - Fonts and sizes
-#           - Special styling parameters
 # ============================================================
 
 THEMES = {
@@ -18,70 +8,69 @@ THEMES = {
     # --------------------------------------------------------
     #  LIGHT THEME
     # --------------------------------------------------------
-   "light": {
-    "background": "#FAFAFA",          # سفید ملایم، نه سفید خالص
-    "zodiac_circle": "#555555",       # خاکستری تیره‌تر برای وضوح بهتر
-    "zodiac_text": "#1A1A1A",         # مشکی ملایم، خوانایی بالا
-    "house_lines": "#B0B0B0",         # خاکستری روشن و ظریف
-    "house_numbers": "#333333",       # کمی تیره‌تر برای خوانایی
+    "light": {
+        "background": "#FAFAFA",
+        "zodiac_circle": "#555555",
+        "zodiac_text": "#1A1A1A",
+        "house_lines": "#B0B0B0",
+        "house_numbers": "#333333",
 
-    "planet_color": "#000000",        # سیارات مشکی برای وضوح
-    "planet_label_color": "#444444",  # درجه‌ها کمی روشن‌تر
+        "planet_color": "#000000",
+        "planet_label_color": "#444444",
 
-    "aspect_colors": {
-        "conjunction": "#000000",     # مشکی
-        "opposition": "#E53935",      # قرمز ملایم‌تر و مدرن‌تر
-        "square": "#E53935",          # همان رنگ برای هماهنگی
-        "trine": "#1E88E5",           # آبی روشن و شیک
-        "sextile": "#43A047"          # سبز ملایم و هماهنگ
-    },
+        "aspect_colors": {
+            "conjunction": "#000000",
+            "opposition": "#E53935",
+            "square": "#E53935",
+            "trine": "#1E88E5",
+            "sextile": "#43A047"
+        },
 
-    "font": "Vazirmatn-Regular",
+        "font": "Vazirmatn-Regular",
 
-    "planet_size": 20,                # کمی بزرگ‌تر برای زیبایی
-    "planet_label_size": 11,
-    "zodiac_size": 22,                # خوانایی بهتر
-    "house_number_size": 13,
+        "planet_size": 20,
+        "planet_label_size": 11,
+        "zodiac_size": 22,
+        "house_number_size": 13,
 
-    "zodiac_ring_width": 2.0,         # کمی ضخیم‌تر برای وضوح
-    "house_line_width": 1.1,          # ظریف و مینیمال
-    "aspect_line_alpha": 0.80         # ملایم‌تر از نسخه قبلی
+        "zodiac_ring_width": 2.0,
+        "house_line_width": 1.1,
+        "aspect_line_alpha": 0.80
     },
 
     # --------------------------------------------------------
-    #  DARK THEME (DEFAULT)
+    #  DARK THEME
     # --------------------------------------------------------
-
     "dark": {
-    "background": "#0B0C10",          # مشکی عمیق با ته‌مایه آبی
-    "zodiac_circle": "#9D4EDD",       # بنفش نئونی ملایم
-    "zodiac_text": "#E0B3FF",         # بنفش روشن برای خوانایی بالا
-    "house_lines": "#6A4FBF",         # بنفش تیره‌تر و ظریف
-    "house_numbers": "#C9A7FF",       # بنفش روشن‌تر
+        "background": "#0B0C10",
+        "zodiac_circle": "#9D4EDD",
+        "zodiac_text": "#E0B3FF",
+        "house_lines": "#6A4FBF",
+        "house_numbers": "#C9A7FF",
 
-    "planet_color": "#FFFFFF",        # سفید برای وضوح کامل
-    "planet_label_color": "#C77DFF",  # بنفش روشن برای هماهنگی
+        "planet_color": "#FFFFFF",
+        "planet_label_color": "#C77DFF",
 
-    "aspect_colors": {
-        "conjunction": "#FFFFFF",     # سفید
-        "opposition": "#FF4D6D",      # قرمز نئونی ملایم
-        "square": "#FF4D6D",          # همان رنگ برای هماهنگی
-        "trine": "#80FFEA",           # آبی-سبز نئونی
-        "sextile": "#8AFF80"          # سبز نئونی ملایم
+        "aspect_colors": {
+            "conjunction": "#FFFFFF",
+            "opposition": "#FF4D6D",
+            "square": "#FF4D6D",
+            "trine": "#80FFEA",
+            "sextile": "#8AFF80"
+        },
+
+        "font": "Vazirmatn-Regular",
+
+        "planet_size": 20,
+        "planet_label_size": 11,
+        "zodiac_size": 22,
+        "house_number_size": 13,
+
+        "zodiac_ring_width": 2.0,
+        "house_line_width": 1.1,
+        "aspect_line_alpha": 0.90
     },
 
-    "font": "Vazirmatn-Regular",
-
-    "planet_size": 20,                # کمی بزرگ‌تر برای زیبایی
-    "planet_label_size": 11,
-    "zodiac_size": 22,
-    "house_number_size": 13,
-
-    "zodiac_ring_width": 2.0,         # کمی ضخیم‌تر برای وضوح
-    "house_line_width": 1.1,          # ظریف و مدرن
-    "aspect_line_alpha": 0.90         # کمی شفاف برای زیبایی
-}
-    
     # --------------------------------------------------------
     #  GOLD THEME (LUXURY)
     # --------------------------------------------------------
@@ -115,7 +104,7 @@ THEMES = {
     },
 
     # --------------------------------------------------------
-    #  MINIMAL THEME (CLEAN & MODERN)
+    #  MINIMAL THEME
     # --------------------------------------------------------
     "minimal": {
         "background": "#FFFFFF",
@@ -147,7 +136,7 @@ THEMES = {
     },
 
     # --------------------------------------------------------
-    #  ROSHINA SIGNATURE THEME (CUSTOM)
+    #  ROSHINA SIGNATURE THEME
     # --------------------------------------------------------
     "roshina": {
         "background": "#0A0A0F",
@@ -181,8 +170,7 @@ THEMES = {
 
 
 # ------------------------------------------------------------
-# Helper function to get theme safely
+# Helper function
 # ------------------------------------------------------------
 def get_theme(name: str):
-    """Return theme dictionary, fallback to dark theme."""
     return THEMES.get(name.lower(), THEMES["dark"])
