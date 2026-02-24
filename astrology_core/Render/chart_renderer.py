@@ -9,18 +9,11 @@ import math
 import matplotlib.pyplot as plt
 
 from .theme import get_theme
-from .draw_zodiac import draw_zodiac_circle, draw_zodiac_labels
-from .draw_houses import draw_houses
-from .draw_planets import draw_planets
-from .draw_aspects import draw_aspects
+from .angle_utils import chart_angle
 
 
 def deg_to_rad(deg):
     return math.radians(deg)
-
-
-def chart_angle(lon):
-    return deg_to_rad(90 - lon)
 
 
 def render_chart(
