@@ -1,11 +1,11 @@
 
-============================================================
+#============================================================
 
-DRAW_HOUSES (THEME-DRIVEN VERSION)
+#DRAW_HOUSES (THEME-DRIVEN VERSION)
 
-Fully rewritten by Roshina Project
+#Fully rewritten by Roshina Project
 
-============================================================
+#============================================================
 
 from .chart_renderer import chart_angle
 from .theme import get_theme
