@@ -18,33 +18,34 @@ THEMES = {
     # --------------------------------------------------------
     #  LIGHT THEME
     # --------------------------------------------------------
-    "light": {
-        "background": "#FFFFFF",
-        "zodiac_circle": "#333333",
-        "zodiac_text": "#222222",
-        "house_lines": "#555555",
-        "house_numbers": "#444444",
+   "light": {
+    "background": "#FAFAFA",          # سفید ملایم، نه سفید خالص
+    "zodiac_circle": "#555555",       # خاکستری تیره‌تر برای وضوح بهتر
+    "zodiac_text": "#1A1A1A",         # مشکی ملایم، خوانایی بالا
+    "house_lines": "#B0B0B0",         # خاکستری روشن و ظریف
+    "house_numbers": "#333333",       # کمی تیره‌تر برای خوانایی
 
-        "planet_color": "#000000",
-        "planet_label_color": "#111111",
+    "planet_color": "#000000",        # سیارات مشکی برای وضوح
+    "planet_label_color": "#444444",  # درجه‌ها کمی روشن‌تر
 
-        "aspect_colors": {
-            "conjunction": "#000000",
-            "sextile": "#0099FF",
-            "square": "#FF3333",
-            "trine": "#33CC66",
-            "opposition": "#FF0000"
-        },
+    "aspect_colors": {
+        "conjunction": "#000000",     # مشکی
+        "opposition": "#E53935",      # قرمز ملایم‌تر و مدرن‌تر
+        "square": "#E53935",          # همان رنگ برای هماهنگی
+        "trine": "#1E88E5",           # آبی روشن و شیک
+        "sextile": "#43A047"          # سبز ملایم و هماهنگ
+    },
 
-        "font": "DejaVu Sans",
-        "planet_size": 16,
-        "planet_label_size": 10,
-        "zodiac_size": 18,
-        "house_number_size": 12,
+    "font": "Vazirmatn-Regular",
 
-        "zodiac_ring_width": 1.4,
-        "house_line_width": 1.0,
-        "aspect_line_alpha": 0.85
+    "planet_size": 20,                # کمی بزرگ‌تر برای زیبایی
+    "planet_label_size": 11,
+    "zodiac_size": 22,                # خوانایی بهتر
+    "house_number_size": 13,
+
+    "zodiac_ring_width": 2.0,         # کمی ضخیم‌تر برای وضوح
+    "house_line_width": 1.1,          # ظریف و مینیمال
+    "aspect_line_alpha": 0.80         # ملایم‌تر از نسخه قبلی
     },
 
     # --------------------------------------------------------
