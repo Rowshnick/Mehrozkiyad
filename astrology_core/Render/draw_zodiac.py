@@ -1,10 +1,6 @@
-
 #============================================================
-
 #DRAW_ZODIAC (THEME-DRIVEN VERSION)
-
 #Fully rewritten by Roshina Project
-
 #============================================================
 
 import math
