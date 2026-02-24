@@ -1,13 +1,20 @@
-# astrology_core/Render/advanced_renderer.py
+# ============================================================
+#  ADVANCED RENDERER (THEME-DRIVEN VERSION)
+#  Fully rewritten for Roshina Project
+# ============================================================
 
 import math
 import os
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-# =========================
+from .theme import get_theme
+from .chart_renderer import chart_angle
+
+
+# ============================================================
 #  CONSTANTS & SYMBOLS
-# =========================
+# ============================================================
 
 ZODIAC_SIGNS = [
     "♈", "♉", "♊", "♋", "♌", "♍",
@@ -30,28 +37,12 @@ PLANET_SYMBOLS = {
     "Fortune": "⊗",
 }
 
-ASPECT_COLORS = {
-    "conjunction": "#333333",
-    "opposition": "#e74c3c",
-    "square": "#e74c3c",
-    "trine": "#3498db",
-    "sextile": "#3498db",
-}
-
 MAJOR_ASPECTS = {"conjunction", "opposition", "square", "trine", "sextile"}
 
 
-# =========================
-#  HELPER FUNCTIONS
-# =========================
-
-def deg_to_rad(deg):
-    return math.radians(deg)
-
-
-def chart_angle(lon):
-    return deg_to_rad(90 - lon)
-
+# ============================================================
+#  NORMALIZATION HELPERS
+# ============================================================
 
 def normalize_houses(houses_raw):
     if isinstance(houses_raw, list):
@@ -67,33 +58,24 @@ def normalize_aspects(aspects_raw):
     return {"planet_aspects": []}
 
 
-# =========================
+# ============================================================
 #  SAVE FUNCTION
-# =========================
+# ============================================================
 
-def save_chart(
-    fig,
-    filename="chart_output",
-    directory="/content",
-    format="png",
-    dpi=300
-):
-    """
-    ذخیرهٔ چارت با فرمت دلخواه
-    format: png, pdf, svg, jpg, eps
-    """
+def save_chart(fig, filename="chart_output", directory="/content", format="png", dpi=300):
     os.makedirs(directory, exist_ok=True)
     filepath = os.path.join(directory, f"{filename}.{format}")
     fig.savefig(filepath, format=format, dpi=dpi)
     return filepath
 
 
-# =========================
-#  MAIN RENDERER
-# =========================
+# ============================================================
+#  MAIN RENDERER (THEME-DRIVEN)
+# ============================================================
 
 def render_chart_pretty(
     chart,
+    theme="dark",
     show_aspects=True,
     show_houses=True,
     show_points=True,
@@ -104,15 +86,18 @@ def render_chart_pretty(
     save_name="chart",
 ):
 
+    theme = get_theme(theme)
+
     fig, ax = plt.subplots(
         figsize=figsize,
         dpi=dpi,
         subplot_kw={"projection": "polar"}
     )
 
+    # Theme background
+    ax.set_facecolor(theme["background"])
     ax.set_theta_direction(-1)
     ax.set_theta_zero_location("E")
-    ax.set_facecolor("#fafafa")
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -120,18 +105,20 @@ def render_chart_pretty(
     r_planets = 0.70
     r_houses = 0.95
 
-    # دایره زودیاک
+    # -----------------------------
+    #  Zodiac Circle
+    # -----------------------------
     circle = plt.Circle(
         (0, 0),
         r_zodiac,
         transform=ax.transData._b,
         fill=False,
-        color="#555555",
-        linewidth=1.2,
+        color=theme["zodiac_circle"],
+        linewidth=theme["zodiac_ring_width"],
     )
     ax.add_artist(circle)
 
-    # نشانه‌های زودیاک
+    # Zodiac labels
     for i in range(12):
         lon = i * 30 + 15
         theta = chart_angle(lon)
@@ -141,79 +128,101 @@ def render_chart_pretty(
             ZODIAC_SIGNS[i],
             ha="center",
             va="center",
-            fontsize=16,
-            color="#333333",
+            fontsize=theme["zodiac_size"],
+            color=theme["zodiac_text"],
+            fontname=theme["font"],
         )
 
-    # خانه‌ها
+    # -----------------------------
+    #  Houses
+    # -----------------------------
     houses = normalize_houses(chart.get("houses"))
     if show_houses and houses:
         for i in range(1, 13):
             cusp = houses.get(f"Cusp{i}")
             if not cusp:
                 continue
+
             lon = cusp["lon"]
             theta = chart_angle(lon)
+
             ax.plot(
                 [theta, theta],
                 [0, r_houses],
-                color="#bbbbbb",
-                linewidth=0.8,
+                color=theme["house_lines"],
+                linewidth=theme["house_line_width"],
                 zorder=1,
             )
+
             ax.text(
                 theta,
                 r_houses + 0.02,
                 str(i),
                 ha="center",
                 va="center",
-                fontsize=9,
-                color="#777777",
+                fontsize=theme["house_number_size"],
+                color=theme["house_numbers"],
+                fontname=theme["font"],
             )
 
-    # سیارات
+    # -----------------------------
+    #  Planets
+    # -----------------------------
     planets = chart.get("planets", {})
     for name, data in planets.items():
         lon = data["lon"]
         theta = chart_angle(lon)
         symbol = PLANET_SYMBOLS.get(name, "•")
 
-        ax.scatter(
-            [theta],
-            [r_planets],
-            color="#111111",
-            s=18,
-            zorder=5,
-        )
         ax.text(
             theta,
-            r_planets + 0.05,
+            r_planets,
             symbol,
             ha="center",
             va="center",
-            fontsize=13,
-            color="#111111",
+            fontsize=theme["planet_size"],
+            color=theme["planet_color"],
+            fontname=theme["font"],
+            zorder=5,
         )
 
-    # نقاط اضافی
+        deg = round(lon % 30, 1)
+        ax.text(
+            theta,
+            r_planets + 0.06,
+            f"{deg}°",
+            ha="center",
+            va="center",
+            fontsize=theme["planet_label_size"],
+            color=theme["planet_label_color"],
+            fontname=theme["font"],
+        )
+
+    # -----------------------------
+    #  Sensitive Points
+    # -----------------------------
     if show_points:
         points = chart.get("points", {})
         for name, data in points.items():
             lon = data["lon"]
             theta = chart_angle(lon)
             symbol = PLANET_SYMBOLS.get(name, "•")
-            ax.scatter([theta], [r_planets - 0.08], color="#444444", s=12, zorder=4)
+
             ax.text(
                 theta,
-                r_planets - 0.13,
+                r_planets - 0.10,
                 symbol,
                 ha="center",
                 va="center",
-                fontsize=11,
-                color="#444444",
+                fontsize=theme["planet_label_size"],
+                color=theme["planet_label_color"],
+                fontname=theme["font"],
+                zorder=4,
             )
 
-    # جنبه‌ها
+    # -----------------------------
+    #  Aspects
+    # -----------------------------
     if show_aspects:
         aspects = normalize_aspects(chart.get("aspects"))
         for asp in aspects.get("planet_aspects", []):
@@ -231,7 +240,7 @@ def render_chart_pretty(
             theta1 = chart_angle(lon1)
             theta2 = chart_angle(lon2)
 
-            color = ASPECT_COLORS.get(a_type, "#333333")
+            color = theme["aspect_colors"].get(a_type, "#888888")
             strength = asp.get("strength", 0.5)
             lw = 0.6 + 2.0 * max(0.0, min(1.0, strength))
 
@@ -240,48 +249,40 @@ def render_chart_pretty(
                 [r_planets, r_planets],
                 color=color,
                 linewidth=lw,
-                alpha=0.85,
+                alpha=theme["aspect_line_alpha"],
                 zorder=3,
             )
 
     ax.set_rlim(0, 1.1)
     plt.tight_layout()
 
-    # ذخیره‌سازی
     if save_as:
-        save_chart(
-            fig,
-            filename=save_name,
-            directory=save_dir,
-            format=save_as,
-            dpi=dpi
-        )
+        save_chart(fig, filename=save_name, directory=save_dir, format=save_as, dpi=dpi)
 
     return fig
 
 
-# =========================
-#  TRANSIT ANIMATION
-# =========================
+# ============================================================
+#  TRANSIT ANIMATION (THEME-DRIVEN)
+# ============================================================
 
 def animate_transits(
     natal_chart,
     transit_charts,
+    theme="dark",
     dpi=150,
     figsize=(8, 8),
     interval=200,
 ):
-    """
-    انیمیشن ترانزیت روی چارت ناتال
-    """
+    theme = get_theme(theme)
 
-    fig = render_chart_pretty(natal_chart, show_aspects=False)
+    fig = render_chart_pretty(natal_chart, theme=theme, show_aspects=False)
     ax = fig.axes[0]
 
     r_planets_transit = 0.55
 
-    transit_scat = ax.scatter([], [], color="#d35400", s=18, zorder=6)
     transit_texts = []
+    transit_scat = ax.scatter([], [], color=theme["planet_color"], s=18, zorder=6)
 
     def init():
         transit_scat.set_offsets([])
@@ -319,8 +320,8 @@ def animate_transits(
                 symbol,
                 ha="center",
                 va="center",
-                fontsize=11,
-                color="#d35400",
+                fontsize=theme["planet_label_size"],
+                color=theme["planet_color"],
                 zorder=7,
             )
             transit_texts.append(txt)
@@ -338,4 +339,3 @@ def animate_transits(
     )
 
     return fig, anim
-    
