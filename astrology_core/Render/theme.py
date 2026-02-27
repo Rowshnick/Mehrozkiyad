@@ -174,3 +174,4 @@ THEMES = {
 # ------------------------------------------------------------
 def get_theme(name: str):
     return THEMES.get(name.lower(), THEMES["dark"])
+    
