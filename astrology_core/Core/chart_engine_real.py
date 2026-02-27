@@ -1,3 +1,11 @@
+# ============================================================
+#  CHART_ENGINE_REAL (REAL VERSION)
+#  Fully rewritten by Roshina Project
+# ============================================================
+
+
+
+
 from datetime import datetime
 from .planets import compute_planets
 from .houses import compute_houses
