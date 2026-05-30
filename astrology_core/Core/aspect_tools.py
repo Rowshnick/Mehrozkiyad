@@ -27,7 +27,6 @@ Aspect = Dict[str, object]
 
 def filter_aspects(
     aspects: List[Aspect],
-    categories: Optional[List[str]] = None,
     planets_included: Optional[List[str]] = None,
     planets_excluded: Optional[List[str]] = None,
     max_orb: Optional[float] = None,
@@ -38,14 +37,10 @@ def filter_aspects(
     result = []
 
     for a in aspects:
-        cat = a["category"]
-        p1 = a["p1"]
-        p2 = a["p2"]
+        p1 = a["planet1"]
+        p2 = a["planet2"]
         orb = a["orb"]
-        atype = a["type"]
-
-        if categories and cat not in categories:
-            continue
+        atype = a["aspect"]
 
         if planets_included and not (p1 in planets_included or p2 in planets_included):
             continue
@@ -72,19 +67,19 @@ def filter_aspects(
 # =========================================================
 
 ASPECT_BASE_WEIGHTS = {
-    "Conjunction": 5,
-    "Opposition": 5,
-    "Square": 4,
-    "Trine": 4,
-    "Sextile": 3,
-    "Quincunx": 3,
-    "Semi-Sextile": 2,
-    "Semi-Square": 2,
-    "Sesquiquadrate": 2,
-    "Parallel": 4,
-    "Contra-Parallel": 4,
-    "Lat-Parallel": 3,
-    "Lat-Contra-Parallel": 3,
+    "conjunction": 5,
+    "opposition": 5,
+    "square": 4,
+    "trine": 4,
+    "sextile": 3,
+    "quincunx": 3,
+    "semisextile": 2,
+    "semisquare": 2,
+    "sesquiquadrate": 2,
+    "parallel": 4,
+    "contraparallel": 4,
+    "latparallel": 3,
+    "latcontraparallel": 3,
 }
 
 PLANET_WEIGHTS = {
@@ -109,9 +104,9 @@ def get_planet_weight(planet: str) -> int:
 
 def compute_aspect_weight(aspect: Aspect, max_orb_for_type: float = 6.0) -> float:
 
-    base = ASPECT_BASE_WEIGHTS.get(aspect["type"], 1)
-    p1_w = get_planet_weight(aspect["p1"])
-    p2_w = get_planet_weight(aspect["p2"])
+    base = ASPECT_BASE_WEIGHTS.get(aspect["aspect"].lower(), 1)
+    p1_w = get_planet_weight(aspect["planet1"])
+    p2_w = get_planet_weight(aspect["planet2"])
     orb = aspect["orb"]
 
     tight_factor = max(0.1, 1.0 - (orb / max_orb_for_type))
@@ -123,14 +118,7 @@ def compute_aspect_weight(aspect: Aspect, max_orb_for_type: float = 6.0) -> floa
 def add_weights_to_aspects(aspects: List[Aspect]) -> List[Aspect]:
 
     for a in aspects:
-        if a["category"] == "Longitude":
-            max_orb = 6.0
-        elif a["category"] == "Declination":
-            max_orb = 1.5
-        else:
-            max_orb = 1.5
-
-        a["weight"] = compute_aspect_weight(a, max_orb_for_type=max_orb)
+        a["weight"] = compute_aspect_weight(a)
 
     return aspects
 
@@ -153,25 +141,25 @@ PLANET_ORB_FACTORS = {
 }
 
 ASPECT_BASE_ORBS = {
-    "Conjunction": 8.0,
-    "Opposition": 8.0,
-    "Square": 7.0,
-    "Trine": 7.0,
-    "Sextile": 5.0,
-    "Quincunx": 3.0,
-    "Semi-Sextile": 2.0,
-    "Semi-Square": 2.0,
-    "Sesquiquadrate": 2.0,
-    "Parallel": 1.5,
-    "Contra-Parallel": 1.5,
-    "Lat-Parallel": 1.0,
-    "Lat-Contra-Parallel": 1.0,
+    "conjunction": 8.0,
+    "opposition": 8.0,
+    "square": 7.0,
+    "trine": 7.0,
+    "sextile": 5.0,
+    "quincunx": 3.0,
+    "semisextile": 2.0,
+    "semisquare": 2.0,
+    "sesquiquadrate": 2.0,
+    "parallel": 1.5,
+    "contraparallel": 1.5,
+    "latparallel": 1.0,
+    "latcontraparallel": 1.0,
 }
 
 
 def get_orb_for_aspect(atype: str, p1: str, p2: str) -> float:
 
-    base = ASPECT_BASE_ORBS.get(atype, 2.0)
+    base = ASPECT_BASE_ORBS.get(atype.lower(), 2.0)
     f1 = PLANET_ORB_FACTORS.get(p1, 0.8)
     f2 = PLANET_ORB_FACTORS.get(p2, 0.8)
 
@@ -226,8 +214,8 @@ def get_transit_aspects(
 
     result = []
     for a in aspects:
-        p1 = a["p1"]
-        p2 = a["p2"]
+        p1 = a["planet1"]
+        p2 = a["planet2"]
         if (p1.startswith("N_") and p2.startswith("T_")) or (p1.startswith("T_") and p2.startswith("N_")):
             result.append(a)
 
@@ -281,8 +269,8 @@ def get_progressed_aspects_to_natal(
 
     result = []
     for a in aspects:
-        p1 = a["p1"]
-        p2 = a["p2"]
+        p1 = a["planet1"]
+        p2 = a["planet2"]
         if (p1.startswith("N_") and p2.startswith("P_")) or (p1.startswith("P_") and p2.startswith("N_")):
             result.append(a)
 
