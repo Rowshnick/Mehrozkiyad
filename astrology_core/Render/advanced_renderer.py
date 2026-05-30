@@ -1,4 +1,4 @@
- # advanced_renderer.py
+# advanced_renderer.py
 # رندر پیشرفتهٔ چارت + انیمیشن ترانزیت
 
 from __future__ import annotations
