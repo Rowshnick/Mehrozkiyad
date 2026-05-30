@@ -4,7 +4,7 @@
 #  - سیارات واقعی با Skyfield
 #  - خانه‌ها (Placidus / Whole Sign)
 #  - نقاط حساس (Node, Lilith, Fortune, Vertex, East Point)
-#  - جنبه‌ها (سیارات + نقاط)
+#  - جنبه‌ها (سیارات + نقاط) با ساختار استاندارد p1/p2
 # ============================================================
 
 from __future__ import annotations
@@ -81,7 +81,6 @@ def _merge_bodies_for_aspects(planets: Dict[str, Dict[str, Any]],
     for name, data in points.items():
         merged[name] = {
             "lon": float(data.get("lon")),
-            # speed برای نقاط نداریم
         }
 
     return merged
@@ -150,7 +149,18 @@ def build_chart(
 
     # 6) جنبه‌ها (سیارات + نقاط)
     bodies_for_aspects = _merge_bodies_for_aspects(planets, points)
-    aspects_list = compute_all_aspects(bodies_for_aspects)
+    raw_aspects = compute_all_aspects(bodies_for_aspects)
+
+    # تبدیل ساختار به فرمت استاندارد p1/p2
+    aspects_list = []
+    for a in raw_aspects:
+        aspects_list.append({
+            "p1": a.get("planet1"),
+            "p2": a.get("planet2"),
+            "type": a.get("type"),
+            "orb": a.get("orb"),
+            "category": a.get("category"),
+        })
 
     aspects_block = {
         "planet_aspects": aspects_list
