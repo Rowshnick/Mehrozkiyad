@@ -82,9 +82,11 @@ def compute_secondary_progressions(
     # فقط جنبه‌های N ↔ P
     result = []
     for a in aspects:
-        p1 = a["p1"]
-        p2 = a["p2"]
-        if (p1.startswith("N_") and p2.startswith("P_")) or (p1.startswith("P_") and p2.startswith("N_")):
+        p1 = a["planet1"]
+        p2 = a["planet2"]
+
+        if (p1.startswith("N_") and p2.startswith("P_")) or \
+           (p1.startswith("P_") and p2.startswith("N_")):
             result.append(a)
 
     return {
