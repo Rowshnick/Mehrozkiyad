@@ -1,9 +1,8 @@
-
 # ============================================================
 #  ADVANCED RENDERER (THEME-DRIVEN VERSION)
 #  Fully rewritten by Roshina Project
 # ============================================================
-
+import numpy as np
 import math
 import os
 import matplotlib.pyplot as plt
@@ -156,7 +155,8 @@ def animate_transits(
         xs = [r * math.cos(t) for r, t in zip(rs, thetas)]
         ys = [r * math.sin(t) for r, t in zip(rs, thetas)]
         offsets = list(zip(xs, ys))
-        transit_scat.set_offsets(offsets)
+        transit_scat.set_offsets(np.empty((0, 2))) 
+        
 
         for txt in transit_texts:
             txt.remove()
