@@ -1,5 +1,5 @@
 # transits.py
-# موتور ترانزیت هماهنگ با موتور جدید جنبه‌ها
+# موتور ترانزیت هماهنگ با موتور جدید جنبه‌ها و ساختار p1/p2
 
 from __future__ import annotations
 from typing import Dict, Any
@@ -34,7 +34,6 @@ def compute_transits_to_natal(
         natal_minute,
         natal_tz,
     )
-
     natal_planets = get_all_planets(natal_t)
 
     # زمان ترانزیت
@@ -46,7 +45,6 @@ def compute_transits_to_natal(
         transit_minute,
         transit_tz,
     )
-
     transit_planets = get_all_planets(transit_t)
 
     # ادغام برای موتور جنبه‌ها
@@ -59,20 +57,25 @@ def compute_transits_to_natal(
         combined[f"T_{name}"] = data
 
     # محاسبهٔ جنبه‌ها
-    aspects = compute_all_aspects(combined)
+    raw_aspects = compute_all_aspects(combined)
 
-    # فقط جنبه‌های N ↔ T
-    result = []
-    for a in aspects:
+    # فقط جنبه‌های N ↔ T و تبدیل به ساختار p1/p2
+    aspects_list = []
+    for a in raw_aspects:
         p1 = a["planet1"]
         p2 = a["planet2"]
-
         if (p1.startswith("N_") and p2.startswith("T_")) or \
            (p1.startswith("T_") and p2.startswith("N_")):
-            result.append(a)
+            aspects_list.append({
+                "p1": p1,
+                "p2": p2,
+                "type": a.get("type"),
+                "orb": a.get("orb"),
+                "category": None,
+            })
 
     return {
         "natal": natal_planets,
         "transit": transit_planets,
-        "aspects": result,
+        "aspects": aspects_list,
     }
