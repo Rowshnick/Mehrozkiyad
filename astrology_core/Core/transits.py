@@ -1,22 +1,53 @@
-# astrology_core/Core/transits.py
+# transits.py
+# موتور ترانزیت هماهنگ با موتور جدید جنبه‌ها
+
+from __future__ import annotations
+from typing import Dict, Any
 
 from astrology_core.Engine.planets import get_all_planets, get_time
-from astrology_core.Core.aspect_tools import get_aspect_engine
+from astrology_core.Core.aspects import compute_all_aspects
+
 
 def compute_transits_to_natal(
-    natal_year, natal_month, natal_day, natal_hour, natal_minute, natal_tz,
-    natal_lat, natal_lon,
-    transit_year, transit_month, transit_day, transit_hour, transit_minute, transit_tz
-):
+    natal_year: int,
+    natal_month: int,
+    natal_day: int,
+    natal_hour: int,
+    natal_minute: int,
+    natal_tz: float,
+    natal_lat: float,
+    natal_lon: float,
+    transit_year: int,
+    transit_month: int,
+    transit_day: int,
+    transit_hour: int,
+    transit_minute: int,
+    transit_tz: float,
+) -> Dict[str, Any]:
+
     # زمان ناتال
-    t_natal = get_time(natal_year, natal_month, natal_day, natal_hour, natal_minute, natal_tz)
+    natal_t = get_time(
+        natal_year,
+        natal_month,
+        natal_day,
+        natal_hour,
+        natal_minute,
+        natal_tz,
+    )
+
+    natal_planets = get_all_planets(natal_t)
 
     # زمان ترانزیت
-    t_transit = get_time(transit_year, transit_month, transit_day, transit_hour, transit_minute, transit_tz)
+    transit_t = get_time(
+        transit_year,
+        transit_month,
+        transit_day,
+        transit_hour,
+        transit_minute,
+        transit_tz,
+    )
 
-    # سیارات ناتال و ترانزیت
-    natal_planets = get_all_planets(t_natal)
-    transit_planets = get_all_planets(t_transit)
+    transit_planets = get_all_planets(transit_t)
 
     # ادغام برای موتور جنبه‌ها
     combined = {}
@@ -27,18 +58,19 @@ def compute_transits_to_natal(
     for name, data in transit_planets.items():
         combined[f"T_{name}"] = data
 
-    # جنبه‌ها
-    aspects = get_aspect_engine(combined)
+    # محاسبهٔ جنبه‌ها
+    aspects = compute_all_aspects(combined)
 
-    # فقط جنبه‌های بین ناتال و ترانزیت
-    inter_aspects = [
-        a for a in aspects
-        if (a["p1"].startswith("N_") and a["p2"].startswith("T_"))
-        or (a["p1"].startswith("T_") and a["p2"].startswith("N_"))
-    ]
+    # فقط جنبه‌های N ↔ T
+    result = []
+    for a in aspects:
+        p1 = a["p1"]
+        p2 = a["p2"]
+        if (p1.startswith("N_") and p2.startswith("T_")) or (p1.startswith("T_") and p2.startswith("N_")):
+            result.append(a)
 
     return {
-        "natal_planets": natal_planets,
-        "transit_planets": transit_planets,
-        "inter_aspects": inter_aspects,
+        "natal": natal_planets,
+        "transit": transit_planets,
+        "aspects": result,
     }
