@@ -4,11 +4,6 @@
 #  Fully rewritten by Roshina Project
 # ============================================================
 
-# ============================================================
-#  ADVANCED RENDERER (THEME-DRIVEN VERSION)
-#  Fully rewritten by Roshina Project
-# ============================================================
-
 import math
 import os
 import matplotlib.pyplot as plt
