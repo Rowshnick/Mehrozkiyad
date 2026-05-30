@@ -132,36 +132,37 @@ class AstroChart:
         )
         return fig
 
-    def save(
-    self,
-    theme: str = "dark",
-    filename: str = "chart",
-    directory: str = ".",
-    fmt: str = "png",
-    dpi: int = 300,
-    show_aspects: bool = True,
-    show_houses: bool = True,
-    show_points: bool = True,
-) -> str:
-    """
-    ذخیرهٔ چارت در قالب دلخواه (png, pdf, svg, ...)
-    """
-    fig = render_chart_pretty(
-        self.chart,
-        theme=theme,
-        show_aspects=show_aspects,
-        show_houses=show_houses,
-        show_points=show_points,
-        dpi=dpi,
-        figsize=(8, 8),
-        save_as=fmt,
-        save_dir=directory,
-        save_name=filename,
-    )
 
-    import os
-    return os.path.join(directory, f"{filename}.{fmt}")
-    
+    def save(
+        self,
+        theme: str = "dark",
+        filename: str = "chart",
+        directory: str = ".",
+        fmt: str = "png",
+        dpi: int = 300,
+        show_aspects: bool = True,
+        show_houses: bool = True,
+        show_points: bool = True,
+    ) -> str:
+        """
+        ذخیرهٔ چارت در قالب دلخواه (png, pdf, svg, ...)
+        """
+        fig = render_chart_pretty(
+            self.chart,
+            theme=theme,
+            show_aspects=show_aspects,
+            show_houses=show_houses,
+            show_points=show_points,
+            dpi=dpi,
+            figsize=(8, 8),
+            save_as=fmt,
+            save_dir=directory,
+            save_name=filename,
+        )
+
+        import os
+        return os.path.join(directory, f"{filename}.{fmt}")
+        
     # --------------------------------------------------------
     #  Animation (Transits)
     # --------------------------------------------------------
