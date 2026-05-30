@@ -1,5 +1,5 @@
 # progressions.py
-# موتور پروگرشن ثانویه هماهنگ با موتور جدید جنبه‌ها
+# موتور پروگرشن ثانویه هماهنگ با موتور جدید جنبه‌ها و ساختار p1/p2
 
 from __future__ import annotations
 from typing import Dict, Any
@@ -77,20 +77,25 @@ def compute_secondary_progressions(
         combined[f"P_{name}"] = data
 
     # محاسبهٔ جنبه‌ها
-    aspects = compute_all_aspects(combined)
+    raw_aspects = compute_all_aspects(combined)
 
-    # فقط جنبه‌های N ↔ P
-    result = []
-    for a in aspects:
+    # فقط جنبه‌های N ↔ P و تبدیل به ساختار p1/p2
+    aspects_list = []
+    for a in raw_aspects:
         p1 = a["planet1"]
         p2 = a["planet2"]
-
         if (p1.startswith("N_") and p2.startswith("P_")) or \
            (p1.startswith("P_") and p2.startswith("N_")):
-            result.append(a)
+            aspects_list.append({
+                "p1": p1,
+                "p2": p2,
+                "type": a.get("type"),
+                "orb": a.get("orb"),
+                "category": None,
+            })
 
     return {
         "natal": natal_planets,
         "progressed": progressed_planets,
-        "aspects": result,
+        "aspects": aspects_list,
     }
