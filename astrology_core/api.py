@@ -1,34 +1,24 @@
 # ============================================================
 #  PUBLIC API LAYER (LAYER 4)
 #  AstroChart – Unified interface for the whole engine
-#  Fully designed for Roshina Project
 # ============================================================
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Tuple, List
+import json
 
-# --- Engine (real chart builder) ---
 from astrology_core.Engine.chart_engine import build_chart
-
-# --- Advanced engines (transits & progressions) ---
 from astrology_core.Core.transits import compute_transits_to_natal
 from astrology_core.Core.progressions import compute_secondary_progressions
-
-# --- Render layer ---
 from astrology_core.Render.advanced_renderer import (
     render_chart_pretty,
     animate_transits as _animate_transits_impl,
 )
 
-
 ChartDict = Dict[str, Any]
 
-
-# ============================================================
-#  AstroChart – main high-level object
-# ============================================================
 
 @dataclass
 class AstroChart:
@@ -40,17 +30,6 @@ class AstroChart:
 
     @classmethod
     def from_chart_dict(cls, chart: ChartDict) -> "AstroChart":
-        """
-        ساخت AstroChart از یک دیکشنری آماده.
-        این دیکشنری باید ساختار استاندارد زیر را داشته باشد:
-        {
-            "planets": {...},
-            "houses": {...},
-            "aspects": {...},
-            "points": {...},
-            "meta": {...}
-        }
-        """
         return cls(chart=chart)
 
     @classmethod
@@ -66,13 +45,6 @@ class AstroChart:
         tz_offset: float = 0.0,
         house_system: str = "placidus",
     ) -> "AstroChart":
-        """
-        ساخت چارت ناتال واقعی از داده‌های تولد.
-
-        house_system:
-            - "placidus"  (پیش‌فرض، استاندارد جهانی)
-            - "whole_sign"
-        """
         chart = build_chart(
             year=year,
             month=month,
@@ -85,6 +57,14 @@ class AstroChart:
             house_system=house_system,
         )
         return cls(chart=chart)
+
+    @classmethod
+    def from_json(cls, s: str) -> "AstroChart":
+        """
+        ساخت AstroChart از رشتهٔ JSON.
+        """
+        data = json.loads(s)
+        return cls(chart=data)
 
     # --------------------------------------------------------
     #  Basic accessors
@@ -106,6 +86,84 @@ class AstroChart:
         return self.chart.get("meta", {})
 
     # --------------------------------------------------------
+    #  Fine-grained getters
+    # --------------------------------------------------------
+
+    def get_planet(self, name: str) -> Dict[str, Any] | None:
+        """
+        گرفتن اطلاعات یک سیاره، مثلاً get_planet("Mars")
+        """
+        return self.get_planets().get(name)
+
+    def get_house(self, index: int) -> Dict[str, Any] | None:
+        """
+        گرفتن اطلاعات یک خانه، مثلاً get_house(7)
+        """
+        return self.get_houses().get(f"Cusp{index}")
+
+    def get_point(self, name: str) -> Dict[str, Any] | None:
+        """
+        گرفتن اطلاعات یک نقطهٔ حساس، مثلاً get_point("Fortune")
+        """
+        return self.get_points().get(name)
+
+    def get_aspects_of(self, body_name: str) -> List[Dict[str, Any]]:
+        """
+        همهٔ جنبه‌های مربوط به یک سیاره/نقطه، مثلاً "Sun"
+        """
+        aspects_block = self.get_aspects()
+        aspects = aspects_block.get("planet_aspects", []) or aspects_block.get("aspects", [])
+        result = []
+        for a in aspects:
+            p1 = a.get("planet1") or a.get("p1")
+            p2 = a.get("planet2") or a.get("p2")
+            if p1 == body_name or p2 == body_name:
+                result.append(a)
+        return result
+
+    # --------------------------------------------------------
+    #  Serialization
+    # --------------------------------------------------------
+
+    def to_json(self, indent: int | None = 2) -> str:
+        """
+        تبدیل چارت به JSON (برای ذخیره‌سازی/انتقال).
+        """
+        return json.dumps(self.chart, ensure_ascii=False, indent=indent)
+
+    # --------------------------------------------------------
+    #  Summary
+    # --------------------------------------------------------
+
+    def summary(self) -> str:
+        """
+        خلاصه‌ای متنی از چارت: سیارات، خانه‌ها، سیستم خانه، زمان و مکان.
+        """
+        meta = self.get_meta()
+        planets = self.get_planets()
+        houses = self.get_houses()
+
+        lines: List[str] = []
+        lines.append("AstroChart Summary")
+        lines.append("------------------")
+        lines.append(f"Datetime: {meta.get('datetime')}")
+        lines.append(f"Lat/Lon:  {meta.get('lat')}, {meta.get('lon')}")
+        lines.append(f"TZ:       {meta.get('tz_offset')}")
+        lines.append(f"House system: {meta.get('house_system')}")
+        lines.append("")
+        lines.append("Planets:")
+        for name, data in planets.items():
+            lon = data.get("lon")
+            lines.append(f"  - {name}: {lon:.2f}°")
+        lines.append("")
+        lines.append("Houses (cusps):")
+        for i in range(1, 13):
+            cusp = houses.get(f"Cusp{i}")
+            if cusp:
+                lines.append(f"  - House {i}: {cusp['lon']:.2f}°")
+        return "\n".join(lines)
+
+    # --------------------------------------------------------
     #  Rendering
     # --------------------------------------------------------
 
@@ -118,9 +176,6 @@ class AstroChart:
         dpi: int = 200,
         figsize: Tuple[int, int] = (8, 8),
     ):
-        """
-        رندر چارت با استفاده از رندرر پیشرفته.
-        """
         fig = render_chart_pretty(
             self.chart,
             theme=theme,
@@ -131,7 +186,6 @@ class AstroChart:
             figsize=figsize,
         )
         return fig
-
 
     def save(
         self,
@@ -144,9 +198,6 @@ class AstroChart:
         show_houses: bool = True,
         show_points: bool = True,
     ) -> str:
-        """
-        ذخیرهٔ چارت در قالب دلخواه (png, pdf, svg, ...)
-        """
         fig = render_chart_pretty(
             self.chart,
             theme=theme,
@@ -159,10 +210,9 @@ class AstroChart:
             save_dir=directory,
             save_name=filename,
         )
-
         import os
         return os.path.join(directory, f"{filename}.{fmt}")
-        
+
     # --------------------------------------------------------
     #  Animation (Transits)
     # --------------------------------------------------------
@@ -175,10 +225,6 @@ class AstroChart:
         figsize: Tuple[int, int] = (8, 8),
         interval: int = 200,
     ):
-        """
-        ساخت انیمیشن ترانزیت‌ها روی چارت ناتال فعلی.
-        transit_charts: لیستی از چارت‌های ترانزیتی (ساختار مشابه chart_engine).
-        """
         fig, anim = _animate_transits_impl(
             natal_chart=self.chart,
             transit_charts=transit_charts,
@@ -202,11 +248,6 @@ class AstroChart:
         transit_minute: int,
         transit_tz: float,
     ) -> Dict[str, Any]:
-        """
-        محاسبهٔ ترانزیت‌ها نسبت به این چارت ناتال.
-
-        از Core/transits.py استفاده می‌کند.
-        """
         meta = self.get_meta()
         natal_str = meta.get("datetime")
         tz_offset = meta.get("tz_offset", 0.0)
@@ -216,7 +257,6 @@ class AstroChart:
         if not natal_str or lat is None or lon is None:
             raise ValueError("Meta اطلاعات کافی برای ترانزیت ندارد (datetime/lat/lon).")
 
-        # انتظار فرمت ساده "YYYY-M-D H:M"
         date_part, time_part = natal_str.split()
         y, m, d = [int(x) for x in date_part.split("-")]
         hh, mm = [int(x) for x in time_part.split(":")]
@@ -237,7 +277,6 @@ class AstroChart:
             transit_minute=transit_minute,
             transit_tz=transit_tz,
         )
-
         return result
 
     # --------------------------------------------------------
@@ -248,11 +287,6 @@ class AstroChart:
         self,
         age_years: float,
     ) -> Dict[str, Any]:
-        """
-        محاسبهٔ پروگرشن ثانویه برای این چارت ناتال.
-
-        age_years: سن (سال) در زمان مورد نظر.
-        """
         meta = self.get_meta()
         natal_str = meta.get("datetime")
         tz_offset = meta.get("tz_offset", 0.0)
@@ -277,5 +311,5 @@ class AstroChart:
             natal_lon=lon,
             age_years=age_years,
         )
-
         return result
+
