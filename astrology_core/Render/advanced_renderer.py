@@ -1,190 +1,336 @@
-# ============================================================
-#  ADVANCED RENDERER (THEME-DRIVEN VERSION)
-#  Fully rewritten by Roshina Project
-# ============================================================
+ # advanced_renderer.py
+# رندر پیشرفتهٔ چارت + انیمیشن ترانزیت
+
+from __future__ import annotations
+
+from typing import Dict, Any, List, Tuple, Optional
+
 import numpy as np
-import math
-import os
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 from matplotlib.animation import FuncAnimation
 
-from .theme import get_theme
-from .angle_utils import chart_angle
-from .draw_zodiac import draw_zodiac_circle, draw_zodiac_labels
-from .draw_houses import draw_houses
-from .draw_planets import draw_planets, PLANET_SYMBOLS
-from .draw_aspects import draw_aspects
+ChartDict = Dict[str, Any]
 
 
-def save_chart(
-    fig,
-    filename="chart_output",
-    directory="/content",
-    format="png",
-    dpi=300,
-):
-    os.makedirs(directory, exist_ok=True)
-    filepath = os.path.join(directory, f"{filename}.{format}")
-    fig.savefig(filepath, format=format, dpi=dpi)
-    return filepath
+# ------------------------------------------------------------
+#  Helpers
+# ------------------------------------------------------------
 
+def _deg_to_rad(deg: float) -> float:
+    return np.deg2rad(deg)
+
+
+def _polar_to_cartesian(lon_deg: float, r: float = 1.0) -> Tuple[float, float]:
+    """
+    تبدیل طول دایرةالبروجی (درجه) به مختصات کارتزین روی دایره.
+    0° = Aries = سمت راست (x مثبت)
+    """
+    angle = _deg_to_rad(90 - lon_deg)  # چرخش برای قرار دادن 0° در سمت راست
+    x = r * np.cos(angle)
+    y = r * np.sin(angle)
+    return x, y
+
+
+def _get_theme_colors(theme: str) -> Dict[str, str]:
+    if theme == "light":
+        return {
+            "bg": "#ffffff",
+            "fg": "#000000",
+            "circle": "#444444",
+            "planet": "#222222",
+            "house": "#888888",
+            "aspect_major": "#ff5555",
+            "aspect_minor": "#ffaa00",
+        }
+    # default: dark
+    return {
+        "bg": "#111111",
+        "fg": "#eeeeee",
+        "circle": "#666666",
+        "planet": "#ffffff",
+        "house": "#aaaaaa",
+        "aspect_major": "#ff6666",
+        "aspect_minor": "#ffcc66",
+    }
+
+
+# ------------------------------------------------------------
+#  Static chart rendering
+# ------------------------------------------------------------
 
 def render_chart_pretty(
-    chart,
-    theme="dark",
-    show_aspects=True,
-    show_houses=True,
-    show_points=True,
-    dpi=200,
-    figsize=(8, 8),
-    save_as=None,
-    save_dir="/content",
-    save_name="chart",
+    chart: ChartDict,
+    theme: str = "dark",
+    show_aspects: bool = True,
+    show_houses: bool = True,
+    show_points: bool = True,
+    dpi: int = 200,
+    figsize: Tuple[int, int] = (8, 8),
+    save_as: Optional[str] = None,
+    save_dir: str = ".",
+    save_name: str = "chart",
 ):
-    theme_dict = get_theme(theme)
+    """
+    رندر چارت ناتال (یا هر چارت دیگری) روی یک چرخ ساده و زیبا.
+    """
+    colors = _get_theme_colors(theme)
 
-    fig, ax = plt.subplots(
-        figsize=figsize,
-        dpi=dpi,
-        subplot_kw={"projection": "polar"},
-    )
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig.patch.set_facecolor(colors["bg"])
+    ax.set_facecolor(colors["bg"])
+    ax.set_aspect("equal")
+    ax.axis("off")
 
-    ax.set_theta_direction(-1)
-    ax.set_theta_zero_location("E")
-    ax.set_facecolor(theme_dict["background"])
-    ax.set_xticks([])
-    ax.set_yticks([])
+    # دایرهٔ اصلی
+    outer = Circle((0, 0), 1.0, edgecolor=colors["circle"], facecolor="none", lw=2)
+    inner = Circle((0, 0), 0.7, edgecolor=colors["circle"], facecolor="none", lw=1)
+    ax.add_patch(outer)
+    ax.add_patch(inner)
 
-    r_zodiac = 0.85
-    r_planets = 0.70
-    r_houses = 0.95
+    planets = chart.get("planets", {})
+    houses = chart.get("houses", {})
+    points = chart.get("points", {})
+    aspects_block = chart.get("aspects", {})
+    planet_aspects = aspects_block.get("planet_aspects", []) or aspects_block.get("aspects", [])
 
-    # زودیاک
-    draw_zodiac_circle(ax, r_zodiac=r_zodiac, theme_name=theme)
-    draw_zodiac_labels(ax, r_zodiac=r_zodiac, theme_name=theme)
+    # سیارات
+    for name, data in planets.items():
+        lon = float(data.get("lon", 0.0))
+        x, y = _polar_to_cartesian(lon, r=0.85)
+        ax.scatter(x, y, color=colors["planet"], s=30, zorder=5)
+        ax.text(
+            x, y, name,
+            color=colors["fg"],
+            fontsize=8,
+            ha="center",
+            va="center",
+            zorder=6,
+        )
+
+    # نقاط حساس
+    if show_points:
+        for name, data in points.items():
+            lon = float(data.get("lon", 0.0))
+            x, y = _polar_to_cartesian(lon, r=0.6)
+            ax.scatter(x, y, color=colors["planet"], s=20, zorder=4)
+            ax.text(
+                x, y, name,
+                color=colors["fg"],
+                fontsize=7,
+                ha="center",
+                va="center",
+                zorder=5,
+            )
 
     # خانه‌ها
-    draw_houses(
-        ax,
-        chart,
-        r_houses=r_houses,
-        theme_name=theme,
-        show_houses=show_houses,
-    )
-
-    # سیارات و نقاط
-    draw_planets(
-        ax,
-        chart,
-        r_planets=r_planets,
-        theme_name=theme,
-        show_points=show_points,
-    )
+    if show_houses:
+        for i in range(1, 13):
+            cusp = houses.get(f"Cusp{i}")
+            if not cusp:
+                continue
+            lon = float(cusp.get("lon", 0.0))
+            x1, y1 = _polar_to_cartesian(lon, r=0.7)
+            x2, y2 = _polar_to_cartesian(lon, r=1.0)
+            ax.plot([x1, x2], [y1, y2], color=colors["house"], lw=0.8, zorder=1)
+            xm, ym = _polar_to_cartesian(lon + 15, r=0.55)
+            ax.text(
+                xm, ym, str(i),
+                color=colors["fg"],
+                fontsize=8,
+                ha="center",
+                va="center",
+                zorder=2,
+            )
 
     # جنبه‌ها
-    draw_aspects(
-        ax,
-        chart,
-        r_planets=r_planets,
-        theme_name=theme,
-        show_aspects=show_aspects,
-    )
+    if show_aspects:
+        for a in planet_aspects:
+            p1 = a.get("planet1") or a.get("p1")
+            p2 = a.get("planet2") or a.get("p2")
+            if not p1 or not p2:
+                continue
 
-    ax.set_rlim(0, 1.1)
-    plt.tight_layout()
+            body1 = planets.get(p1) or points.get(p1)
+            body2 = planets.get(p2) or points.get(p2)
+            if not body1 or not body2:
+                continue
 
-    if save_as:
-        save_chart(
-            fig,
-            filename=save_name,
-            directory=save_dir,
-            format=save_as,
-            dpi=dpi,
-        )
+            lon1 = float(body1.get("lon", 0.0))
+            lon2 = float(body2.get("lon", 0.0))
+            x1, y1 = _polar_to_cartesian(lon1, r=0.9)
+            x2, y2 = _polar_to_cartesian(lon2, r=0.9)
+
+            atype = a.get("type", "major")
+            if atype == "major":
+                col = colors["aspect_major"]
+                lw = 1.2
+            else:
+                col = colors["aspect_minor"]
+                lw = 0.8
+
+            ax.plot([x1, x2], [y1, y2], color=col, lw=lw, alpha=0.7, zorder=0)
+
+    ax.set_xlim(-1.1, 1.1)
+    ax.set_ylim(-1.1, 1.1)
+
+    if save_as is not None:
+        import os
+        path = os.path.join(save_dir, f"{save_name}.{save_as}")
+        fig.savefig(path, dpi=dpi, facecolor=colors["bg"], bbox_inches="tight")
+        plt.close(fig)
+        return path
 
     return fig
 
 
+# ------------------------------------------------------------
+#  Transit animation
+# ------------------------------------------------------------
+
 def animate_transits(
-    natal_chart,
-    transit_charts,
-    theme="dark",
-    dpi=150,
-    figsize=(8, 8),
-    interval=200,
+    natal_chart: ChartDict,
+    transit_charts: List[ChartDict],
+    theme: str = "dark",
+    dpi: int = 150,
+    figsize: Tuple[int, int] = (8, 8),
+    interval: int = 200,
 ):
-    theme_dict = get_theme(theme)
+    """
+    انیمیشن سادهٔ ترانزیت روی چارت ناتال.
+    """
+    colors = _get_theme_colors(theme)
 
-    fig = render_chart_pretty(
-        natal_chart,
-        theme=theme,
-        show_aspects=False,
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig.patch.set_facecolor(colors["bg"])
+    ax.set_facecolor(colors["bg"])
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+    # دایرهٔ اصلی
+    outer = Circle((0, 0), 1.0, edgecolor=colors["circle"], facecolor="none", lw=2)
+    inner = Circle((0, 0), 0.7, edgecolor=colors["circle"], facecolor="none", lw=1)
+    ax.add_patch(outer)
+    ax.add_patch(inner)
+
+    natal_planets = natal_chart.get("planets", {})
+    natal_points = natal_chart.get("points", {})
+    natal_houses = natal_chart.get("houses", {})
+
+    # ناتال ثابت
+    for name, data in natal_planets.items():
+        lon = float(data.get("lon", 0.0))
+        x, y = _polar_to_cartesian(lon, r=0.85)
+        ax.scatter(x, y, color=colors["planet"], s=30, zorder=5)
+        ax.text(
+            x, y, name,
+            color=colors["fg"],
+            fontsize=8,
+            ha="center",
+            va="center",
+            zorder=6,
+        )
+
+    for name, data in natal_points.items():
+        lon = float(data.get("lon", 0.0))
+        x, y = _polar_to_cartesian(lon, r=0.6)
+        ax.scatter(x, y, color=colors["planet"], s=20, zorder=4)
+        ax.text(
+            x, y, name,
+            color=colors["fg"],
+            fontsize=7,
+            ha="center",
+            va="center",
+            zorder=5,
+        )
+
+    for i in range(1, 13):
+        cusp = natal_houses.get(f"Cusp{i}")
+        if not cusp:
+            continue
+        lon = float(cusp.get("lon", 0.0))
+        x1, y1 = _polar_to_cartesian(lon, r=0.7)
+        x2, y2 = _polar_to_cartesian(lon, r=1.0)
+        ax.plot([x1, x2], [y1, y2], color=colors["house"], lw=0.8, zorder=1)
+
+    # نقاط ترانزیت (scatter)
+    transit_scat = ax.scatter([], [], color="#55aaff", s=25, zorder=7)
+    transit_texts: List[Any] = []
+
+    title_text = ax.text(
+        0, 1.15, "",
+        color=colors["fg"],
+        fontsize=10,
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
     )
-    ax = fig.axes[0]
 
-    r_planets_transit = 0.55
-
-    transit_texts = []
-    transit_scat = ax.scatter(
-        [],
-        [],
-        color=theme_dict["planet_color"],
-        s=theme_dict["planet_size"],
-        zorder=6,
-    )
+    ax.set_xlim(-1.1, 1.1)
+    ax.set_ylim(-1.1, 1.1)
 
     def init():
-        transit_scat.set_offsets([])
+        # 🔴 اصلاح اصلی: آرایهٔ خالی ۲بعدی به‌جای []
+        transit_scat.set_offsets(np.empty((0, 2)))
         for txt in transit_texts:
             txt.remove()
         transit_texts.clear()
-        return [transit_scat]
+        title_text.set_text("")
+        return [transit_scat, title_text]
 
-    def update(frame_idx):
-        chart_tr = transit_charts[frame_idx]
-        planets_tr = chart_tr.get("planets", {})
+    def update(frame_idx: int):
+        if frame_idx >= len(transit_charts):
+            return [transit_scat, title_text]
 
-        thetas = []
-        rs = []
-        for name, data in planets_tr.items():
-            lon = data["lon"]
-            theta = chart_angle(lon)
-            thetas.append(theta)
-            rs.append(r_planets_transit)
+        chart = transit_charts[frame_idx]
+        planets = chart.get("planets", {})
+        meta = chart.get("meta", {})
 
-        xs = [r * math.cos(t) for r, t in zip(rs, thetas)]
-        ys = [r * math.sin(t) for r, t in zip(rs, thetas)]
-        offsets = list(zip(xs, ys))
-        transit_scat.set_offsets(np.empty((0, 2))) 
-        
+        xs = []
+        ys = []
+        for name, data in planets.items():
+            lon = float(data.get("lon", 0.0))
+            x, y = _polar_to_cartesian(lon, r=0.95)
+            xs.append(x)
+            ys.append(y)
 
+        # پاک کردن لیبل‌های قبلی
         for txt in transit_texts:
             txt.remove()
         transit_texts.clear()
 
-        for (name, data), theta in zip(planets_tr.items(), thetas):
-            symbol = PLANET_SYMBOLS.get(name, "•")
-            txt = ax.text(
-                theta,
-                r_planets_transit + 0.05,
-                symbol,
+        # لیبل‌های جدید
+        for (name, data), x, y in zip(planets.items(), xs, ys):
+            t = ax.text(
+                x, y, name,
+                color="#55aaff",
+                fontsize=7,
                 ha="center",
                 va="center",
-                fontsize=theme_dict["planet_label_size"],
-                color=theme_dict["planet_color"],
-                zorder=7,
+                zorder=8,
             )
-            transit_texts.append(txt)
+            transit_texts.append(t)
 
-        return [transit_scat] + transit_texts
+        if xs and ys:
+            coords = np.column_stack([xs, ys])
+        else:
+            # 🔴 اگر هیچ سیاره‌ای نباشد، باز هم آرایهٔ ۲بعدی خالی بده
+            coords = np.empty((0, 2))
+
+        transit_scat.set_offsets(coords)
+
+        dt_str = meta.get("datetime", "")
+        title_text.set_text(f"Transits – {dt_str}")
+
+        return [transit_scat, title_text] + transit_texts
 
     anim = FuncAnimation(
         fig,
         update,
         frames=len(transit_charts),
         init_func=init,
-        blit=False,
         interval=interval,
+        blit=False,
         repeat=True,
     )
 
