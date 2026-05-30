@@ -1,32 +1,95 @@
 # ============================================================
-#  CHART ENGINE (REAL VERSION)
-#  Fully rewritten by Roshina Project
-#  Placidus = default house system
-#  Whole Sign = optional
+#  CHART ENGINE (LAYER 3)
+#  Real chart builder for Roshina Project
+#  - سیارات واقعی با Skyfield
+#  - خانه‌ها (Placidus / Whole Sign)
+#  - نقاط حساس (Node, Lilith, Fortune, Vertex, East Point)
+#  - جنبه‌ها (سیارات + نقاط)
 # ============================================================
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Literal
 
-# --- Skyfield-based planet engine ---
-from .planets import get_time, get_all_planets
+# --- Engines ---
+from astrology_core.Engine.planets import (
+    get_time,
+    get_all_planets,
+)
 
-# --- House systems ---
 from astrology_core.Core.houses import (
+    get_asc_mc,
     build_placidus_houses,
     build_whole_sign_houses,
 )
 
-# --- Aspect engine ---
-from astrology_core.Core.aspects import compute_all_aspects
+from astrology_core.Core.points import (
+    get_extra_points,
+)
 
-# --- Sensitive points ---
-from astrology_core.Core.points import get_extra_points
+from astrology_core.Core.aspects import (
+    compute_all_aspects,
+)
 
 
-# ============================================================
-#  MAIN ENGINE
-# ============================================================
+ChartDict = Dict[str, Any]
+HouseSystem = Literal["placidus", "whole_sign"]
+
+
+# ------------------------------------------------------------
+#  Helpers
+# ------------------------------------------------------------
+
+def _build_houses_dict(cusps_list):
+    """
+    تبدیل لیست ۱۲تایی کاسپ‌ها به دیکشنری استاندارد:
+    {
+        "Cusp1": {"lon": ...},
+        ...
+        "Cusp12": {"lon": ...}
+    }
+    """
+    houses = {}
+    for i, lon in enumerate(cusps_list, start=1):
+        houses[f"Cusp{i}"] = {"lon": float(lon)}
+    return houses
+
+
+def _merge_bodies_for_aspects(planets: Dict[str, Dict[str, Any]],
+                              points: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """
+    ادغام سیارات و نقاط برای موتور جنبه‌ها.
+    ساختار خروجی:
+    {
+        "Sun": {"lon": ..., "speed": ...},
+        "Moon": {...},
+        "Fortune": {"lon": ...},
+        ...
+    }
+    """
+    merged = {}
+
+    # سیارات (شامل lon و speed)
+    for name, data in planets.items():
+        merged[name] = {
+            "lon": float(data.get("lon")),
+            "speed": float(data.get("speed", 0.0)),
+        }
+
+    # نقاط (فقط lon)
+    for name, data in points.items():
+        merged[name] = {
+            "lon": float(data.get("lon")),
+            # speed برای نقاط نداریم
+        }
+
+    return merged
+
+
+# ------------------------------------------------------------
+#  Main chart builder
+# ------------------------------------------------------------
 
 def build_chart(
     year: int,
@@ -37,100 +100,79 @@ def build_chart(
     lat: float,
     lon: float,
     tz_offset: float = 0.0,
-    house_system: str = "placidus",
-) -> Dict[str, Any]:
+    house_system: HouseSystem = "placidus",
+) -> ChartDict:
     """
-    ساخت چارت واقعی با Skyfield + موتور جنبه + سیستم خانه‌ها + نقاط حساس.
+    ساخت یک چارت واقعی (ناتال یا هر لحظهٔ دیگر) بر اساس:
+    - تاریخ و زمان
+    - مختصات جغرافیایی
+    - منطقهٔ زمانی
+    - سیستم خانه (Placidus / Whole Sign)
 
     خروجی:
     {
         "planets": {...},
         "houses": {...},
-        "aspects": {...},
         "points": {...},
+        "aspects": {...},
         "meta": {...}
     }
     """
 
-    # --------------------------------------------------------
     # 1) زمان Skyfield
-    # --------------------------------------------------------
     t = get_time(year, month, day, hour, minute, tz_offset)
 
-    # --------------------------------------------------------
-    # 2) سیارات (lon + speed + sign + deg_in_sign)
-    # --------------------------------------------------------
+    # 2) سیارات (طول دایرةالبروجی + سرعت)
     planets = get_all_planets(t)
 
-    # --------------------------------------------------------
-    # 3) سیستم خانه‌ها
-    # --------------------------------------------------------
-    if house_system.lower() == "placidus":
-        cusps = build_placidus_houses(t, lat, lon)
-    elif house_system.lower() == "whole_sign":
-        # Whole Sign از Asc شروع می‌شود
-        asc = planets["Asc"]["lon"] if "Asc" in planets else None
-        if asc is None:
-            # اگر Asc در planets نبود، باید از houses.py محاسبه شود
-            from astrology_core.Core.houses import get_asc_mc
-            asc, _ = get_asc_mc(t, lat, lon)
-        cusps = build_whole_sign_houses(asc)
+    # 3) Asc و MC
+    asc_lon, mc_lon = get_asc_mc(t, latitude_deg=lat, longitude_deg=lon)
+
+    # 4) خانه‌ها
+    if house_system == "placidus":
+        cusps = build_placidus_houses(t, latitude_deg=lat, longitude_deg=lon)
+    elif house_system == "whole_sign":
+        cusps = build_whole_sign_houses(asc_lon)
     else:
         raise ValueError(f"Unknown house system: {house_system}")
 
-    houses = {f"Cusp{i+1}": {"lon": cusps[i]} for i in range(12)}
+    houses = _build_houses_dict(cusps)
 
-    # --------------------------------------------------------
-    # 4) نقاط حساس (Node, Lilith, Fortune, Vertex, East Point)
-    # --------------------------------------------------------
-    # Asc و MC لازم هستند
-    from astrology_core.Core.houses import get_asc_mc
-    asc, mc = get_asc_mc(t, lat, lon)
-
+    # 5) نقاط حساس (Node, Lilith, Fortune, Vertex, East Point)
     points = get_extra_points(
         t=t,
-        asc=asc,
-        mc=mc,
+        asc=asc_lon,
+        mc=mc_lon,
         latitude_deg=lat,
         longitude_deg=lon,
         planets=planets,
     )
 
-    # --------------------------------------------------------
-    # 5) جنبه‌ها (major + minor + applying + strength)
-    # --------------------------------------------------------
-    # bodies = planets + points + cusps (اختیاری)
-    bodies = {}
+    # 6) جنبه‌ها (سیارات + نقاط)
+    bodies_for_aspects = _merge_bodies_for_aspects(planets, points)
+    aspects_list = compute_all_aspects(bodies_for_aspects)
 
-    # سیارات
-    for k, v in planets.items():
-        bodies[k] = {"lon": v["lon"], "speed": v["speed"]}
+    aspects_block = {
+        "planet_aspects": aspects_list
+    }
 
-    # نقاط حساس
-    for k, v in points.items():
-        bodies[k] = {"lon": v["lon"]}
+    # 7) متادیتا
+    dt = datetime(year, month, day, hour, minute)
+    meta = {
+        "datetime": dt.strftime("%Y-%m-%d %H:%M"),
+        "lat": float(lat),
+        "lon": float(lon),
+        "tz_offset": float(tz_offset),
+        "house_system": house_system,
+    }
 
-    # کاسپ‌ها (اختیاری – اگر بخواهی می‌توانیم حذف کنیم)
-    for i in range(12):
-        bodies[f"Cusp{i+1}"] = {"lon": cusps[i]}
-
-    aspects = compute_all_aspects(bodies)
-
-    # --------------------------------------------------------
-    # 6) ساخت خروجی نهایی
-    # --------------------------------------------------------
-    chart = {
+    # 8) ساخت ساختار نهایی چارت
+    chart: ChartDict = {
         "planets": planets,
         "houses": houses,
-        "aspects": {"planet_aspects": aspects},
         "points": points,
-        "meta": {
-            "datetime": f"{year}-{month}-{day} {hour}:{minute}",
-            "lat": lat,
-            "lon": lon,
-            "tz_offset": tz_offset,
-            "house_system": house_system,
-        },
+        "aspects": aspects_block,
+        "meta": meta,
     }
 
     return chart
