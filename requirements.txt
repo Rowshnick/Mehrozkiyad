@@ -1,21 +1,9 @@
-python-telegram-bot[webhooks]==21.7
-pyswisseph==2.10.3.2  # ✅ نسخه را به 2.10.3.2 تغییر دهید
-persiantools
+python-telegram-bot==20.3
 fastapi
 uvicorn
-httpx
-pydantic
-geopy
-persiantools
-pytz
-numpy
-jplephem
-python-dotenv
-timezonefinder[database] 
-aiosqlite
+pillow
 matplotlib
-jdatetime
-arabic-reshaper
-python-bidi
-fpdf2
-aiogram==3.4.1
+numpy
+skyfield
+sgp4
+jplephem
